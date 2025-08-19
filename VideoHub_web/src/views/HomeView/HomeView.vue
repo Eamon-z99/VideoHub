@@ -132,7 +132,7 @@
             <a href="#" class="grid-itemb"><img src="../assets/channel/huodong.png" class="grid-itemb-img">活动</a>
             <a href="#" class="grid-itemb"><img src="../assets/channel/shequ.png" class="grid-itemb-img">社区中心</a>
             <a href="#" class="grid-itemb"><img src="../assets/channel/zhibo.png" class="grid-itemb-img">直播</a>
-            <a href="#" class="grid-itemb"><img src="../assets/channel/课堂.png" class="grid-itemb-img">课堂</a>
+            <a href="#" class="grid-itemb"><img src="../assets/channel/ketang.png" class="grid-itemb-img">课堂</a>
             <a href="#" class="grid-itemb"><img src="../assets/channel/新歌热榜.png" class="grid-itemb-img">新歌热榜</a>
           </div>
         </div>
