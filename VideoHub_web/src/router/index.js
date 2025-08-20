@@ -7,12 +7,12 @@ const router = createRouter({
     {
       path: '/',
       name: 'home',
-      component: HomeView,
+      component: VideoStart,
     },
     {
       path: '/video/:id',
       name: 'video-start',
-      component: VideoStart,
+      component: HomeView,
     }
   ]
 })
