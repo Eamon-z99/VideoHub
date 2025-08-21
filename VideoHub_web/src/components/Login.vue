@@ -61,7 +61,7 @@ const login = async () => {
     <div class="login-box">
       <!-- 左侧背景图 -->
       <div class="login-left">
-        <img src="../assets/注册页背景.png" alt="背景图片" class="background-image" />
+        <img src="../assets/register-bg.png" alt="背景图片" class="background-image" />
       </div>
 
       <!-- 右侧登录表单 -->
