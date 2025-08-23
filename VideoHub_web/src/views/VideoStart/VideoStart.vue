@@ -105,7 +105,8 @@ import { ref } from 'vue'
 import { View, ChatDotRound, Timer } from '@element-plus/icons-vue'
 import { Pointer, Star, Share } from '@element-plus/icons-vue'
 
-import poster from '@/assets/header.png'
+// 使用public目录下的图片
+const poster = '/assets/header.png'
 
 const title = ref('首盒流梦奇毁了王者荣耀')
 const playCount = ref('32.2万')

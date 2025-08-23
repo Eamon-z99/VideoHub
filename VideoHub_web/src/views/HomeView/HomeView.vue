@@ -3,7 +3,7 @@
     <div class="hearder_bar">
       <ul class="header_bar_left">
         <li class="events">
-          <img src="../assets/home.png" class="events-img" />
+          <img src="/assets/home.png" class="events-img" />
           <span>首页</span>
         </li>
         <li class="events"><span>番剧</span></li>
@@ -13,14 +13,14 @@
         <li class="events"><span>漫画</span></li>
         <li class="events"><span>赛事</span></li>
         <li class="events">
-          <img src="../assets/download-client.png" class="events-img" />
+          <img src="/assets/download-client.png" class="events-img" />
           <span>下载客户端</span>
         </li>
       </ul>
       <div class="header_bar_search">
         <input type="text" class="search-input" />
         <div class="search-btn">
-          <img src="../assets/search.png" class="search-btn-img" />
+          <img src="/assets/search.png" class="search-btn-img" />
         </div>
       </div>
       <ul class="header_bar_right">
@@ -31,62 +31,62 @@
         </li>
         <li class="events">
           <div class="events-imgb-container">
-            <img src="../assets/vip.png" class="events-imgb" />
+            <img src="/assets/vip.png" class="events-imgb" />
             <span>大会员</span>
           </div>
         </li>
         <li class="events">
           <div class="events-imgb-container">
-            <img src="../assets/messages.png" class="events-imgb" />
+            <img src="/assets/messages.png" class="events-imgb" />
             <span>消息</span>
           </div>
         </li>
         <li class="events">
           <div class="events-imgb-container">
-            <img src="../assets/feed.png" class="events-imgb" />
+            <img src="/assets/feed.png" class="events-imgb" />
             <span>动态</span>
           </div>
         </li>
         <li class="events">
           <div class="events-imgb-container">
-            <img src="../assets/favorites.png" class="events-imgb" />
+            <img src="/assets/favorites.png" class="events-imgb" />
             <span>收藏</span>
           </div>
         </li>
         <li class="events">
           <div class="events-imgb-container">
-            <img src="../assets/history.png" class="events-imgb" />
+            <img src="/assets/history.png" class="events-imgb" />
             <span>历史</span>
           </div>
         </li>
         <li class="events">
           <div class="events-imgb-container">
-            <img src="../assets/creator-center.png" class="events-imgb" />
+            <img src="/assets/creator-center.png" class="events-imgb" />
             <span>创作中心</span>
           </div>
         </li>
         <li class="events">
           <div class="post-background">
-            <img src="../assets/upload.png" class="post-icon" />
+            <img src="/assets/upload.png" class="post-icon" />
             <span>投稿</span>
           </div>
         </li>
       </ul>
     </div>
-    <img src="../assets/header.png" alt="header background" class="background-image" />
+    <img src="/assets/header.png" alt="header background" class="background-image" />
     <br>
 
     <div class="header_channel">
       <div class="channel-icons">
         <li class="icons">
           <div class="dynamic">
-            <div class="dynamic-bg"><img src="../assets/feed.png" class="dynamic-img" /></div>
+            <div class="dynamic-bg"><img src="/assets/feed.png" class="dynamic-img" /></div>
             <span>动态</span>
           </div>
         </li>
         <li class="icons">
           <div class="popular">
-            <div class="popular-bg"><img src="../assets/trending.png" class="popular-img" /></div>
+            <div class="popular-bg"><img src="/assets/trending.png" class="popular-img" /></div>
             <span>热门</span>
           </div>
         </li>
@@ -128,12 +128,12 @@
         <div class="vertical-divider"></div> <!-- 分隔线 -->
         <div class="channel-right">
           <div class="grid-containerb">
-            <a href="#" class="grid-itemb"><img src="../assets/channel/column.png" class="grid-itemb-img">专栏</a>
-            <a href="#" class="grid-itemb"><img src="../assets/channel/activity.png" class="grid-itemb-img">活动</a>
-            <a href="#" class="grid-itemb"><img src="../assets/channel/community.png" class="grid-itemb-img">社区中心</a>
-            <a href="#" class="grid-itemb"><img src="../assets/channel/live.png" class="grid-itemb-img">直播</a>
-            <a href="#" class="grid-itemb"><img src="../assets/channel/class.png" class="grid-itemb-img">课堂</a>
-            <a href="#" class="grid-itemb"><img src="../assets/channel/new-songs-chart.png" class="grid-itemb-img">新歌热榜</a>
+            <a href="#" class="grid-itemb"><img src="/assets/channel/column.png" class="grid-itemb-img">专栏</a>
+            <a href="#" class="grid-itemb"><img src="/assets/channel/activity.png" class="grid-itemb-img">活动</a>
+            <a href="#" class="grid-itemb"><img src="/assets/channel/community.png" class="grid-itemb-img">社区中心</a>
+            <a href="#" class="grid-itemb"><img src="/assets/channel/live.png" class="grid-itemb-img">直播</a>
+            <a href="#" class="grid-itemb"><img src="/assets/channel/class.png" class="grid-itemb-img">课堂</a>
+            <a href="#" class="grid-itemb"><img src="/assets/channel/new-songs-chart.png" class="grid-itemb-img">新歌热榜</a>
           </div>
         </div>
       </div>
