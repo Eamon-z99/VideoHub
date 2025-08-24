@@ -174,191 +174,187 @@ const videoList = ref([
 ]);
 </script>
 
-<style scoped>
-/* 确保 router-link 不影响布局 */
+<style lang="scss" scoped>
+// 确保 router-link 不影响布局
 .login-link {
   display: inline-block;
   text-decoration: none;
 }
 
-.grid-itemb:hover {
-  color: skyblue; /* 鼠标悬停时字体颜色变为蓝色 */
-}
-.grid-itemb{
+// 频道网格样式
+.grid-itemb {
   display: flex;
   font-size: 8px;
   justify-content: center;
   align-items: center;
-  background-color: transparent; /* 设置背景色为透明 */
-  padding: 0; /* 内边距 */
-  text-decoration: none; /* 去掉下划线 */
-  color: #61666d; /* 字体颜色 */
-  font-size: 8px; /* 字体大小 */
-  gap:2.5px;
+  background-color: transparent;
+  padding: 0;
+  text-decoration: none;
+  color: #61666d;
+  gap: 2.5px;
+
+  &:hover {
+    color: skyblue;
+  }
+
+  &-img {
+    width: 10px;
+    height: 8px;
+  }
 }
 
-.grid-itemb-img {
-  width: 10px;
-  height: 8px;
-}
-
+// 频道容器
 .channel-container {
-  display: flex; /* 横向排列 */
-  gap: 5px; /* 图标之间的间距 */
+  display: flex;
+  gap: 5px;
   position: absolute;
   height: 70px;
   width: 85%;
   left: 14%;
+
+  &-left {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    width: 80%;
+    height: 100%;
+  }
+
+  &-right {
+    display: flex;
+    width: 20%;
+    height: 100%;
+  }
 }
 
-.channel-left {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  width: 80%; /* 调整宽度 */
-  height: 100%;
-}
-
-.channel-right {
-  display: flex;
-  width: 20%; /* 调整宽度 */
-  height: 100%;
-}
-
+// 分隔线
 .vertical-divider {
-  width: 0.5px; /* 分隔线的宽度 */
-  background-color: #ccc; /* 分隔线的颜色 */
-  margin-top:2%;
-  height: 50%; /* 分隔线的高度 */
-}
-
-.grid-containerb {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr); 
-  grid-template-rows: repeat(2, 1fr); /* 2行 */
-  gap: 0.5px; /* 间距 */
-  width: 75%;
+  width: 0.5px;
+  background-color: #ccc;
+  margin-top: 2%;
   height: 50%;
-  margin-top:10%;
 }
 
+// 网格容器
 .grid-container {
   display: grid;
-  grid-template-columns: repeat(14, 1fr); /* 14列 */
-  grid-template-rows: repeat(2, 1fr); /* 2行 */
-  gap: 4px; /* 间距 */
+  grid-template-columns: repeat(14, 1fr);
+  grid-template-rows: repeat(2, 1fr);
+  gap: 4px;
   width: 100%;
   height: 50%;
+
+  &b {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    grid-template-rows: repeat(2, 1fr);
+    gap: 0.5px;
+    width: 75%;
+    height: 50%;
+    margin-top: 10%;
+  }
 }
 
+// 网格项目
 .grid-item {
   display: flex;
   justify-content: center;
   align-items: center;
-  background-color: #f0f0f0; /* 背景色 */
-  border-radius: 5px; /* 圆角 */
-  padding: 2px; /* 内边距 */
-  text-decoration: none; /* 去掉下划线 */
-  color: #61666d; /* 字体颜色 */
-  font-size: 8px; /* 字体大小 */
-  transition: background-color 0.3s,color 0.3s; /* 背景颜色过渡效果 */
+  background-color: #f0f0f0;
+  border-radius: 5px;
+  padding: 2px;
+  text-decoration: none;
+  color: #61666d;
+  font-size: 8px;
+  transition: background-color 0.3s, color 0.3s;
+
+  &:hover {
+    background-color: #e0e0e0;
+    color: black;
+  }
 }
 
-.grid-item:hover {
-  background-color: #e0e0e0; /* 鼠标悬停时的背景色 */
-  color:black;
-}
-
-.channel-container{
-  display: flex; /* 横向排列 */
-  gap: 15px; /* 图标之间的间距 */
-  position: absolute;
-  height: 70px;
-  width: 85%;
-  left:14%; 
-}
-
-/* 动态图标样式 */
+// 动态图标样式
 .dynamic {
   display: flex;
-  flex-direction: column; /* 垂直排列 */
-  align-items: center; /* 水平居中 */
-  justify-content: center; /* 垂直居中 */
-  width: auto; /* 宽度自适应 */
-  height: auto; /* 高度自适应 */
-}
-
-.dynamic-bg {
-  width: 24px; /* 宽度与高度相等 */
-  height: 24px; /* 高度与宽度相等 */
-  background-color: #ff9212; /* 背景色为 #ff9212 */
-  border-radius: 50%; /* 圆形 */
-  display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
+  width: auto;
+  height: auto;
+
+  &-bg {
+    width: 24px;
+    height: 24px;
+    background-color: #ff9212;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  &-img {
+    width: 14px;
+    height: 14px;
+    filter: brightness(0) invert(1);
+    font-weight: 300;
+  }
+
+  span {
+    font-size: 8px;
+    color: black;
+    margin-top: 3px;
+  }
 }
 
-.dynamic-img {
-  width: 14px; /* 调整图标大小 */
-  height: 14px; /* 调整图标大小 */
-  filter: brightness(0) invert(1); /* 图标变白 */
-  font-weight: 300;
-}
-
-.dynamic span {
-  font-size: 8px; /* 文字大小 */
-  color: black; /* 文字颜色 */
-  margin-top: 3px; /* 文字与图标的间距 */
-}
-
-/* 热门图标样式 */
+// 热门图标样式
 .popular {
   display: flex;
-  flex-direction: column; /* 垂直排列 */
-  align-items: center; /* 水平居中 */
-  justify-content: center; /* 垂直居中 */
-  width: auto; /* 宽度自适应 */
-  height: auto; /* 高度自适应 */
-}
-
-.popular-bg {
-  width: 24px; /* 宽度与高度相等 */
-  height: 24px; /* 高度与宽度相等 */
-  background-color: #f07775; /* 背景色为 #f07775 */
-  border-radius: 50%; /* 圆形 */
-  display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
+  width: auto;
+  height: auto;
+
+  &-bg {
+    width: 24px;
+    height: 24px;
+    background-color: #f07775;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  &-img {
+    width: 12px;
+    height: 12px;
+    filter: brightness(0) invert(1);
+  }
+
+  span {
+    font-size: 8px;
+    color: black;
+    margin-top: 3px;
+  }
 }
 
-.popular-img {
-  width: 12px; /* 调整图标大小 */
-  height: 12px; /* 调整图标大小 */
-  filter: brightness(0) invert(1); /* 图标变白 */
-}
-
-.popular span {
-  font-size: 8px; /* 文字大小 */
-  color: black; /* 文字颜色 */
-  margin-top: 3px; /* 文字与图标的间距 */
-}
-
-/* 横向排列 */
+// 频道图标
 .channel-icons {
-  display: flex; /* 横向排列 */
-  gap: 15px; /* 图标之间的间距 */
+  display: flex;
+  gap: 15px;
   position: absolute;
   height: 70px;
-  width: auto; /* 宽度自适应 */
-  left:6%; /* 调整位置 */
-  top: 14%; /* 调整位置 */
+  width: auto;
+  left: 6%;
+  top: 14%;
+
+  .icons {
+    list-style-type: none;
+  }
 }
 
-.channel-icons .icons {
-  list-style-type: none; /* 去掉 ul 的圆点 */
-}
-
-/* 头部父元素样式 */
+// 头部父元素样式
 .cili_header {
   height: 300px;
   margin: 0 auto;
@@ -368,232 +364,224 @@ const videoList = ref([
   min-width: 800px;
   position: relative;
   background-color: #ffffff;
+
+  // 背景图片样式
+  .background-image {
+    position: absolute;
+    top: 0;
+    left: 0;
+    z-index: 0;
+    width: 100%;
+    max-height: 153px;
+  }
+
+  // 头部栏容器
+  .hearder_bar {
+    position: relative;
+    z-index: 1;
+    top: 0;
+    width: 100%;
+    height: 15%;
+
+    // 左侧栏样式
+    .header_bar_left {
+      display: flex;
+      position: absolute;
+      left: 3%;
+      top: 15%;
+      list-style-type: none;
+      padding-left: 0;
+      margin: 0;
+
+      .events {
+        margin-right: 10px;
+        list-style-type: none;
+
+        &:last-child {
+          margin-right: 0;
+        }
+
+        span {
+          color: white;
+          font-size: 9.5px;
+          cursor: pointer;
+          transition: color 0.2s, transform 0.2s;
+          display: inline-block;
+        }
+
+        &:hover span {
+          color: #00a1d6;
+          animation: jump 0.3s ease;
+        }
+      }
+    }
+
+    // 右侧栏样式
+    .header_bar_right {
+      display: flex;
+      position: absolute;
+      right: 3%;
+      top: 15%;
+      list-style-type: none;
+      padding-left: 0;
+      margin: 0;
+
+      .events {
+        margin-left: 15px;
+        list-style-type: none;
+
+        span {
+          color: white;
+          font-size: 9.5px;
+          cursor: pointer;
+          transition: color 0.2s, transform 0.2s;
+          display: inline-block;
+        }
+
+        &-imgb:hover {
+          animation: jump 0.3s ease;
+        }
+      }
+    }
+
+    // 搜索框容器样式
+    .header_bar_search {
+      position: absolute;
+      left: 50%;
+      top: 60%;
+      transform: translate(-50%, -50%);
+      display: flex;
+      align-items: center;
+      background: #ffffff;
+      border-radius: 6px;
+
+      // 搜索输入框样式
+      .search-input {
+        width: 330px;
+        height: 25px;
+        padding: 0 48px 0 10px;
+        position: relative;
+        overflow: hidden;
+        border: 1px solid var(--line_regular);
+        border-radius: 6px;
+        outline: none;
+        font-size: 9.5px;
+        transition: background-color 0.3s;
+        z-index: 2;
+
+        &:focus {
+          padding-left: 5px;
+          border: 1px solid #e3e5e7;
+          background: #ffffff;
+        }
+      }
+
+      // 搜索按钮样式
+      .search-btn {
+        position: absolute;
+        right: 3px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin: 0;
+        padding: 0;
+        width: 20px;
+        height: 20px;
+        border: none;
+        border-radius: 6px;
+        color: var(--text1);
+        line-height: 32px;
+        cursor: pointer;
+        transition: background-color 0.3s;
+        z-index: 3;
+
+        &:hover {
+          background-color: rgba(0, 0, 0, 0.1);
+        }
+
+        &-img {
+          width: 12px;
+          height: 12px;
+        }
+      }
+    }
+  }
+
+  // 导航栏布局
+  .header_channel {
+    height: 110px;
+    width: 1133px;
+    position: absolute;
+    top: 103px;
+  }
 }
 
-/* 背景图片样式 */
-.background-image {
-  position: absolute;
-  top: 0;
-  left: 0;
-  z-index: 0;
-  width: 100%;
-  max-height: 153px;
-}
-
-/* 头部栏容器 */
-.hearder_bar {
-  position: relative; /* 设置为相对定位，以便子元素可以绝对定位 */
-  z-index: 1; /* 确保头部栏在背景图片之上 */
-  top: 0;
-  width: 100%;
-  height: 15%;
-}
-
-/* 左侧栏样式 */
-.header_bar_left {
-  display: flex;
-  position: absolute;
-  left: 3%;
-  top: 15%;
-  list-style-type: none; /* 去掉 ul 的圆点 */
-  padding-left: 0; /* 移除默认的ul内边距 */
-  margin: 0; /* 移除默认的外边距 */
-}
-
-.header_bar_left .events {
-  margin-right: 10px;
-  list-style-type: none; /* 去掉 li 的圆点 */
-}
-
-.header_bar_left .events:last-child {
-  margin-right: 0; /* 最后一个元素不需要右侧间距 */
-}
-
-.header_bar_left .events span {
-  color: white; /* 字体颜色为白色 */
-  font-size: 9.5px; /* 字体大小 */
-  cursor: pointer; /* 鼠标悬停时显示手型 */
-  transition: color 0.2s, transform 0.2s; /* 添加颜色和位移过渡效果 */
-  display: inline-block; /* 确保 transform 生效 */
-}
-
-.header_bar_left .events:hover span {
-  color: #00a1d6; /* 鼠标悬停时改变字体颜色 */
-  animation: jump 0.3s ease; /* 触发跳动动画 */
-}
-
-/* 右侧栏样式 */
-.header_bar_right {
-  display: flex;
-  position: absolute;
-  right: 3%;
-  top: 15%;
-  list-style-type: none; /* 去掉 ul 的圆点 */
-  padding-left: 0; /* 移除默认的ul内边距 */
-  margin: 0; /* 移除默认的外边距 */
-}
-
-.header_bar_right .events {
-  margin-left: 15px;
-  list-style-type: none; /* 去掉 li 的圆点 */
-}
-
-.header_bar_right .events span {
-  color: white; /* 字体颜色为白色 */
-  font-size: 9.5px; /* 字体大小 */
-  cursor: pointer; /* 鼠标悬停时显示手型 */
-  transition: color 0.2s, transform 0.2s; /* 添加颜色和位移过渡效果 */
-  display: inline-block; /* 确保 transform 生效 */
-}
-
-.header_bar_right .events-imgb:hover {
-  animation: jump 0.3s ease; /* 触发跳动动画 */
-}
-
-/* 登录按钮样式 */
+// 登录按钮样式
 .login-button {
-  background-color: #00aeec; /* 蓝色背景 */
-  color: white; /* 文字颜色 */
-  padding: 4px 3px; /* 内边距 */
-  border-radius: 48%; /* 圆形 */
-  display: inline-block; /* 确保背景包裹文字 */
-  font-size: 9.5px; /* 文字大小 */
-  cursor: pointer; /* 鼠标悬停时显示手型 */
-  transition: background-color 0.2s, transform 0.2s; /* 添加背景色和位移过渡效果 */
+  background-color: #00aeec;
+  color: white;
+  padding: 4px 3px;
+  border-radius: 48%;
+  display: inline-block;
+  font-size: 9.5px;
+  cursor: pointer;
+  transition: background-color 0.2s, transform 0.2s;
+
+  &:hover {
+    background-color: #0099cc;
+    transform: translateY(-2px);
+  }
 }
 
-.login-button:hover {
-  background-color: #0099cc; /* 鼠标悬停时背景色变深 */
-  transform: translateY(-2px); /* 鼠标悬停时文字向上跳动 */
-}
-
-/* 投稿按钮样式 */
+// 投稿按钮样式
 .post-background {
-  background-color: #fb7299; /* 背景颜色 */
-  border-radius: 5px; /* 圆角弧度 */
-  padding: 1px 10px; /* 内边距 */
-  display: inline-flex; /* 使用 flex 布局 */
-  align-items: center; /* 垂直居中 */
-  gap: 1px; /* 图标和文字之间的间距 */
+  background-color: #fb7299;
+  border-radius: 5px;
+  padding: 1px 10px;
+  display: inline-flex;
+  align-items: center;
+  gap: 1px;
   width: 40px;
   height: 24px;
   margin-top: 3.5px;
-}
 
-.post-background span {
-  color: white; /* 文字颜色 */
-  font-size: 9.5px; /* 文字大小 */
-}
-
-.post-icon {
-  width: 19px; /* 图标宽度 */
-  height: 19px; /* 图标高度 */
-  filter: brightness(0) invert(1); /* 图标变白 */
-}
-
-/* 定义跳动动画 */
-@keyframes jump {
-  0% {
-    transform: translateY(0);
+  span {
+    color: white;
+    font-size: 9.5px;
   }
-  50% {
-    transform: translateY(-3px); /* 向上跳动 */
-  }
-  100% {
-    transform: translateY(0); /* 回到原位 */
+
+  .post-icon {
+    width: 19px;
+    height: 19px;
+    filter: brightness(0) invert(1);
   }
 }
 
-/* 搜索框容器样式 */
-.header_bar_search {
-  position: absolute;
-  left: 50%;
-  top: 60%;
-  transform: translate(-50%, -50%);
-  display: flex;
-  align-items: center;
-  background: #ffffff;
-  border-radius: 6px;
+// 图片样式
+.events {
+  &-img {
+    width: 15px;
+    height: 12px;
+    margin-right: 3px;
+    filter: brightness(0) invert(1);
+  }
+
+  &-imgb {
+    width: 14px;
+    height: 14px;
+    display: block;
+    margin: 0 auto 0px;
+    filter: brightness(0) invert(1);
+
+    &-container {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+  }
 }
 
-/* 搜索输入框样式 */
-.search-input {
-  width: 330px;
-  height: 25px;
-  padding: 0 48px 0 10px; /* 调整左侧 padding */
-  position: relative;
-  overflow: hidden;
-  border: 1px solid var(--line_regular);
-  border-radius: 6px;
-  outline: none;
-  font-size: 9.5px;
-  transition: background-color 0.3s;
-  z-index: 2;
-}
-
-.search-input:focus {
-  padding-left: 5px; /* 焦点状态下左侧 padding 为 5px */
-  border: 1px solid #e3e5e7;
-  background: #ffffff;
-}
-
-/* 搜索按钮样式 */
-.search-btn {
-  position: absolute;
-  right: 3px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  margin: 0;
-  padding: 0;
-  width: 20px;
-  height: 20px;
-  border: none;
-  border-radius: 6px;
-  color: var(--text1);
-  line-height: 32px;
-  cursor: pointer;
-  transition: background-color 0.3s;
-  z-index: 3;
-}
-
-.search-btn:hover {
-  background-color: rgba(0, 0, 0, 0.1); /* 鼠标悬停时的背景色 */
-}
-
-.search-btn-img {
-  width: 12px;
-  height: 12px;
-}
-
-/* events-img 样式：图片在 span 左边 */
-.events-img {
-  width: 15px; /* 调整图片大小 */
-  height: 12px; /* 调整图片大小 */
-  margin-right: 3px; /* 图片与文字之间的间距 */
-}
-
-/* events-imgb 样式：图片在 span 上边 */
-.events-imgb {
-  width: 14px; /* 调整图片大小 */
-  height: 14px; /* 调整图片大小 */
-  display: block; /* 将图片设置为块级元素 */
-  margin: 0 auto 0px; /* 图片与文字之间的间距 */
-}
-
-/* 确保 events-imgb 的容器是垂直排列 */
-.events-imgb-container {
-  display: flex;
-  flex-direction: column; /* 垂直排列 */
-  align-items: center; /* 水平居中 */
-}
-
-.events-img,
-.events-imgb {
-  filter: brightness(0) invert(1); /* 图标变白 */
-}
-
-/* 视频网格布局 */
+// 视频网格布局
 .video-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
@@ -605,27 +593,35 @@ const videoList = ref([
   box-sizing: border-box;
 }
 
-/* 导航栏布局 */
-.header_channel {
-  height: 110px;
-  width: 1133px;
-  position: absolute;
-  top: 103px;
+// 定义跳动动画
+@keyframes jump {
+  0% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-3px);
+  }
+  100% {
+    transform: translateY(0);
+  }
 }
 
-/* 当屏幕尺寸小于500px时，背景图片长度样式为auto */
+// 响应式设计
 @media (max-width: 500px) {
-  .background-image {
-    height: auto;
-    width: 100%;
-  }
-  .hearder_bar {
-    position: absolute;
-    z-index: 1;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: auto;
+  .cili_header {
+    .background-image {
+      height: auto;
+      width: 100%;
+    }
+
+    .hearder_bar {
+      position: absolute;
+      z-index: 1;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: auto;
+    }
   }
 }
 </style>
