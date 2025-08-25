@@ -1,6 +1,7 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import HomeView from '@/views/HomeView/HomeView.vue'
 import VideoStart from '@/views/VideoStart/VideoStart.vue'
+const UserProfile = () => import('@/views/UserProfile/UserProfile.vue')
 
 const routes = [
   {
@@ -12,6 +13,11 @@ const routes = [
     path: '/video/:id',
     name: 'video',
     component: VideoStart
+  },
+  {
+    path: '/profile/:id?',
+    name: 'profile',
+    component: UserProfile
   }
 ]
 
