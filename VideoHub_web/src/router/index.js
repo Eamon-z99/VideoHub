@@ -2,6 +2,7 @@ import { createRouter, createWebHistory } from 'vue-router'
 import HomeView from '@/views/HomeView/HomeView.vue'
 import VideoStart from '@/views/VideoStart/VideoStart.vue'
 const UserProfile = () => import('@/views/UserProfile/UserProfile.vue')
+const FeedHome = () => import('@/views/FeedHome/FeedHome.vue')
 
 const routes = [
   {
@@ -18,6 +19,11 @@ const routes = [
     path: '/profile/:id?',
     name: 'profile',
     component: UserProfile
+  },
+  {
+    path: '/feed',
+    name: 'feed',
+    component: FeedHome
   }
 ]
 
