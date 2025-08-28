@@ -1,6 +1,7 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import HomeView from '@/views/HomeView/HomeView.vue'
 import VideoStart from '@/views/VideoStart/VideoStart.vue'
+const History = () => import('@/views/History/History.vue')
 const UserProfile = () => import('@/views/UserProfile/UserProfile.vue')
 const FeedHome = () => import('@/views/FeedHome/FeedHome.vue')
 
@@ -24,6 +25,11 @@ const routes = [
     path: '/feed',
     name: 'feed',
     component: FeedHome
+  },
+  {
+    path: '/history',
+    name: 'history',
+    component: History
   }
 ]
 
