@@ -364,6 +364,8 @@ const videoList = ref([
   min-width: 800px;
   position: relative;
   background-color: #ffffff;
+  --design-width: 1659.33px;
+  --header-scale: clamp(0.6, calc(100% / var(--design-width)), 1);
 
   // 背景图片样式
   .background-image {
@@ -376,7 +378,7 @@ const videoList = ref([
   }
 
   // 头部栏容器
-  .hearder_bar {
+    .hearder_bar {
     position: relative;
     z-index: 1;
     top: 0;
@@ -387,15 +389,22 @@ const videoList = ref([
     .header_bar_left {
       display: flex;
       position: absolute;
+      width: 500px;
+      max-width: 501px;
       left: 3%;
-      top: 15%;
+      top: 35%;
       list-style-type: none;
       padding-left: 0;
       margin: 0;
+      justify-content: space-between; // 使用 space-between 均匀分布元素
+      transform: scale(var(--header-scale));
+      transform-origin: left top;
 
       .events {
-        margin-right: 10px;
+        margin-right: 0;
         list-style-type: none;
+        display: flex;
+        align-items: center;
 
         &:last-child {
           margin-right: 0;
@@ -403,12 +412,19 @@ const videoList = ref([
 
         span {
           color: white;
-          font-size: 9.5px;
+          font-size: 14px;
           cursor: pointer;
           transition: color 0.2s, transform 0.2s;
           display: inline-block;
         }
-
+        .events-img {
+          width: 18px; // 增大图标宽度
+          height: 18px; // 增大图标高度
+          margin-right: 5px; // 调整图标和文字之间的间距
+          margin-top: 2px;
+          filter: brightness(0) invert(1);
+          top: 15%;
+        }
         &:hover span {
           color: #00a1d6;
           animation: jump 0.3s ease;
@@ -425,6 +441,11 @@ const videoList = ref([
       list-style-type: none;
       padding-left: 0;
       margin: 0;
+      width: 500px;
+      max-width: 501px;
+      justify-content: space-between; // 使用 space-between 均匀分布元素
+      transform: scale(var(--header-scale));
+      transform-origin: right top;
 
       .events {
         margin-left: 15px;
@@ -432,12 +453,11 @@ const videoList = ref([
 
         span {
           color: white;
-          font-size: 9.5px;
+          font-size: 14px;
           cursor: pointer;
           transition: color 0.2s, transform 0.2s;
           display: inline-block;
         }
-
         &-imgb:hover {
           animation: jump 0.3s ease;
         }
@@ -449,6 +469,7 @@ const videoList = ref([
       position: absolute;
       left: 50%;
       top: 60%;
+      width: 450px;
       transform: translate(-50%, -50%);
       display: flex;
       align-items: center;
@@ -457,8 +478,8 @@ const videoList = ref([
 
       // 搜索输入框样式
       .search-input {
-        width: 330px;
-        height: 25px;
+        width: calc(350px * var(--header-scale));
+        height: 30px;
         padding: 0 48px 0 10px;
         position: relative;
         overflow: hidden;
@@ -471,7 +492,6 @@ const videoList = ref([
 
         &:focus {
           padding-left: 5px;
-          border: 1px solid #e3e5e7;
           background: #ffffff;
         }
       }
@@ -507,6 +527,7 @@ const videoList = ref([
     }
   }
 
+
   // 导航栏布局
   .header_channel {
     height: 110px;
@@ -520,10 +541,10 @@ const videoList = ref([
 .login-button {
   background-color: #00aeec;
   color: white;
-  padding: 4px 3px;
+  padding: 6px 4px;
   border-radius: 48%;
   display: inline-block;
-  font-size: 9.5px;
+  font-size: 14px;
   cursor: pointer;
   transition: background-color 0.2s, transform 0.2s;
 
@@ -541,8 +562,8 @@ const videoList = ref([
   display: inline-flex;
   align-items: center;
   gap: 1px;
-  width: 40px;
-  height: 24px;
+  width: 55px;
+  height: 27px;
   margin-top: 3.5px;
 
   span {
@@ -567,8 +588,8 @@ const videoList = ref([
   }
 
   &-imgb {
-    width: 14px;
-    height: 14px;
+    width: 18px;
+    height: 18px;
     display: block;
     margin: 0 auto 0px;
     filter: brightness(0) invert(1);
@@ -603,25 +624,6 @@ const videoList = ref([
   }
   100% {
     transform: translateY(0);
-  }
-}
-
-// 响应式设计
-@media (max-width: 500px) {
-  .cili_header {
-    .background-image {
-      height: auto;
-      width: 100%;
-    }
-
-    .hearder_bar {
-      position: absolute;
-      z-index: 1;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: auto;
-    }
   }
 }
 </style>
