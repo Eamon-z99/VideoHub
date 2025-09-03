@@ -136,8 +136,7 @@ const videos = ref([
 </script>
 
 <style lang="scss" scoped>
-.home { background: #fff; min-width: 1200px; }
-
+.home { background: #fff; min-width: 1200px; width: 1623px;}
 .site-header { position: relative; height: 156px; }
 .header-bg { position: absolute; inset: 0; width: 100%; height: 156px; object-fit: cover; }
 .header-inner { position: relative; z-index: 1; height: 64px; display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 12px; padding: 8px 24px; }
