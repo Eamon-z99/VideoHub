@@ -361,7 +361,7 @@ const videoList = ref([
   padding: 0;
   width: 100%;
   max-width: 1659.33px;
-  min-width: 800px;
+  min-width: 0;
   position: relative;
   background-color: #ffffff;
   --design-width: 1659.33px;
@@ -383,22 +383,24 @@ const videoList = ref([
     z-index: 1;
     top: 0;
     width: 100%;
-    height: 15%;
+    height: auto;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 6px;
+    padding: 6px 2%;
 
     // 左侧栏样式
     .header_bar_left {
       display: flex;
-      position: absolute;
-      width: 500px;
-      max-width: 501px;
-      left: 3%;
-      top: 35%;
+      position: static;
+      flex: 0 1 auto;
+      max-width: 30%;
       list-style-type: none;
       padding-left: 0;
       margin: 0;
-      justify-content: space-between; // 使用 space-between 均匀分布元素
-      transform: scale(var(--header-scale));
-      transform-origin: left top;
+      gap: 10px;
+      flex-wrap: wrap;
 
       .events {
         margin-right: 0;
@@ -435,20 +437,19 @@ const videoList = ref([
     // 右侧栏样式
     .header_bar_right {
       display: flex;
-      position: absolute;
-      right: 3%;
-      top: 15%;
+      position: static;
+      flex: 0 1 auto;
+      max-width: 30%;
       list-style-type: none;
       padding-left: 0;
       margin: 0;
-      width: 500px;
-      max-width: 501px;
-      justify-content: space-between; // 使用 space-between 均匀分布元素
-      transform: scale(var(--header-scale));
-      transform-origin: right top;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin-right: 100px;
+      
 
       .events {
-        margin-left: 15px;
+        margin-left: 1px;
         list-style-type: none;
 
         span {
@@ -466,19 +467,20 @@ const videoList = ref([
 
     // 搜索框容器样式
     .header_bar_search {
-      position: absolute;
-      left: 50%;
-      top: 60%;
+      position: relative;
+      flex: 0 0 450px;
       width: 450px;
-      transform: translate(-50%, -50%);
+      min-width: 450px;
+      max-width: 450px;
       display: flex;
       align-items: center;
       background: #ffffff;
       border-radius: 6px;
+      margin: 0 4px;
 
       // 搜索输入框样式
       .search-input {
-        width: calc(350px * var(--header-scale));
+        width: 100%;
         height: 30px;
         padding: 0 48px 0 10px;
         position: relative;
@@ -531,9 +533,35 @@ const videoList = ref([
   // 导航栏布局
   .header_channel {
     height: 110px;
-    width: 1133px;
+    width: 100%;
+    max-width: 1133px;
     position: absolute;
     top: 103px;
+  }
+}
+
+// 响应式：在较窄宽度时收紧间距，保证不重叠
+@media (max-width: 1280px) {
+  .hearder_bar {
+    gap: 8px;
+    padding: 8px 2%;
+  }
+  .header_bar_left,
+  .header_bar_right {
+    gap: 12px;
+    max-width: 35%;
+  }
+  .header_bar_search {
+    max-width: 600px;
+    min-width: 220px;
+  }
+}
+
+@media (max-width: 1024px) {
+  .header_bar_left,
+  .header_bar_right {
+    gap: 10px;
+    max-width: 40%;
   }
 }
 

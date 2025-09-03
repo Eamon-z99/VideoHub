@@ -1,5 +1,5 @@
 import { createRouter, createWebHistory } from 'vue-router'
-import HomeView from '@/views/HomeView/HomeView.vue'
+import HomePage from '@/views/HomeView/home.vue'
 import VideoStart from '@/views/VideoStart/VideoStart.vue'
 const History = () => import('@/views/History/History.vue')
 const UserProfile = () => import('@/views/UserProfile/UserProfile.vue')
@@ -9,7 +9,7 @@ const routes = [
   {
     path: '/',
     name: 'home',
-    component: HomeView
+    component: HomePage
   },
   {
     path: '/video/:id',
