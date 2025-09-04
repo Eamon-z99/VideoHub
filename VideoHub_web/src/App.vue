@@ -9,17 +9,18 @@ import { RouterView } from 'vue-router'
 <style>
 body {
   margin: 0;
-  padding: 0;
-  min-width: 100%;
+  width: 100%;
+  overflow-x: hidden;
+  background-color: #f5f5f5;
+  margin: 0 auto;
+}
+
+#app {
+  width: 100%;
+  margin: 0 auto;
+  position: relative;
   overflow-x: auto;
   background-color: #f5f5f5;
 }
 
-#app {
-  width: 100vw;
-  margin: 0 auto;
-  position: relative;
-  padding: 0;
-  background-color: #f5f5f5;
-}
 </style>
