@@ -26,25 +26,8 @@ body { overflow: hidden; }
   overflow-x: auto;
   overscroll-behavior: contain;
   background-color: #f5f5f5;
+  scrollbar-width: thin; /* 滚动条宽度 */
+  scrollbar-color: #c0c0c0 black; /* 滚动条样式 */
 }
-
-/* 自定义容器滚动条（深色背景轨道） */
-.scroll-container::-webkit-scrollbar {
-  width: 10px;
-  height: 10px;
-}
-.scroll-container::-webkit-scrollbar-track {
-  background: #c0c0c0;
-}
-.scroll-container::-webkit-scrollbar-thumb {
-  background-color: #c0c0c0;
-  border-radius: 8px;
-  border: 2px solid #c0c0c0;
-}
-.scroll-container::-webkit-scrollbar-thumb:hover {
-  background-color: #c0c0c0;
-}
-
-.scroll-container { scrollbar-width: thin; scrollbar-color: #c0c0c0 black }
 
 </style>
