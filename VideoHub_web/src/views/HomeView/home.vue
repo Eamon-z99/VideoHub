@@ -108,7 +108,7 @@
       </div>
     </section>
 
-    <section class="main-block">
+    <section class="hero-grid">
       <div class="banner">
         <div class="slider" :style="{ transform: `translateX(-${slideIndex * 100}%)` }">
           <div v-for="(s, i) in slides" :key="i" class="slide">
@@ -122,17 +122,16 @@
           <span v-for="(s,i) in slides" :key="`dot-${i}`" class="dot" :class="{ active: i===slideIndex }" @click="go(i)" />
         </div>
       </div>
-
       <aside class="recommend">
-        <div class="rec-card" v-for="(r, i) in recommends" :key="i">
-          <img :src="r.cover" />
-          <div class="rec-title" :title="r.title">{{ r.title }}</div>
+        <div class="top-video" v-for="(r, i) in recommends" :key="i">
+          <div class="thumb-wrap"><img :src="r.cover" /></div>
+          <div class="v-title" :title="r.title">{{ r.title }}</div>
+          <div class="v-sub">推荐</div>
         </div>
       </aside>
     </section>
 
     <section class="section">
-      <div class="section-title">正在热播</div>
       <div class="video-grid">
         <div v-for="v in videos" :key="v.id" class="video">
           <div class="thumb-wrap"><img :src="v.cover" /><span class="duration">{{ v.duration }}</span></div>
@@ -339,7 +338,7 @@ const videos = ref([
 }
 
 .navigation-section {
-  max-width: 1200px;
+  max-width: 1350px;
   margin: -30px auto 0;
   padding: 0 20px;
   display: flex;
@@ -361,7 +360,7 @@ const videos = ref([
 
     .quick-icons {
       margin: 0;
-      margin-left: -50px;
+      margin-left: 0px;
       margin-right: 20px;
       display: flex;
       gap: 20px;
@@ -477,21 +476,31 @@ const videos = ref([
   }
 }
 
-.main-block {
-  max-width: 1200px;
-  margin: 10px auto 20px;
+/* 顶部区域：5列网格，轮播占两列两行 */
+.hero-grid {
+  max-width: 1350px;
+  margin: 20px auto 20px;
   padding: 0 20px;
   display: grid;
-  grid-template-columns: 2fr 1fr;
+  grid-template-columns: repeat(5, 1fr);
+  /* 顶部每个卡片的行高，轮播图将占两行 */
+  grid-auto-rows: 220px;
   gap: 16px;
+  
+  /* 防止子项内容撑破导致列宽不一致 */
+  > * { min-width: 0; }
 
   .banner {
     position: relative;
     background: linear-gradient(135deg, #2b2b3a, #5b6bd5);
     border-radius: 8px;
     overflow: hidden;
-    padding-bottom: 56.25%;
     box-shadow: 0 2px 8px rgba(0, 0, 0, .08);
+    grid-column: 1 / span 2;  /* 占两列 */
+    grid-row: 1 / span 2;     /* 占两行 */
+    /* 高度 = 两行高度 + 中间一条间距 */
+    height: 390px;
+    width: 100%;
 
     .slider {
       position: absolute;
@@ -568,52 +577,44 @@ const videos = ref([
   }
 
   .recommend {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    grid-auto-rows: 96px;
-    gap: 12px;
-    align-content: start;
+    display: contents; /* 将推荐卡片直接放入网格，让其占据网格单元 */
 
-    .rec-card {
+    .top-video {
       display: grid;
-      grid-template-rows: 1fr auto;
-      background: #fff;
-      border-radius: 8px;
-      box-shadow: 0 1px 2px rgba(0, 0, 0, .05);
-      overflow: hidden;
-
-      img {
+      grid-template-rows: auto auto auto;
+      gap: 6px;
+      
+      .thumb-wrap {
+        position: relative;
         width: 100%;
-        height: 100%;
-        object-fit: cover;
+        padding-bottom: 56%;
+        border-radius: 8px;
+        overflow: hidden;
+        background: #f1f2f3;
+
+        img {
+          position: absolute;
+          inset: 0;
+          width: 100%;
+          height: 100%;
+          object-fit: cover;
+        }
       }
 
-      .rec-title {
-        font-size: 12px;
-        color: #333;
-        padding: 6px 8px;
-        white-space: nowrap;
-        overflow: hidden;
-        text-overflow: ellipsis;
-      }
+      .v-title { font-size: 13px; color: #222; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+      .v-sub { font-size: 12px; color: #8a8a8a; }
     }
   }
 }
 
 .section {
-  max-width: 1200px;
-  margin: 0 auto 40px;
+  max-width: 1350px;
+  margin: 80px auto 40px;
   padding: 0 20px;
-
-  .section-title {
-    font-size: 16px;
-    font-weight: 600;
-    margin: 8px 0 12px;
-  }
 
   .video-grid {
     display: grid;
-    grid-template-columns: repeat(6, 1fr);
+    grid-template-columns: repeat(5, 1fr);
     gap: 16px;
 
     .video {
