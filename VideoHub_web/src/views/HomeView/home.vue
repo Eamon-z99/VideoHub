@@ -26,7 +26,7 @@
           </button>
         </div>
         <div class="actions">
-          <div class="avatar" />
+          <div class="avatar" @click="showLogin=true"/>
           <div class="action-col">
             <img src="/assets/vip.png" class="action-icon" /><span>大会员</span>
           </div>
@@ -141,10 +141,18 @@
       </div>
     </section>
   </div>
+
+
+  <!-- 登录组件 -->
+  <!-- <Login v-if="showLogin" @close="showLogin=false" /> -->
+  <Login v-model:show="showLogin" @close="showLogin=false" />
 </template>
 
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted } from 'vue'
+import Login from '@/components/Login.vue'
+
+let showLogin = ref(false)
 
 const categories = [
   '番剧','国创','综艺','动画','鬼畜','舞蹈','娱乐','科技','美食','汽车','运动','VLOG','单机游戏','公益','电影','电视剧','纪录片','音乐','知识','资讯','生活','时尚'

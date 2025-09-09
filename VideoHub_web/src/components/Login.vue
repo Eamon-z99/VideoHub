@@ -61,7 +61,7 @@ const login = async () => {
     <div class="login-box">
       <!-- 左侧背景图 -->
       <div class="login-left">
-        <img src="../assets/register-bg.png" alt="背景图片" class="background-image" />
+        <img src="/assets/register-bg.png" alt="背景图片" class="background-image" />
       </div>
 
       <!-- 右侧登录表单 -->
@@ -193,7 +193,7 @@ const login = async () => {
 
 .input-group {
   position: relative;
-  margin-bottom: 20px;
+  margin-bottom: 27px;
 }
 
 .login-input {
@@ -214,7 +214,7 @@ const login = async () => {
 .forget-pwd {
   position: absolute;
   right: 0;
-  top: -18px;
+  top: -23px;
   font-size: 12px;
   color: #00a1d6;
   text-decoration: none;
