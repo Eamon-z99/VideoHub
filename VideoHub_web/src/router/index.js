@@ -1,9 +1,11 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import HomePage from '@/views/HomeView/home.vue'
 import VideoStart from '@/views/VideoStart/VideoStart.vue'
+import { useUserStore } from '@/stores/user'
 const History = () => import('@/views/History/History.vue')
 const UserProfile = () => import('@/views/UserProfile/UserProfile.vue')
 const FeedHome = () => import('@/views/FeedHome/FeedHome.vue')
+const Column = () => import('@/views/column/Column.vue')
 
 const routes = [
   {
@@ -29,7 +31,13 @@ const routes = [
   {
     path: '/history',
     name: 'history',
-    component: History
+    component: History,
+    meta: {requiresAuth: true}
+  },
+  {
+    path: '/column',
+    name: 'column',
+    component: Column
   }
 ]
 
@@ -38,4 +46,10 @@ const router = createRouter({
   routes
 })
 
+router.beforeEach((to) => {
+  const userStore = useUserStore()
+  if (to.meta.requiresAuth && !userStore.token) {
+    return { path: '/', query: { redirect: to.fullPath } }
+  }
+})
 export default router

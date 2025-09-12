@@ -128,7 +128,7 @@
         <div class="vertical-divider"></div> <!-- 分隔线 -->
         <div class="channel-right">
           <div class="grid-containerb">
-            <a href="#" class="grid-itemb"><img src="/assets/channel/column.png" class="grid-itemb-img">专栏</a>
+            <router-link to="/column" class="grid-itemb"><img src="/assets/channel/column.png" class="grid-itemb-img">专栏</router-link>
             <a href="#" class="grid-itemb"><img src="/assets/channel/activity.png" class="grid-itemb-img">活动</a>
             <a href="#" class="grid-itemb"><img src="/assets/channel/community.png" class="grid-itemb-img">社区中心</a>
             <a href="#" class="grid-itemb"><img src="/assets/channel/live.png" class="grid-itemb-img">直播</a>
