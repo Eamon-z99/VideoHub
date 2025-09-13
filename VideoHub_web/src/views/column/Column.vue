@@ -85,7 +85,7 @@ const articles = ref([
     id: 1,
     title: "枷锁chapter1",
     source: "来自文集",
-    excerpt: "破镜重圆 追夫he勿上升本人!! 枷锁 chapter1 巴黎的瞬逝,迎来了洛杉矶的黎明。"莎头,...",
+    excerpt: "破镜重圆 追夫he勿上升本人!! 枷锁 chapter1 巴黎的瞬逝,迎来了洛杉矶的黎明。\"莎头...",
     author: {
       name: "Waekk",
       avatarText: "W",
@@ -419,6 +419,7 @@ $spacing-xl: 24px;
         margin: 0;
         display: -webkit-box;
         -webkit-line-clamp: 3;
+        line-clamp: 3;
         -webkit-box-orient: vertical;
         overflow: hidden;
       }
