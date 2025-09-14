@@ -6,6 +6,7 @@ const History = () => import('@/views/History/History.vue')
 const UserProfile = () => import('@/views/UserProfile/UserProfile.vue')
 const FeedHome = () => import('@/views/FeedHome/FeedHome.vue')
 const Column = () => import('@/views/column/Column.vue')
+const MusicChart = () => import('@/views/column/MusicChart.vue')
 
 const routes = [
   {
@@ -38,6 +39,11 @@ const routes = [
     path: '/column',
     name: 'column',
     component: Column
+  },
+  {
+    path: '/music-chart',
+    name: 'music-chart',
+    component: MusicChart
   }
 ]
 
