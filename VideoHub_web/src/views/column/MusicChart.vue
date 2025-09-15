@@ -18,6 +18,7 @@
       <div class="section-header">
         <span class="section-icon">🎵</span>
         <h2 class="section-title">新歌速递</h2>
+        <button class="section-more" @click="handleMore('new')">更多</button>
       </div>
       <div class="new-songs-content">
         <div class="featured-card">
@@ -27,7 +28,9 @@
         </div>
         <div class="songs-list">
           <div class="song-card" v-for="song in newSongs" :key="song.id">
-            <div class="song-thumbnail"></div>
+            <div class="song-thumbnail">
+              <div class="play-overlay" title="播放"></div>
+            </div>
             <div class="song-info">
               <h4>{{ song.title }}</h4>
               <p>{{ song.artist }}</p>
@@ -42,6 +45,7 @@
       <div class="section-header">
         <span class="section-icon">🔥</span>
         <h2 class="section-title">热歌精选</h2>
+        <button class="section-more" @click="handleMore('hot')">更多</button>
       </div>
       <div class="hot-songs-content">
         <div class="chart-list">
@@ -54,7 +58,9 @@
         </div>
         <div class="hot-songs-grid">
           <div class="song-card" v-for="song in hotSongsGrid" :key="song.id">
-            <div class="song-thumbnail"></div>
+            <div class="song-thumbnail">
+              <div class="play-overlay" title="播放"></div>
+            </div>
             <div class="song-info">
               <h4>{{ song.title }}</h4>
               <p>{{ song.artist }}</p>
@@ -69,6 +75,7 @@
       <div class="section-header">
         <span class="section-icon">👤</span>
         <h2 class="section-title">音乐人</h2>
+        <button class="section-more" @click="handleMore('musicians')">更多</button>
       </div>
       <div class="musicians-list">
         <div class="musician-card" v-for="musician in musicians" :key="musician.id">
@@ -76,7 +83,7 @@
           <div class="musician-info">
             <h4>{{ musician.name }}</h4>
             <p>{{ musician.followers }}粉丝</p>
-            <button class="follow-btn">关注</button>
+            <button class="follow-btn" :class="{ followed: musician.followed }" @click="toggleFollow(musician)">{{ musician.followed ? '已关注' : '关注' }}</button>
           </div>
         </div>
       </div>
@@ -87,10 +94,13 @@
       <div class="section-header">
         <span class="section-icon">🎵</span>
         <h2 class="section-title">原创音乐</h2>
+        <button class="section-more" @click="handleMore('original')">更多</button>
       </div>
       <div class="original-music-list">
         <div class="music-card" v-for="music in originalMusic" :key="music.id">
-          <div class="music-thumbnail"></div>
+          <div class="music-thumbnail">
+            <div class="play-overlay" title="播放"></div>
+          </div>
           <div class="music-info">
             <h4>{{ music.title }}</h4>
             <p>{{ music.description }}</p>
@@ -133,9 +143,9 @@ const hotSongsGrid = ref([
 
 // 音乐人数据
 const musicians = ref([
-  { id: 1, name: 'Marshmello', followers: '140万' },
-  { id: 2, name: 'NMIXX', followers: '53.7万' },
-  { id: 3, name: 'RIIZE', followers: '52.7万' }
+  { id: 1, name: 'Marshmello', followers: '140万', followed: false },
+  { id: 2, name: 'NMIXX', followers: '53.7万', followed: false },
+  { id: 3, name: 'RIIZE', followers: '52.7万', followed: false }
 ])
 
 // 原创音乐数据
@@ -145,6 +155,16 @@ const originalMusic = ref([
   { id: 3, title: '为什么我认为它不是好歌', description: '音乐评论' },
   { id: 4, title: '梦里变大侠写了一首歌', description: '原创音乐作品' }
 ])
+
+// 交互：更多
+const handleMore = (section) => {
+  console.log('更多 ->', section)
+}
+
+// 交互：关注
+const toggleFollow = (musician) => {
+  musician.followed = !musician.followed
+}
 </script>
 
 <style lang="scss" scoped>
@@ -204,6 +224,23 @@ const originalMusic = ref([
     display: flex;
     align-items: center;
     margin-bottom: 20px;
+    gap: 12px;
+    
+    .section-more {
+      margin-left: auto;
+      background: transparent;
+      border: 1px solid #e5e7eb;
+      color: #333;
+      padding: 6px 12px;
+      border-radius: 16px;
+      cursor: pointer;
+      font-size: 12px;
+      transition: all .2s ease;
+      
+      &:hover {
+        background: #f5f7fa;
+      }
+    }
     
     .section-icon {
       font-size: 24px;
@@ -259,10 +296,16 @@ const originalMusic = ref([
     display: flex;
     gap: 12px;
     overflow-x: auto;
+    padding-bottom: 6px;
     
     .song-card {
       min-width: 120px;
       text-align: center;
+      
+      &:hover .play-overlay {
+        opacity: 1;
+        transform: translate(-50%, -50%) scale(1);
+      }
       
       .song-thumbnail {
         width: 100%;
@@ -270,6 +313,22 @@ const originalMusic = ref([
         background: #e0e0e0;
         border-radius: 8px;
         margin-bottom: 8px;
+        position: relative;
+        overflow: hidden;
+        
+        .play-overlay {
+          position: absolute;
+          left: 50%;
+          top: 50%;
+          transform: translate(-50%, -50%) scale(.9);
+          width: 32px;
+          height: 32px;
+          border-radius: 50%;
+          background: rgba(0, 0, 0, .6);
+          box-shadow: 0 2px 6px rgba(0,0,0,.2);
+          opacity: 0;
+          transition: all .2s ease;
+        }
       }
       
       .song-info {
@@ -333,12 +392,32 @@ const originalMusic = ref([
     gap: 12px;
     
     .song-card {
+      &:hover .play-overlay {
+        opacity: 1;
+        transform: translate(-50%, -50%) scale(1);
+      }
       .song-thumbnail {
         width: 100%;
         height: 80px;
         background: #e0e0e0;
         border-radius: 8px;
         margin-bottom: 8px;
+        position: relative;
+        overflow: hidden;
+        
+        .play-overlay {
+          position: absolute;
+          left: 50%;
+          top: 50%;
+          transform: translate(-50%, -50%) scale(.9);
+          width: 32px;
+          height: 32px;
+          border-radius: 50%;
+          background: rgba(0, 0, 0, .6);
+          box-shadow: 0 2px 6px rgba(0,0,0,.2);
+          opacity: 0;
+          transition: all .2s ease;
+        }
       }
       
       .song-info {
@@ -415,12 +494,33 @@ const originalMusic = ref([
   .music-card {
     min-width: 200px;
     
+    &:hover .play-overlay {
+      opacity: 1;
+      transform: translate(-50%, -50%) scale(1);
+    }
+    
     .music-thumbnail {
       width: 100%;
       height: 100px;
       background: #e0e0e0;
       border-radius: 8px;
       margin-bottom: 12px;
+      position: relative;
+      overflow: hidden;
+      
+      .play-overlay {
+        position: absolute;
+        left: 50%;
+        top: 50%;
+        transform: translate(-50%, -50%) scale(.9);
+        width: 36px;
+        height: 36px;
+        border-radius: 50%;
+        background: rgba(0, 0, 0, .6);
+        box-shadow: 0 2px 6px rgba(0,0,0,.2);
+        opacity: 0;
+        transition: all .2s ease;
+      }
     }
     
     .music-info {
