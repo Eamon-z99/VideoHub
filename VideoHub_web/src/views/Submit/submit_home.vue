@@ -8,12 +8,12 @@
       </div>
       <nav class="menu">
         <div class="menu-group">
-          <a class="menu-item active"><span class="icon">⏫</span><span class="label">投稿</span></a>
+          <a class="menu-item" :class="{ active: isActive('/submitHome') }" @click="router.push('/submitHome')"><span class="icon">⏫</span><span class="label">投稿</span></a>
           <a class="menu-item"><span class="icon">🏠</span><span class="label">首页</span></a>
         </div>
         <div class="menu-group">
           <a class="menu-item"><span class="icon">📦</span><span class="label">内容管理</span></a>
-          <a class="menu-item"><span class="icon">📊</span><span class="label">数据中心</span></a>
+          <a class="menu-item" :class="{ active: isActive('/dataCenter') }" @click="router.push('/dataCenter')"><span class="icon">📊</span><span class="label">数据中心</span></a>
           <a class="menu-item"><span class="icon">👥</span><span class="label">粉丝管理</span></a>
           <a class="menu-item"><span class="icon">💬</span><span class="label">互动管理</span></a>
           <a class="menu-item"><span class="icon">💰</span><span class="label">收益管理</span></a>
@@ -110,6 +110,12 @@
 
 <script setup>
 import { ref } from 'vue'
+import { useRouter, useRoute } from 'vue-router'
+
+const router = useRouter()
+const route = useRoute()
+
+const isActive = (path) => route.path === path
 
 const tabs = [
   { key: 'video', label: '视频投稿' },
