@@ -342,8 +342,8 @@ const newVideo = () => {
 
 <style lang="scss" scoped>
 .content-management-page {
-  background: #f5f7fa;
-  padding: 16px;
+  background: transparent;
+  padding: 0;
 }
 
 .page-header {

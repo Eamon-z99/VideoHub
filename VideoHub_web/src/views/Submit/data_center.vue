@@ -75,8 +75,8 @@ const kpis = ref([
 
 <style lang="scss" scoped>
 .data-center-page {
-  background: #f5f7fa;
-  padding: 16px;
+  background: transparent;
+  padding: 0;
 }
 
 .page-header {
