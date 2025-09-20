@@ -9,6 +9,7 @@ const Column = () => import('@/views/column/Column.vue')
 const MusicChart = () => import('@/views/column/MusicChart.vue')
 const SubmitHome = () => import('@/views/Submit/submit_home.vue')
 const DataCenter = () => import('@/views/Submit/data_center.vue')
+const ContentManagement = () => import('@/views/Submit/content_management.vue')
 
 const routes = [
   {
@@ -56,6 +57,11 @@ const routes = [
     path: '/dataCenter',
     name: 'dataCenter',
     component: DataCenter
+  },
+  {
+    path: '/contentManagement',
+    name: 'contentManagement',
+    component: ContentManagement
   }
 ]
 
