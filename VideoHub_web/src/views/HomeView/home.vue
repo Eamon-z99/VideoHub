@@ -42,7 +42,7 @@
           <div class="action-col">
             <img src="/assets/history.png" class="action-icon" /><span>历史</span>
           </div>
-          <div class="action-col">
+          <div class="action-col" @click="navigateToCreatorCenter">
             <img src="/assets/creator-center.png" class="action-icon" /><span>创作中心</span>
           </div>
           <button class="primary">投稿</button>
@@ -150,7 +150,10 @@
 
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted } from 'vue'
+import { useRouter } from 'vue-router'
 import Login from '@/components/Login.vue'
+
+const router = useRouter()
 
 let showLogin = ref(false)
 
@@ -186,6 +189,11 @@ const videos = ref([
   { id: 5, title: '你的牛奶我的汽水', cover: '/images/demo-cover5.jpg', duration: '06:45', playCount: '8.7万', up: '某UP' },
   { id: 6, title: 'APP 粉丝做的', cover: '/images/demo-cover6.jpg', duration: '03:18', playCount: '20.2万', up: '某UP' }
 ])
+
+// 导航到创作中心
+const navigateToCreatorCenter = () => {
+  router.push('/submitHome?view=contentManagement')
+}
 </script>
 
 <style lang="scss" scoped>

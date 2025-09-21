@@ -3,7 +3,7 @@
     <!-- 左侧侧边栏 -->
     <el-aside width="220px" class="sidebar">
       <div class="sidebar-header">
-        <span class="site-title">bilibili 创作中心</span>
+        <span class="site-title">创作中心</span>
       </div>
       
       <el-menu
@@ -134,6 +134,46 @@
         <DataCenter />
       </div>
 
+      <!-- 首页内容 -->
+      <div v-else-if="currentView === 'home'" class="content-page">
+        <CreatorHome />
+      </div>
+
+      <!-- 创作成长内容 -->
+      <div v-else-if="currentView === 'growth'" class="content-page">
+        <CreatorGrowth />
+      </div>
+
+      <!-- 任务成就内容 -->
+      <div v-else-if="currentView === 'achievement'" class="content-page">
+        <Achievements />
+      </div>
+
+      <!-- 必火推广内容 -->
+      <div v-else-if="currentView === 'promotion'" class="content-page">
+        <Promotion />
+      </div>
+
+      <!-- 创作学院内容 -->
+      <div v-else-if="currentView === 'academy'" class="content-page">
+        <Academy />
+      </div>
+
+      <!-- 创作权益内容 -->
+      <div v-else-if="currentView === 'rights'" class="content-page">
+        <Rights />
+      </div>
+
+      <!-- 社区公约内容 -->
+      <div v-else-if="currentView === 'convention'" class="content-page">
+        <Convention />
+      </div>
+
+      <!-- 创作设置内容 -->
+      <div v-else-if="currentView === 'settings'" class="content-page">
+        <Settings />
+      </div>
+
       <!-- 其他页面内容 -->
       <div v-else class="content-page">
         <h2>{{ getPageTitle(currentView) }}</h2>
@@ -145,12 +185,31 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
+import { useRoute } from 'vue-router'
 import ContentManagement from './content_management.vue'
 import DataCenter from './data_center.vue'
+import CreatorHome from './creator_home.vue'
+import CreatorGrowth from './creator_growth.vue'
+import Achievements from './achievements.vue'
+import Promotion from './promotion.vue'
+import Academy from './academy.vue'
+import Rights from './rights.vue'
+import Convention from './convention.vue'
+import Settings from './settings.vue'
+
+const route = useRoute()
 
 // 当前视图状态
 const currentView = ref('submit')
+
+// 根据 URL 参数设置初始视图
+onMounted(() => {
+  const viewParam = route.query.view
+  if (viewParam && typeof viewParam === 'string') {
+    currentView.value = viewParam
+  }
+})
 
 const tabs = [
   { key: 'video', label: '视频投稿' },
