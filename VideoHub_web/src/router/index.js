@@ -2,6 +2,7 @@ import { createRouter, createWebHistory } from 'vue-router'
 import HomePage from '@/views/HomeView/home.vue'
 import VideoStart from '@/views/VideoStart/VideoStart.vue'
 import { useUserStore } from '@/stores/user'
+const LoginPage = () => import('@/views/Login/LoginPage.vue')
 const History = () => import('@/views/History/History.vue')
 const UserProfile = () => import('@/views/UserProfile/UserProfile.vue')
 const FeedHome = () => import('@/views/FeedHome/FeedHome.vue')
@@ -16,6 +17,12 @@ const routes = [
     path: '/',
     name: 'home',
     component: HomePage
+  },
+  {
+    path: '/login',
+    name: 'login',
+    component: LoginPage,
+    meta: { guestOnly: true }
   },
   {
     path: '/video/:id',
@@ -72,8 +79,13 @@ const router = createRouter({
 
 router.beforeEach((to) => {
   const userStore = useUserStore()
-  if (to.meta.requiresAuth && !userStore.token) {
-    return { path: '/', query: { redirect: to.fullPath } }
+  const isAuthed = !!userStore.token
+  if (to.meta.requiresAuth && !isAuthed) {
+    return { path: '/login', query: { redirect: to.fullPath } }
+  }
+  if (to.meta.guestOnly && isAuthed) {
+    const redirect = to.query.redirect || '/'
+    return typeof redirect === 'string' ? redirect : '/'
   }
 })
 export default router
