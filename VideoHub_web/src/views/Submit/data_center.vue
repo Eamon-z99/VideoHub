@@ -1,196 +1,266 @@
 <template>
   <div class="data-center-page">
-    <header class="page-header">
-      <h1>数据中心</h1>
-      <div class="filters">
-        <button class="filter-btn" :class="{active: range==='7d'}" @click="range='7d'">近7天</button>
-        <button class="filter-btn" :class="{active: range==='30d'}" @click="range='30d'">近30天</button>
-        <button class="filter-btn" :class="{active: range==='90d'}" @click="range='90d'">近90天</button>
-      </div>
-    </header>
+    <!-- 顶部标签导航 -->
+    <nav class="tab-nav">
+      <button
+        v-for="t in tabs"
+        :key="t.key"
+        class="tab-item"
+        :class="{ active: activeTab===t.key }"
+        @click="activeTab=t.key"
+      >{{ t.label }}</button>
+    </nav>
 
-    <!-- 指标卡片 -->
-    <section class="kpi-grid">
-      <div class="kpi-card" v-for="k in kpis" :key="k.key">
-        <div class="kpi-header">
-          <span class="kpi-title">{{ k.title }}</span>
-          <span class="kpi-trend" :class="{ up: k.trend>0, down: k.trend<0 }">
-            {{ k.trend>0 ? '+'+k.trend+'%' : k.trend+'%' }}
-          </span>
+    <!-- 数据概览面板 -->
+    <section class="panel">
+      <div class="panel-header">
+        <h2>核心数据概览</h2>
+        <div class="header-actions">
+          <el-select v-model="overviewRange" size="small" style="width: 96px">
+            <el-option label="近7天" value="7d" />
+            <el-option label="近30天" value="30d" />
+            <el-option label="近90天" value="90d" />
+          </el-select>
+          <el-button size="small" class="export-btn" plain>导出数据</el-button>
         </div>
-        <div class="kpi-value">{{ k.value }}</div>
-        <div class="mini-chart"></div>
       </div>
-    </section>
 
-    <!-- 图表占位 -->
-    <section class="charts">
+      <!-- 指标网格 -->
+      <div class="metric-grid">
+        <div v-for="m in coreMetrics" :key="m.key" class="metric-card">
+          <div class="metric-top">
+            <span class="metric-name">{{ m.title }}</span>
+          </div>
+          <div class="metric-value">{{ m.value }}</div>
+        </div>
+      </div>
+
+      <!-- 播放趋势图 -->
       <div class="chart-card">
         <div class="chart-header">
-          <h3>播放趋势</h3>
-          <div class="legend">
-            <span class="dot blue"></span><span>播放量</span>
+          <div class="left">
+            <h3>近{{ overviewRangeLabel }}播放量</h3>
+            <div class="legend">
+              <span class="dot pink"></span><span>总播放量</span>
+              <span class="dot blue"></span><span>粉丝播放量</span>
+            </div>
           </div>
         </div>
         <div class="chart-placeholder"></div>
       </div>
+    </section>
+
+    <!-- 收益数据面板 -->
+    <section class="panel">
+      <div class="panel-header">
+        <h2>收益数据</h2>
+        <div class="header-actions">
+          <el-select v-model="incomeRange" size="small" style="width: 96px">
+            <el-option label="近7天" value="7d" />
+            <el-option label="近30天" value="30d" />
+            <el-option label="近90天" value="90d" />
+          </el-select>
+          <el-button size="small" class="export-btn" plain>导出数据</el-button>
+        </div>
+      </div>
+
+      <div class="income-kpis">
+        <div class="income-card">
+          <div class="income-title">总收益（元）</div>
+          <div class="income-value">{{ incomeTotal }}</div>
+        </div>
+        <div class="income-card">
+          <div class="income-title">自定义充值（元）</div>
+          <div class="income-value">{{ incomeCustom }}</div>
+        </div>
+      </div>
+
       <div class="chart-card">
         <div class="chart-header">
-          <h3>互动趋势</h3>
-          <div class="legend">
-            <span class="dot green"></span><span>点赞</span>
-            <span class="dot orange"></span><span>评论</span>
+          <div class="left">
+            <h3>近30天总收益（元）</h3>
           </div>
         </div>
         <div class="chart-placeholder"></div>
-      </div>
-    </section>
-
-    <!-- 明细列表占位 -->
-    <section class="table-card">
-      <div class="table-header">
-        <h3>作品表现（近{{ rangeLabel }}）</h3>
-        <button class="outline-btn">导出数据</button>
-      </div>
-      <div class="table-placeholder">
-        将在此展示作品明细列表（标题、播放、点赞、评论、投币、收藏等）
       </div>
     </section>
   </div>
+  
 </template>
 
 <script setup>
 import { computed, ref } from 'vue'
 
-const range = ref('7d')
-const rangeLabel = computed(() => ({'7d':'7天','30d':'30天','90d':'90天'})[range.value])
+// 顶部标签
+const tabs = [
+  { key: 'overview', label: '数据概览' },
+  { key: 'account', label: '账号诊断' },
+  { key: 'submission', label: '稿件分析' },
+  { key: 'fans', label: '粉丝分析' },
+  { key: 'column', label: '专栏数据' }
+]
+const activeTab = ref('overview')
 
-const kpis = ref([
-  { key: 'views', title: '总播放量', value: '128.4万', trend: 6.3 },
-  { key: 'likes', title: '总点赞', value: '4.2万', trend: 3.1 },
-  { key: 'comments', title: '总评论', value: '1.8万', trend: -1.4 },
-  { key: 'followers', title: '新增粉丝', value: '1.2万', trend: 8.7 }
+// 概览指标
+const coreMetrics = ref([
+  { key: 'plays', title: '播放数', value: '0' },
+  { key: 'visitors', title: '空间访客', value: '0' },
+  { key: 'newFans', title: '涨粉的粉丝', value: '0' },
+  { key: 'likes', title: '点赞', value: '0' },
+  { key: 'favorites', title: '收藏', value: '0' },
+  { key: 'coins', title: '硬币', value: '0' },
+  { key: 'comments', title: '评论', value: '0' },
+  { key: 'danmaku', title: '弹幕', value: '0' },
+  { key: 'shares', title: '分享', value: '0' }
 ])
+
+// 时间选择
+const overviewRange = ref('7d')
+const incomeRange = ref('30d')
+const overviewRangeLabel = computed(() => ({ '7d': '7天', '30d': '30天', '90d': '90天' }[overviewRange.value]))
+
+// 收益
+const incomeTotal = ref('0')
+const incomeCustom = ref('0')
 </script>
 
 <style lang="scss" scoped>
 .data-center-page {
   background: transparent;
-  padding: 0;
 }
 
-.page-header {
+.tab-nav {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 16px;
-  h1 { margin: 0; font-size: 20px; color: #333; }
+  gap: 16px;
+  margin-bottom: 12px;
 }
 
-.filters {
-  display: flex;
-  gap: 8px;
-  .filter-btn {
-    background: #fff;
-    border: 1px solid #e5e7eb;
-    border-radius: 16px;
-    padding: 6px 12px;
-    color: #333;
-    cursor: pointer;
-    &.active { background: #e6f7ff; color: #00aeec; border-color: #91d5ff; }
-  }
+.tab-item {
+  background: transparent;
+  border: none;
+  color: #666;
+  padding: 6px 2px;
+  cursor: pointer;
+  position: relative;
 }
 
-.kpi-grid {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 12px;
-  margin-bottom: 16px;
+.tab-item.active {
+  color: #00aeec;
 }
 
-.kpi-card {
+.tab-item.active::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -6px;
+  height: 2px;
+  background: #00aeec;
+}
+
+.panel {
   background: #fff;
   border-radius: 8px;
   padding: 12px;
   box-shadow: 0 1px 3px rgba(0,0,0,.06);
+  margin-bottom: 12px;
 }
 
-.kpi-header {
+.panel-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
   margin-bottom: 8px;
-  .kpi-title { color: #666; font-size: 12px; }
-  .kpi-trend { font-size: 12px; }
-  .kpi-trend.up { color: #3bbd5a; }
-  .kpi-trend.down { color: #ff4d4f; }
+  h2 { margin: 0; font-size: 14px; color: #333; }
 }
 
-.kpi-value { font-size: 20px; font-weight: 600; color: #333; margin-bottom: 8px; }
-.mini-chart { height: 36px; background: linear-gradient(180deg,#f8fbff,#eef5ff); border-radius: 6px; }
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
 
-.charts {
+.export-btn {
+  border-color: #e5e7eb;
+}
+
+.metric-grid {
   display: grid;
-  grid-template-columns: 2fr 1fr;
+  grid-template-columns: repeat(6, 1fr);
   gap: 12px;
-  margin-bottom: 16px;
+  margin-bottom: 12px;
+}
+
+.metric-card {
+  background: #fff;
+  border: 1px solid #eef0f4;
+  border-radius: 8px;
+  padding: 12px;
+}
+
+.metric-top {
+  display: flex;
+  justify-content: space-between;
+  color: #666;
+  font-size: 12px;
+}
+
+.metric-value {
+  font-size: 20px;
+  font-weight: 600;
+  color: #333;
+  margin-top: 6px;
 }
 
 .chart-card {
   background: #fff;
+  border: 1px solid #eef0f4;
   border-radius: 8px;
   padding: 12px;
-  box-shadow: 0 1px 3px rgba(0,0,0,.06);
 }
 
 .chart-header {
   display: flex;
-  align-items: center;
   justify-content: space-between;
+  align-items: center;
   margin-bottom: 8px;
   h3 { margin: 0; font-size: 14px; color: #333; }
-  .legend { display: flex; align-items: center; gap: 8px; color: #666; font-size: 12px; }
+  .legend { display: inline-flex; align-items: center; gap: 8px; color: #666; font-size: 12px; margin-left: 8px; }
   .dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+  .dot.pink { background: #ff85c0; }
   .dot.blue { background: #69b1ff; }
-  .dot.green { background: #95de64; }
-  .dot.orange { background: #ffd666; }
 }
 
-.chart-placeholder { height: 220px; background: repeating-linear-gradient(45deg,#fafafa,#fafafa 8px,#f5f5f5 8px,#f5f5f5 16px); border-radius: 6px; }
+.chart-placeholder {
+  height: 220px;
+  background: repeating-linear-gradient(45deg,#fafafa,#fafafa 8px,#f5f5f5 8px,#f5f5f5 16px);
+  border-radius: 6px;
+}
 
-.table-card {
+.income-kpis {
+  display: grid;
+  grid-template-columns: 220px 220px;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.income-card {
   background: #fff;
+  border: 1px solid #eef0f4;
   border-radius: 8px;
   padding: 12px;
-  box-shadow: 0 1px 3px rgba(0,0,0,.06);
 }
 
-.table-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 8px;
-  h3 { margin: 0; font-size: 14px; color: #333; }
+.income-title { color: #666; font-size: 12px; }
+.income-value { color: #333; font-size: 20px; font-weight: 600; margin-top: 6px; }
+
+@media (max-width: 1200px) {
+  .metric-grid { grid-template-columns: repeat(4, 1fr); }
 }
 
-.outline-btn {
-  background: transparent;
-  border: 1px solid #e5e7eb;
-  border-radius: 6px;
-  color: #333;
-  padding: 6px 12px;
-  cursor: pointer;
-}
-
-.table-placeholder { color: #666; font-size: 13px; padding: 16px; background: #fafafa; border-radius: 6px; }
-
-@media (max-width: 1024px) {
-  .kpi-grid { grid-template-columns: repeat(2, 1fr); }
-  .charts { grid-template-columns: 1fr; }
-}
-
-@media (max-width: 640px) {
-  .kpi-grid { grid-template-columns: 1fr; }
+@media (max-width: 768px) {
+  .metric-grid { grid-template-columns: repeat(2, 1fr); }
+  .income-kpis { grid-template-columns: 1fr; }
 }
 </style>
 
