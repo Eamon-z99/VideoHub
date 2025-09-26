@@ -30,43 +30,43 @@ const routes = [
     component: VideoStart
   },
   {
-    path: '/profile/:id?',
+    path: '/profile/:id?',//收藏页
     name: 'profile',
     component: UserProfile
   },
   {
-    path: '/feed',
+    path: '/feed',//动态页
     name: 'feed',
     component: FeedHome
   },
   {
-    path: '/history',
+    path: '/history',//历史主页
     name: 'history',
     component: History,
-    meta: {requiresAuth: true}
+    //meta: {requiresAuth: true} //路由守卫
   },
   {
-    path: '/column',
+    path: '/column',//专栏
     name: 'column',
     component: Column
   },
   {
-    path: '/music-chart',
+    path: '/music-chart',//新歌热榜
     name: 'music-chart',
     component: MusicChart
   },
   {
-    path: '/submitHome',
+    path: '/submitHome',//创作中心
     name: 'submitHome',
     component: SubmitHome
   },
   {
-    path: '/dataCenter',
+    path: '/dataCenter',//数据中心
     name: 'dataCenter',
     component: DataCenter
   },
   {
-    path: '/contentManagement',
+    path: '/contentManagement',//内容管理
     name: 'contentManagement',
     component: ContentManagement
   }

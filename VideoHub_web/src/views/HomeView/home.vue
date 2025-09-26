@@ -3,12 +3,12 @@
     <header class="site-header">
       <div class="header-inner">
         <ul class="nav-left">
-          <li class="nav-item">
+          <li class="nav-item" @click="goTo('/')">
             <img src="/assets/home.png" class="nav-icon" />
             <span>首页</span>
           </li>
           <li class="nav-item"><span>番剧</span></li>
-          <li class="nav-item"><span>直播</span></li>
+          <li class="nav-item" @click="goTo('/feed')"><span>直播</span></li>
           <li class="nav-item"><span>游戏中心</span></li>
           <li class="nav-item"><span>会员购</span></li>
           <li class="nav-item"><span>漫画</span></li>
@@ -33,19 +33,19 @@
           <div class="action-col">
             <img src="/assets/messages.png" class="action-icon" /><span>消息</span>
           </div>
-          <div class="action-col">
+          <div class="action-col" @click="goTo('/feed')">
             <img src="/assets/feed.png" class="action-icon" /><span>动态</span>
           </div>
-          <div class="action-col">
+          <div class="action-col" @click="goTo('/profile')">
             <img src="/assets/favorites.png" class="action-icon" /><span>收藏</span>
           </div>
-          <div class="action-col">
+          <div class="action-col" @click="goTo('/history')">
             <img src="/assets/history.png" class="action-icon" /><span>历史</span>
           </div>
           <div class="action-col" @click="navigateToCreatorCenter">
             <img src="/assets/creator-center.png" class="action-icon" /><span>创作中心</span>
           </div>
-          <button class="primary">投稿</button>
+          <button class="primary" @click="goTo('/submitHome?view=submit')">投稿</button>
         </div>
       </div>
       <img class="header-bg" src="/assets/header.png" alt="banner" />
@@ -54,7 +54,7 @@
       <div class="nav-left-section">
         <div class="nav-left-top">
           <div class="quick-icons">
-            <div class="qi-item">
+            <div class="qi-item" @click="goTo('/feed')">
               <div class="qi-circle orange">
                 <img src="/assets/feed.png" class="qi-icon" />
               </div>
@@ -77,7 +77,7 @@
       <div class="nav-right-section">
         <div class="utility-links">
           <div class="utility-row">
-            <div class="utility-item">
+            <div class="utility-item" @click="goTo('/column')">
               <img src="/assets/channel/column.png" class="utility-icon" />
               <span class="utility-text">专栏</span>
             </div>
@@ -91,7 +91,7 @@
             </div>
           </div>
           <div class="utility-row">
-            <div class="utility-item">
+            <div class="utility-item" @click="goTo('/feed')">
               <img src="/assets/channel/live.png" class="utility-icon" />
               <span class="utility-text">直播</span>
             </div>
@@ -99,7 +99,7 @@
               <img src="/assets/channel/class.png" class="utility-icon" />
               <span class="utility-text">课堂</span>
             </div>
-            <div class="utility-item">
+            <div class="utility-item" @click="goTo('/music-chart')">
               <img src="/assets/channel/new-songs-chart.png" class="utility-icon" />
               <span class="utility-text">新歌热榜</span>
             </div>
@@ -191,6 +191,8 @@ const videos = ref([
 ])
 
 // 导航到创作中心
+const goTo = (path: string) => { router.push(path) }
+
 const navigateToCreatorCenter = () => {
   router.push('/submitHome?view=contentManagement')
 }
