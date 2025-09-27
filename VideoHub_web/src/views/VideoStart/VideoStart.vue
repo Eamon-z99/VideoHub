@@ -101,20 +101,53 @@
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { ref, onMounted } from 'vue'
+import { useRoute } from 'vue-router'
 import { View, ChatDotRound, Timer } from '@element-plus/icons-vue'
 import { Pointer, Star, Share } from '@element-plus/icons-vue'
 
-// 使用public目录下的图片
-const poster = '/assets/header.png'
+const route = useRoute()
 
-const title = ref('首盒流梦奇毁了王者荣耀')
-const playCount = ref('32.2万')
+// 视频数据
+const videoData = ref({
+  id: 1,
+  title: '屏幕录制视频',
+  videoUrl: '/videos/screen_recording.mp4',
+  cover: '/videos/screen_recording.mp4',
+  duration: '00:30',
+  playCount: '1.2万',
+  up: '用户上传',
+  isVideo: true
+})
+
+// 根据路由参数获取视频信息
+onMounted(() => {
+  const videoId = route.params.id
+  if (videoId) {
+    // 这里可以根据ID从API获取视频信息
+    // 现在使用默认的屏幕录制视频
+    if (videoId == 1) {
+      videoData.value = {
+        id: 1,
+        title: '屏幕录制视频',
+        videoUrl: '/videos/screen_recording.mp4',
+        cover: '/videos/screen_recording.mp4',
+        duration: '00:30',
+        playCount: '1.2万',
+        up: '用户上传',
+        isVideo: true
+      }
+    }
+  }
+})
+
+const title = ref(videoData.value.title)
+const playCount = ref(videoData.value.playCount)
 const danmakuCount = ref('275')
-const tags = ref(['王者荣耀', '装备解析', '游戏杂谈'])
-const description = ref('本视频为个人娱乐向，解析“流梦奇”装备思路及实战感受。')
-const videoSrc = ref('')
-const posterUrl = ref(poster)
+const tags = ref(['屏幕录制', '用户上传', '视频分享'])
+const description = ref('这是一个用户上传的屏幕录制视频，展示了精彩的内容。')
+const videoSrc = ref(videoData.value.videoUrl)
+const posterUrl = ref(videoData.value.cover)
 
 const commentText = ref('')
 const comments = ref([
@@ -123,9 +156,9 @@ const comments = ref([
 ])
 
 const uploader = ref({
-  name: '爱鸽manaka',
-  videoCount: 99,
-  fans: '11.6万',
+  name: '用户上传',
+  videoCount: 1,
+  fans: '1.2万',
   avatar: 'https://placehold.co/48x48'
 })
 

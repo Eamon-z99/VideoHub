@@ -133,8 +133,18 @@
 
     <section class="section">
       <div class="video-grid">
-        <div v-for="v in videos" :key="v.id" class="video">
-          <div class="thumb-wrap"><img :src="v.cover" /><span class="duration">{{ v.duration }}</span></div>
+        <div v-for="v in videos" :key="v.id" class="video" @click="playVideo(v)">
+          <div class="thumb-wrap">
+            <video v-if="v.isVideo" :src="v.videoUrl as string" :poster="v.cover as string" class="video-preview" muted>
+              <source :src="v.videoUrl as string" type="video/mp4">
+              您的浏览器不支持视频播放。
+            </video>
+            <img v-else :src="v.cover" />
+            <span class="duration">{{ v.duration }}</span>
+            <div v-if="v.isVideo" class="play-overlay">
+              <div class="play-button">▶</div>
+            </div>
+          </div>
           <div class="v-title" :title="v.title">{{ v.title }}</div>
           <div class="v-sub">{{ v.playCount }} · {{ v.up }}</div>
         </div>
@@ -182,12 +192,13 @@ const recommends = ref([
 ])
 
 const videos = ref([
-  { id: 1, title: '恶魔 or 天使？双胞姐妹二选一！', cover: '/images/demo-cover1.jpg', duration: '11:01', playCount: '138.6万', up: '何同学' },
-  { id: 2, title: '开学第一天', cover: '/images/demo-cover2.jpg', duration: '01:52', playCount: '102万', up: '阿福' },
-  { id: 3, title: '矿泉水大测评', cover: '/images/demo-cover3.jpg', duration: '09:20', playCount: '56.4万', up: '老番茄' },
-  { id: 4, title: '头部创作者都说好', cover: '/images/demo-cover4.jpg', duration: '02:21', playCount: '广告', up: '推广' },
-  { id: 5, title: '你的牛奶我的汽水', cover: '/images/demo-cover5.jpg', duration: '06:45', playCount: '8.7万', up: '某UP' },
-  { id: 6, title: 'APP 粉丝做的', cover: '/images/demo-cover6.jpg', duration: '03:18', playCount: '20.2万', up: '某UP' }
+  { id: 1, title: '屏幕录制视频', cover: '/videos/screen_recording.mp4', duration: '00:30', playCount: '1.2万', up: '用户上传', videoUrl: '/videos/screen_recording.mp4', isVideo: true },
+  { id: 2, title: '恶魔 or 天使？双胞姐妹二选一！', cover: '/images/demo-cover1.jpg', duration: '11:01', playCount: '138.6万', up: '何同学' },
+  { id: 3, title: '开学第一天', cover: '/images/demo-cover2.jpg', duration: '01:52', playCount: '102万', up: '阿福' },
+  { id: 4, title: '矿泉水大测评', cover: '/images/demo-cover3.jpg', duration: '09:20', playCount: '56.4万', up: '老番茄' },
+  { id: 5, title: '头部创作者都说好', cover: '/images/demo-cover4.jpg', duration: '02:21', playCount: '广告', up: '推广' },
+  { id: 6, title: '你的牛奶我的汽水', cover: '/images/demo-cover5.jpg', duration: '06:45', playCount: '8.7万', up: '某UP' },
+  { id: 7, title: 'APP 粉丝做的', cover: '/images/demo-cover6.jpg', duration: '03:18', playCount: '20.2万', up: '某UP' }
 ])
 
 // 导航到创作中心
@@ -195,6 +206,14 @@ const goTo = (path: string) => { router.push(path) }
 
 const navigateToCreatorCenter = () => {
   router.push('/submitHome?view=contentManagement')
+}
+
+// 播放视频
+const playVideo = (video: any) => {
+  if (video.isVideo) {
+    // 跳转到视频播放页面
+    router.push(`/video/${video.id}`)
+  }
 }
 </script>
 
@@ -639,6 +658,7 @@ const navigateToCreatorCenter = () => {
       display: grid;
       grid-template-rows: auto auto auto;
       gap: 6px;
+      cursor: pointer;
 
       .thumb-wrap {
         position: relative;
@@ -648,12 +668,16 @@ const navigateToCreatorCenter = () => {
         overflow: hidden;
         background: #f1f2f3;
 
-        img {
+        img, .video-preview {
           position: absolute;
           inset: 0;
           width: 100%;
           height: 100%;
           object-fit: cover;
+        }
+
+        .video-preview {
+          background: #000;
         }
 
         .duration {
@@ -665,6 +689,36 @@ const navigateToCreatorCenter = () => {
           background: rgba(0, 0, 0, .55);
           padding: 2px 6px;
           border-radius: 4px;
+          z-index: 2;
+        }
+
+        .play-overlay {
+          position: absolute;
+          inset: 0;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          background: rgba(0, 0, 0, 0.3);
+          opacity: 0;
+          transition: opacity 0.3s ease;
+          z-index: 1;
+
+          .play-button {
+            width: 50px;
+            height: 50px;
+            background: rgba(255, 255, 255, 0.9);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 20px;
+            color: #333;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
+          }
+        }
+
+        &:hover .play-overlay {
+          opacity: 1;
         }
       }
 
