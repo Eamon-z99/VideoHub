@@ -272,6 +272,7 @@ const playVideo = (video: any) => {
 
     &:hover span {
       color: #00a1d6;
+      animation: jump 0.3s ease;
     }
   }
 
@@ -347,12 +348,26 @@ const playVideo = (video: any) => {
     color: #fff;
     gap: 4px;
     font-size: 12px;
+
+    span {
+      transition: color .2s;
+    }
+
+    &:hover span {
+      color: #00a1d6;
+      animation: jump 0.3s ease;
+    }
+
+    &:hover .action-icon {
+      animation: jump 0.3s ease;
+    }
   }
 
   .action-icon {
-    width: 18px;
-    height: 18px;
-    filter: brightness(0) invert(1);
+    width: 19px;
+    height: 19px;
+    /* 轻微发光，略细于上一版 */
+    filter: brightness(0) invert(1) drop-shadow(0 0 0.3px rgba(255, 255, 255, 0.85));
   }
 
   .action {
@@ -739,4 +754,11 @@ const playVideo = (video: any) => {
 }
 
 /* 固定阈值以下不再自适应，保持 1200px 布局 */
+
+/* 定义跳动动画，保持与 HomeView.vue 一致 */
+@keyframes jump {
+  0% { transform: translateY(0); }
+  50% { transform: translateY(-3px); }
+  100% { transform: translateY(0); }
+}
 </style>
