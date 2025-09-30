@@ -30,7 +30,7 @@
           <div class="action-col">
             <img src="/assets/vip.png" class="action-icon" /><span>大会员</span>
           </div>
-          <div class="action-col">
+          <div class="action-col" @click="goTo('/messages')">
             <img src="/assets/messages.png" class="action-icon" /><span>消息</span>
           </div>
           <div class="action-col" @click="goTo('/feed')">

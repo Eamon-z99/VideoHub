@@ -8,6 +8,7 @@ const UserProfile = () => import('@/views/UserProfile/UserProfile.vue')
 const FeedHome = () => import('@/views/FeedHome/FeedHome.vue')
 const Column = () => import('@/views/column/Column.vue')
 const MusicChart = () => import('@/views/column/MusicChart.vue')
+const Messages = () => import('@/views/Messages/Messages.vue')
 const SubmitHome = () => import('@/views/Submit/submit_home.vue')
 const DataCenter = () => import('@/views/Submit/data_center.vue')
 const ContentManagement = () => import('@/views/Submit/content_management.vue')
@@ -38,6 +39,11 @@ const routes = [
     path: '/feed',//动态页
     name: 'feed',
     component: FeedHome
+  },
+  {
+    path: '/messages',//消息中心
+    name: 'messages',
+    component: Messages
   },
   {
     path: '/history',//历史主页
