@@ -14,7 +14,7 @@
           <li class="disabled"><i class="dot hollow" /><span>@ 我的</span></li>
           <li class="disabled"><i class="dot hollow" /><span>收到的赞</span></li>
           <li class="disabled"><i class="dot hollow" /><span>系统通知</span></li>
-          <li class="disabled"><i class="dot hollow" /><span>消息设置</span></li>
+          <li @click="go('/messages/settings')"><i class="dot hollow" /><span>消息设置</span></li>
         </ul>
       </aside>
 
@@ -73,7 +73,9 @@
 
 <script setup>
 import { ref, computed } from 'vue'
+import { useRouter } from 'vue-router'
 
+const router = useRouter()
 const tab = ref('mine')
 const keyword = ref('')
 const activeIndex = ref(-1)
@@ -97,6 +99,8 @@ function send() {
   if (!draft.value.trim()) return
   draft.value = ''
 }
+
+function go(path) { router.push(path) }
 </script>
 
 <style scoped lang="scss">

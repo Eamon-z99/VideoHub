@@ -9,6 +9,7 @@ const FeedHome = () => import('@/views/FeedHome/FeedHome.vue')
 const Column = () => import('@/views/column/Column.vue')
 const MusicChart = () => import('@/views/column/MusicChart.vue')
 const Messages = () => import('@/views/Messages/Messages.vue')
+const MessageSettings = () => import('@/views/Messages/MessageSettings.vue')
 const SubmitHome = () => import('@/views/Submit/submit_home.vue')
 const DataCenter = () => import('@/views/Submit/data_center.vue')
 const ContentManagement = () => import('@/views/Submit/content_management.vue')
@@ -44,6 +45,11 @@ const routes = [
     path: '/messages',//消息中心
     name: 'messages',
     component: Messages
+  },
+  {
+    path: '/messages/settings',//消息中心——消息设置
+    name: 'message-settings',
+    component: MessageSettings
   },
   {
     path: '/history',//历史主页
