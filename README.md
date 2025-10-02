@@ -160,7 +160,8 @@ npm run preview
 // 开发服务器配置
 server: {
   host: '0.0.0.0',        // 允许局域网访问
-  port: 5173,             // 开发服务器端口
+  port:
+    5173,             // 开发服务器端口
   open: true,             // 自动打开浏览器
   cors: true,             // 启用 CORS
   proxy: {                // API 代理配置
