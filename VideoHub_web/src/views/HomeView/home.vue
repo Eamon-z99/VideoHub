@@ -27,7 +27,7 @@
         </div>
         <div class="actions">
           <div class="avatar" @click="showLogin=true"/>
-          <div class="action-col">
+          <div class="action-col" @click="goTo('/vip')">
             <img src="/assets/vip.png" class="action-icon" /><span>大会员</span>
           </div>
           <div class="action-col" @click="goTo('/messages')">
