@@ -8,7 +8,7 @@
             <span>首页</span>
           </li>
           <li class="nav-item"><span>番剧</span></li>
-          <li class="nav-item" @click="goTo('/feed')"><span>直播</span></li>
+          <li class="nav-item" @click="goTo('/live')"><span>直播</span></li>
           <li class="nav-item"><span>游戏中心</span></li>
           <li class="nav-item"><span>会员购</span></li>
           <li class="nav-item"><span>漫画</span></li>
@@ -91,7 +91,7 @@
             </div>
           </div>
           <div class="utility-row">
-            <div class="utility-item" @click="goTo('/feed')">
+            <div class="utility-item" @click="goTo('/live')">
               <img src="/assets/channel/live.png" class="utility-icon" />
               <span class="utility-text">直播</span>
             </div>

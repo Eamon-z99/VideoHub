@@ -9,6 +9,7 @@ const UserProfile = () => import('@/views/UserProfile/UserProfile.vue')
 const FeedHome = () => import('@/views/FeedHome/FeedHome.vue')
 const Column = () => import('@/views/column/Column.vue')
 const MusicChart = () => import('@/views/column/MusicChart.vue')
+const Live = () => import('@/views/column/Live.vue')
 const Messages = () => import('@/views/Messages/Messages.vue')
 const MessageSettings = () => import('@/views/Messages/MessageSettings.vue')
 const SubmitHome = () => import('@/views/Submit/submit_home.vue')
@@ -20,6 +21,11 @@ const routes = [
     path: '/',
     name: 'home',
     component: HomePage
+  },
+  {
+    path: '/live',
+    name: 'live',
+    component: Live
   },
   {
     path: '/vip',
