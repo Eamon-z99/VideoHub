@@ -15,6 +15,7 @@ const MessageSettings = () => import('@/views/Messages/MessageSettings.vue')
 const SubmitHome = () => import('@/views/Submit/submit_home.vue')
 const DataCenter = () => import('@/views/Submit/data_center.vue')
 const ContentManagement = () => import('@/views/Submit/content_management.vue')
+const Community = () => import('@/views/column/Community.vue')
 
 const routes = [
   {
@@ -78,6 +79,11 @@ const routes = [
     path: '/music-chart',//新歌热榜
     name: 'music-chart',
     component: MusicChart
+  },
+  {
+    path: '/community',//社区中心
+    name: 'community',
+    component: Community
   },
   {
     path: '/submitHome',//创作中心

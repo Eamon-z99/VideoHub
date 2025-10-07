@@ -85,7 +85,7 @@
               <img src="/assets/channel/activity.png" class="utility-icon" />
               <span class="utility-text">活动</span>
             </div>
-            <div class="utility-item">
+            <div class="utility-item" @click="goTo('/community')">
               <img src="/assets/channel/community.png" class="utility-icon" />
               <span class="utility-text">社区中心</span>
             </div>
