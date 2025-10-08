@@ -95,7 +95,7 @@
               <img src="/assets/channel/live.png" class="utility-icon" />
               <span class="utility-text">直播</span>
             </div>
-            <div class="utility-item">
+            <div class="utility-item" @click="goTo('/classroom')">
               <img src="/assets/channel/class.png" class="utility-icon" />
               <span class="utility-text">课堂</span>
             </div>

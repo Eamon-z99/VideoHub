@@ -16,6 +16,7 @@ const SubmitHome = () => import('@/views/Submit/submit_home.vue')
 const DataCenter = () => import('@/views/Submit/data_center.vue')
 const ContentManagement = () => import('@/views/Submit/content_management.vue')
 const Community = () => import('@/views/column/Community.vue')
+const Classroom = () => import('@/views/column/Classroom.vue')
 
 const routes = [
   {
@@ -84,6 +85,11 @@ const routes = [
     path: '/community',//社区中心
     name: 'community',
     component: Community
+  },
+  {
+    path: '/classroom',//课堂
+    name: 'classroom',
+    component: Classroom
   },
   {
     path: '/submitHome',//创作中心
