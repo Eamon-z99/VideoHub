@@ -3,6 +3,7 @@ import HomePage from '@/views/HomeView/home.vue'
 import VideoStart from '@/views/VideoStart/VideoStart.vue'
 import { useUserStore } from '@/stores/user'
 const Vip = () => import('@/views/Vip/Vip.vue')
+const MemberMall = () => import('@/views/Mall/MemberMall.vue')
 const LoginPage = () => import('@/views/Login/LoginPage.vue')
 const History = () => import('@/views/History/History.vue')
 const UserProfile = () => import('@/views/UserProfile/UserProfile.vue')
@@ -23,6 +24,11 @@ const routes = [
     path: '/',
     name: 'home',
     component: HomePage
+  },
+  {
+    path: '/mall',//会员购
+    name: 'mall',
+    component: MemberMall
   },
   {
     path: '/live',

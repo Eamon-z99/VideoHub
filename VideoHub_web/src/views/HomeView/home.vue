@@ -10,7 +10,7 @@
           <li class="nav-item"><span>番剧</span></li>
           <li class="nav-item" @click="goTo('/live')"><span>直播</span></li>
           <li class="nav-item"><span>游戏中心</span></li>
-          <li class="nav-item"><span>会员购</span></li>
+          <li class="nav-item" @click="goTo('/mall')"><span>会员购</span></li>
           <li class="nav-item"><span>漫画</span></li>
           <li class="nav-item"><span>赛事</span></li>
           <li class="nav-item">
