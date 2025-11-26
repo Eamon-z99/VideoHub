@@ -9,6 +9,7 @@
     "*"
   ],
   "scripts": {
+    "install:all": "npm install",
     "dev": "node dev.js",
     "dev:main": "cd main-app && npm run dev",
     "dev:sub": "cd VideoHub_web && npm run dev",

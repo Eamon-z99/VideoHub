@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-const { execSync } = require('child_process');
+const { spawn } = require('child_process');
 const fs = require('fs');
 const path = require('path');
 
@@ -19,7 +19,7 @@ function getWorkspaces() {
         if (pkg.scripts && pkg.scripts.dev) {
           workspaces.push({
             name: entry.name,
-            path: entry.name
+            path: path.join(frontendDir, entry.name)
           });
         }
       }
@@ -29,8 +29,8 @@ function getWorkspaces() {
   return workspaces;
 }
 
-// 生成 concurrently 命令
-function generateDevCommand() {
+// 启动所有应用
+function startApps() {
   const workspaces = getWorkspaces();
   
   if (workspaces.length === 0) {
@@ -38,26 +38,53 @@ function generateDevCommand() {
     process.exit(1);
   }
   
-  // 生成名称和颜色
-  const names = workspaces.map(w => w.name).join(',');
-  const colors = ['cyan', 'magenta', 'green', 'yellow', 'blue', 'red', 'white'];
-  const colorList = workspaces.map((_, i) => colors[i % colors.length]).join(',');
-  
-  // 生成命令列表
-  const commands = workspaces.map(w => `npm run dev --workspace=${w.path}`).join(' ');
-  
-  // 使用 concurrently 运行
-  const concurrentlyCmd = `concurrently -n "${names}" -c "${colorList}" ${commands}`;
-  
   console.log('🚀 启动应用:', workspaces.map(w => w.name).join(', '));
   console.log('');
   
-  try {
-    execSync(concurrentlyCmd, { stdio: 'inherit', cwd: __dirname });
-  } catch (error) {
-    process.exit(1);
-  }
+  const colors = ['cyan', 'magenta', 'green', 'yellow', 'blue', 'red', 'white'];
+  const processes = [];
+  
+  // 为每个应用启动进程
+  workspaces.forEach((workspace, index) => {
+    const color = colors[index % colors.length];
+    const workspacePath = workspace.path;
+    
+    // 直接使用 npm，设置工作目录
+    const proc = spawn('npm', ['run', 'dev'], {
+      cwd: workspacePath,
+      stdio: 'inherit',
+      shell: true,
+      env: process.env
+    });
+    
+    processes.push(proc);
+    
+    proc.on('error', (error) => {
+      console.error(`[${workspace.name}] 启动失败:`, error.message);
+    });
+    
+    proc.on('exit', (code) => {
+      if (code !== 0 && code !== null) {
+        console.error(`[${workspace.name}] 退出，代码: ${code}`);
+      }
+    });
+  });
+  
+  // 处理退出信号
+  process.on('SIGINT', () => {
+    console.log('\n正在停止所有应用...');
+    processes.forEach(proc => {
+      proc.kill('SIGINT');
+    });
+    process.exit(0);
+  });
+  
+  process.on('SIGTERM', () => {
+    processes.forEach(proc => {
+      proc.kill('SIGTERM');
+    });
+    process.exit(0);
+  });
 }
 
-generateDevCommand();
-
+startApps();
