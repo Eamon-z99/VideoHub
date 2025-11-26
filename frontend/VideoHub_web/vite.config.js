@@ -18,8 +18,11 @@ export default defineConfig({
   server: {
     host: '0.0.0.0', // 允许局域网访问
     port: 5173,      // 默认端口（可修改）
-    open: true,      // 启动时自动打开浏览器
+    open: false,     // 作为子应用时不需要自动打开
     cors: true,      // 默认启用CORS（开发环境）
+    headers: {
+      'Access-Control-Allow-Origin': '*', // 允许跨域，qiankun 需要
+    },
     // 关键：配置代理（解决API跨域问题）
     proxy: {
       '/api': {
@@ -34,6 +37,8 @@ export default defineConfig({
   build: {
     outDir: 'dist',
     assetsDir: 'assets',
-    sourcemap: false // 关闭sourcemap以加快构建速度
-  }
+    sourcemap: false, // 关闭sourcemap以加快构建速度
+  },
+  // 配置 base，支持作为子应用部署
+  base: process.env.NODE_ENV === 'production' ? '/videohub/' : '/'
 })
