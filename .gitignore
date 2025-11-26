@@ -41,6 +41,7 @@ build/
 
 # IDE
 .idea/
+/*.iml
 *.swp
 *.swo
 *~
