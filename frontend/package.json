@@ -1,0 +1,27 @@
+{
+  "name": "videohub-frontend",
+  "version": "1.0.0",
+  "description": "VideoHub 微前端项目",
+  "private": true,
+  "workspaces": [
+    "main-app",
+    "VideoHub_web",
+    "*"
+  ],
+  "scripts": {
+    "dev": "node dev.js",
+    "dev:main": "cd main-app && npm run dev",
+    "dev:sub": "cd VideoHub_web && npm run dev",
+    "build": "npm run build --workspaces",
+    "build:main": "cd main-app && npm run build",
+    "build:sub": "cd VideoHub_web && npm run build",
+    "preview": "node preview.js",
+    "preview:main": "cd main-app && npm run preview",
+    "preview:sub": "cd VideoHub_web && npm run preview",
+    "clean": "node clean.js"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  }
+}
+

@@ -20,35 +20,39 @@ VideoHub/
 
 ## 🚀 快速开始
 
-### 前端启动
+### 前端启动（推荐方式）
 
-#### 1. 启动子应用（VideoHub_web）
+**一键启动所有应用（自动检测）：**
 
-打开第一个终端：
+```bash
+cd frontend
+npm install          # 首次使用，自动安装所有依赖
+npm run dev          # 自动检测并启动所有子应用
+```
 
+**✨ 添加新子应用时无需修改配置，脚本会自动检测！**
+
+然后访问：`http://localhost:8080/videohub`
+
+#### 方式二：分别启动（用于调试）
+
+如果需要分别启动：
+
+**终端 1 - 启动子应用：**
 ```bash
 cd frontend/VideoHub_web
 npm install
 npm run dev
 ```
 
-子应用将在 `http://localhost:5173` 启动
-
-#### 2. 启动主应用（main-app）
-
-打开第二个终端：
-
+**终端 2 - 启动主应用：**
 ```bash
 cd frontend/main-app
 npm install
 npm run dev
 ```
 
-主应用将在 `http://localhost:8080` 启动
-
-#### 3. 访问应用
-
-在浏览器中访问：`http://localhost:8080/videohub`
+访问：`http://localhost:8080/videohub`
 
 ### 后端启动
 
@@ -88,7 +92,8 @@ mvn spring-boot:run
    - 后端：8080（如果冲突，请修改后端端口）
 
 2. **开发环境**:
-   - 前端需要同时启动主应用和子应用
+   - 前端推荐使用 `cd frontend && npm run dev` 一键启动
+   - 也可以分别启动主应用和子应用
    - 后端需要单独启动
 
 3. **生产环境**:
