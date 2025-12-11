@@ -26,10 +26,14 @@ export default defineConfig({
     // 关键：配置代理（解决API跨域问题）
     proxy: {
       '/api': {
-        target: 'http://localhost:8080', // 后端服务器地址
+        target: 'http://localhost:8888', // 后端服务器地址
         changeOrigin: true,              // 允许跨域
-        rewrite: (path) => path.replace(/^\/api/, ''), // 重写路径（可选）
         secure: false,                   // 如果是https，需要关闭证书验证
+      },
+      '/local-videos': {
+        target: 'http://localhost:8888', // 后端服务器地址
+        changeOrigin: true,
+        secure: false,
       }
     }
   },

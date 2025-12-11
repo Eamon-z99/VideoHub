@@ -101,53 +101,60 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { View, ChatDotRound, Timer } from '@element-plus/icons-vue'
 import { Pointer, Star, Share } from '@element-plus/icons-vue'
+import { fetchVideoDetail } from '@/api/video'
 
 const route = useRoute()
 
-// 视频数据
 const videoData = ref({
-  id: 1,
-  title: '屏幕录制视频',
-  videoUrl: '/videos/screen_recording.mp4',
-  cover: '/videos/screen_recording.mp4',
-  duration: '00:30',
-  playCount: '1.2万',
-  up: '用户上传',
-  isVideo: true
+  id: '',
+  title: '',
+  playUrl: '',
+  cover: '',
+  duration: '',
+  sizeText: '',
+  video: true
 })
 
-// 根据路由参数获取视频信息
-onMounted(() => {
+const title = ref('本地视频')
+const playCount = ref('本地文件')
+const danmakuCount = ref('0')
+const tags = ref(['本地视频', '离线播放'])
+const description = ref('播放来自 E:\\Videos 目录的本地视频。')
+const videoSrc = ref('')
+const posterUrl = ref('')
+const loading = ref(false)
+const fallbackCover = '/images/banner-1.jpg'
+
+const loadVideo = async () => {
   const videoId = route.params.id
-  if (videoId) {
-    // 这里可以根据ID从API获取视频信息
-    // 现在使用默认的屏幕录制视频
-    if (videoId == 1) {
-      videoData.value = {
-        id: 1,
-        title: '屏幕录制视频',
-        videoUrl: '/videos/screen_recording.mp4',
-        cover: '/videos/screen_recording.mp4',
-        duration: '00:30',
-        playCount: '1.2万',
-        up: '用户上传',
-        isVideo: true
-      }
-    }
+  if (typeof videoId !== 'string') return
+  loading.value = true
+  try {
+    const { data } = await fetchVideoDetail(videoId)
+    videoData.value = data
+    title.value = data.title || data.videoId || '本地视频'
+    playCount.value = data.viewCount || '本地文件'
+    videoSrc.value = data.playUrl || ''
+    posterUrl.value = data.coverUrl || fallbackCover
+    description.value = data.description || `视频ID：${data.videoId || videoId}`
+    tags.value = [
+      data.sourceFile || '本地视频',
+      data.storagePath || '',
+    ].filter(Boolean)
+  } catch (e) {
+    title.value = '未找到视频'
+    videoSrc.value = ''
+  } finally {
+    loading.value = false
   }
-})
+}
 
-const title = ref(videoData.value.title)
-const playCount = ref(videoData.value.playCount)
-const danmakuCount = ref('275')
-const tags = ref(['屏幕录制', '用户上传', '视频分享'])
-const description = ref('这是一个用户上传的屏幕录制视频，展示了精彩的内容。')
-const videoSrc = ref(videoData.value.videoUrl)
-const posterUrl = ref(videoData.value.cover)
+onMounted(loadVideo)
+watch(() => route.params.id, () => loadVideo())
 
 const commentText = ref('')
 const comments = ref([

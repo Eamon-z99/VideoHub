@@ -3,7 +3,7 @@ import { useUserStore } from '@/stores/user'
 import { ElMessage } from 'element-plus'
 
 // 使用环境变量和代理前缀，开发时可通过 /api 走 Vite 代理
-const BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api'
+const BASE_URL = import.meta.env.VITE_API_BASE_URL || ''
 
 const instance = axios.create({
   baseURL: BASE_URL,
