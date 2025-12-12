@@ -124,7 +124,7 @@
       </div>
       <aside class="recommend">
         <div class="top-video" v-for="(r, i) in recommends" :key="i">
-          <div class="thumb-wrap"><img :src="r.cover" /></div>
+          <div class="thumb-wrap"><img :src="r.cover" @error="onImgError" /></div>
           <div class="v-title" :title="r.title">{{ r.title }}</div>
           <div class="v-sub">推荐</div>
         </div>
@@ -132,23 +132,42 @@
     </section>
 
     <section class="section">
-      <div class="video-grid">
-        <div v-for="v in videos" :key="v.id" class="video" @click="playVideo(v)">
-          <div class="thumb-wrap">
-            <video v-if="v.isVideo" :src="v.playUrl as string" :poster="v.cover as string" class="video-preview" muted>
-              <source :src="v.playUrl as string" type="video/mp4">
-              您的浏览器不支持视频播放。
-            </video>
-            <img v-else :src="v.cover" />
-            <span class="duration">{{ v.duration }}</span>
-            <div v-if="v.isVideo" class="play-overlay">
-              <div class="play-button">▶</div>
+      <div class="video-virtual-wrapper">
+        <ElVirtualGrid
+          class="video-virtual-grid"
+          :data="videos"
+          :total-column="columnCount"
+          :total-row="rowCount"
+          :column-count="columnCount"
+          :column-width="columnWidth"
+          :row-height="rowHeight"
+          :height="gridHeight"
+          :width="gridWidth"
+        >
+          <template #default="{ data, rowIndex, columnIndex, style }">
+            <div :style="[style, getPaddingStyle(columnIndex)]" class="video">
+              <div v-if="data && data[rowIndex * columnCount + columnIndex]" class="card" @click="playVideo(data[rowIndex * columnCount + columnIndex])">
+                <div class="thumb-wrap">
+                  <img
+                    :src="data[rowIndex * columnCount + columnIndex].cover"
+                    loading="lazy"
+                    @error="onImgError"
+                  />
+                  <span class="duration">{{ data[rowIndex * columnCount + columnIndex].duration }}</span>
+                  <div v-if="data[rowIndex * columnCount + columnIndex].isVideo" class="play-overlay">
+                    <div class="play-button">▶</div>
+                  </div>
+                </div>
+                <div class="v-title" :title="data[rowIndex * columnCount + columnIndex].title">{{ data[rowIndex * columnCount + columnIndex].title }}</div>
+                <div class="v-sub">{{ data[rowIndex * columnCount + columnIndex].playCount }} · {{ data[rowIndex * columnCount + columnIndex].up }}</div>
+              </div>
             </div>
-          </div>
-          <div class="v-title" :title="v.title">{{ v.title }}</div>
-          <div class="v-sub">{{ v.playCount }} · {{ v.up }}</div>
-        </div>
+          </template>
+        </ElVirtualGrid>
       </div>
+      <div class="loading-bar" v-if="loadingMore">加载中...</div>
+      <div class="loading-bar" v-else-if="finished">已加载全部</div>
+      <div class="loading-bar" v-else-if="loadingVideos">加载中...</div>
     </section>
   </div>
 
@@ -159,7 +178,9 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted } from 'vue'
+import { ref, onMounted, onUnmounted, computed } from 'vue'
+// @ts-ignore Element Plus 未在主导出暴露虚拟列表，子路径命名导出
+import { FixedSizeGrid as ElVirtualGrid } from 'element-plus/es/components/virtual-list/index.mjs'
 import { useRouter } from 'vue-router'
 import Login from '@/components/Login.vue'
 import { fetchVideos } from '@/api/video'
@@ -197,7 +218,34 @@ const recommends = ref([
 
 const videos = ref<any[]>([])
 const loadingVideos = ref(false)
+const loadingMore = ref(false)
+const finished = ref(false)
+const page = ref(1)
+const pageSize = 20
+const totalCount = ref(0)
+const columnCount = 5
+const gridWidth = 1350
+const columnWidth = Math.floor(gridWidth / columnCount)
+const rowHeight = 230
+const rowCount = computed(() => Math.max(1, Math.ceil(videos.value.length / columnCount)))
+const loadedRowCount = computed(() => Math.max(1, Math.ceil(videos.value.length / columnCount)))
+const gridHeight = computed(() => loadedRowCount.value * rowHeight)
 const fallbackCover = '/images/banner-1.jpg'
+const getPaddingStyle = (columnIndex: number) => {
+  return {
+    paddingLeft: columnIndex === 0 ? '0px' : undefined,
+    paddingRight: columnIndex === columnCount - 1 ? '0px' : undefined
+  }
+}
+
+const onImgError = (evt: Event) => {
+  const target = evt?.target as HTMLImageElement | null
+  if (!target) return
+  if ((target as any).__fallbackApplied) return
+  ;(target as any).__fallbackApplied = true
+  target.onerror = null
+  target.src = fallbackCover
+}
 
 const formatDuration = (seconds?: number) => {
   if (!seconds || seconds <= 0) return '--:--'
@@ -206,30 +254,81 @@ const formatDuration = (seconds?: number) => {
   return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`
 }
 
-const fetchVideosData = async () => {
-  loadingVideos.value = true
-  try {
-    const { data } = await fetchVideos()
-    const list = Array.isArray(data) ? data : []
-    videos.value = list.map((item: any) => {
-      const durationText = formatDuration(item?.duration)
-      return {
-        ...item,
-        cover: item?.coverUrl || fallbackCover,
-        duration: durationText,
-        playCount: typeof item?.viewCount === 'number' ? item.viewCount : '本地视频',
-        up: item?.sourceFile || '本地文件',
-        playUrl: item?.playUrl || '',
-        id: item?.videoId || item?.id,
-        isVideo: !!item?.playUrl
-      }
-    })
-  } catch (e) {
+const normalizeList = (data: any) => {
+  const list = Array.isArray(data?.list) ? data.list : (Array.isArray(data) ? data : [])
+  return list.map((item: any) => {
+    const rawCover = (item?.coverUrl || '').trim()
+    const safeCover = rawCover || fallbackCover
+    const durationText = formatDuration(item?.duration)
+    return {
+      ...item,
+      cover: safeCover,
+      duration: durationText,
+      playCount: typeof item?.viewCount === 'number' ? item.viewCount : '本地视频',
+      up: item?.sourceFile || '本地文件',
+      playUrl: item?.playUrl || '',
+      id: item?.videoId || item?.id,
+      isVideo: !!item?.playUrl
+    }
+  })
+}
+
+const fetchVideosData = async (reset = false) => {
+  if (loadingVideos.value || loadingMore.value) return
+  if (reset) {
+    page.value = 1
+    finished.value = false
     videos.value = []
+    totalCount.value = 0
+  }
+  const isFirstPage = page.value === 1
+  if (isFirstPage) loadingVideos.value = true
+  else loadingMore.value = true
+  try {
+    const { data } = await fetchVideos(page.value, pageSize)
+    const mapped = normalizeList(data)
+    videos.value = [...videos.value, ...mapped]
+    const total = typeof data?.total === 'number' ? data.total : undefined
+    if (typeof total === 'number') {
+      totalCount.value = total
+    }
+    if ((total && videos.value.length >= total) || mapped.length < pageSize) {
+      finished.value = true
+    } else {
+      page.value += 1
+    }
+  } catch (e) {
+    if (isFirstPage) videos.value = []
   } finally {
     loadingVideos.value = false
+    loadingMore.value = false
+    ensureFillViewport()
   }
 }
+
+const ensureFillViewport = () => {
+  requestAnimationFrame(() => {
+    const { scrollHeight, clientHeight } = document.documentElement
+    if (!finished.value && !loadingVideos.value && !loadingMore.value && scrollHeight <= clientHeight + 100) {
+      fetchVideosData()
+    }
+  })
+}
+
+const handleWindowScroll = () => {
+  const { scrollTop, clientHeight, scrollHeight } = document.documentElement
+  if (!finished.value && !loadingMore.value && scrollTop + clientHeight >= scrollHeight - 300) {
+    fetchVideosData()
+  }
+}
+
+onMounted(() => {
+  window.addEventListener('scroll', handleWindowScroll, { passive: true })
+})
+
+onUnmounted(() => {
+  window.removeEventListener('scroll', handleWindowScroll)
+})
 
 // 导航到创作中心
 const goTo = (path: string) => { router.push(path) }
@@ -427,12 +526,14 @@ const playVideo = (video: any) => {
   align-items: flex-start;
   gap: 20px;
   margin-top: 20px;
+  overflow-y: hidden;
 
   .nav-left-section {
     display: flex;
     flex-direction: column;
     gap: 10px;
     flex: 1;
+    overflow-y: hidden;
 
     .nav-left-top {
       display: flex;
@@ -517,6 +618,7 @@ const playVideo = (video: any) => {
     flex-shrink: 0;
     padding-left: 10px;
     border-left: 1.5px solid #eee;
+    overflow-y: hidden;
 
     .utility-links {
       display: flex;
@@ -568,7 +670,7 @@ const playVideo = (video: any) => {
   /* 顶部每个卡片的行高，轮播图将占两行 */
   grid-auto-rows: 220px;
   gap: 16px;
-  
+  overflow-y: hidden;
   /* 防止子项内容撑破导致列宽不一致 */
   > * { min-width: 0; }
 
@@ -694,92 +796,185 @@ const playVideo = (video: any) => {
   margin: 80px auto 40px;
   padding: 0 20px;
 
-  .video-grid {
-    display: grid;
-    grid-template-columns: repeat(5, 1fr);
-    gap: 16px;
+  .video-virtual-wrapper {
+    max-width: 1350px;
+    margin: 0 auto;
+    padding: 0 0;
+    display: flex;
+    justify-content: center;
+    overflow: visible; /* 交给页面滚动 */
+  }
 
-    .video {
+  .video-virtual-grid {
+    width: 100%;
+    overflow: hidden !important; /* 禁止独立滚动，统一跟随页面 */
+    overflow-y: hidden !important;
+    overflow-x: hidden !important;
+    max-height: none !important;
+    height: auto !important;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+
+    &::-webkit-scrollbar {
+      display: none;
+      width: 0;
+      height: 0;
+    }
+
+    /* 组件内部类名被作用域隔离，使用 :deep 隐藏所有虚拟滚动条 */
+    :deep(.el-virtual-scrollbar),
+    :deep(.el-virtual-scrollbar__thumb),
+    :deep(.el-virtual-scrollbar__bar) {
+      display: none !important;
+      width: 0 !important;
+      height: 0 !important;
+      opacity: 0 !important;
+    }
+
+    :deep(.el-vl__scrollbar) {
+      display: none !important;
+      width: 0 !important;
+      height: 0 !important;
+      opacity: 0 !important;
+    }
+
+    :deep(.el-vl__window),
+    :deep(.el-vl__wrapper) {
+      scrollbar-width: none;
+      -ms-overflow-style: none;
+      overflow: visible !important; /* 交给外层页面滚动 */
+      height: auto !important;
+      max-height: none !important;
+      position: static !important; /* 避免内部定位影响整体高度 */
+      overflow-y: visible !important;
+      overflow-x: visible !important;
+    }
+
+    /* 部分版本还会在 wrap 上强制 overflow:auto，这里兜底 */
+    :deep(.el-virtual-scrollbar__wrap),
+    :deep(.el-virtual-scrollbar__wrap--horizontal) {
+      overflow: visible !important;
+      height: auto !important;
+      max-height: none !important;
+      overflow-y: visible !important;
+      overflow-x: visible !important;
+    }
+
+    /* 兜底处理 el-virtual-list 自身可能的 overflow 设置 */
+    :deep(.el-virtual-list),
+    :deep(.el-virtual-list__window),
+    :deep(.el-virtual-list__wrapper) {
+      overflow: visible !important;
+      overflow-y: visible !important;
+      overflow-x: visible !important;
+      height: auto !important;
+      max-height: none !important;
+      position: static !important;
+    }
+
+    /* 彻底禁用子容器滚动条 */
+    :deep(.el-vl__window::-webkit-scrollbar),
+    :deep(.el-vl__wrapper::-webkit-scrollbar) {
+      display: none;
+      width: 0;
+      height: 0;
+    }
+
+    :deep(.el-vl__window::-webkit-scrollbar),
+    :deep(.el-vl__wrapper::-webkit-scrollbar) {
+      display: none;
+      width: 0;
+      height: 0;
+    }
+  }
+
+  .video {
+    padding: 8px;
+    box-sizing: border-box;
+
+    .card {
       display: grid;
       grid-template-rows: auto auto auto;
       gap: 6px;
       cursor: pointer;
+    }
 
-      .thumb-wrap {
-        position: relative;
+    .thumb-wrap {
+      position: relative;
+      width: 100%;
+      padding-bottom: 56%;
+      border-radius: 8px;
+      overflow: hidden;
+      background: #f1f2f3;
+
+      img {
+        position: absolute;
+        inset: 0;
         width: 100%;
-        padding-bottom: 56%;
-        border-radius: 8px;
-        overflow: hidden;
-        background: #f1f2f3;
+        height: 100%;
+        object-fit: cover;
+      }
 
-        img, .video-preview {
-          position: absolute;
-          inset: 0;
-          width: 100%;
-          height: 100%;
-          object-fit: cover;
-        }
+      .duration {
+        position: absolute;
+        right: 6px;
+        bottom: 6px;
+        font-size: 12px;
+        color: #fff;
+        background: rgba(0, 0, 0, .55);
+        padding: 2px 6px;
+        border-radius: 4px;
+        z-index: 2;
+      }
 
-        .video-preview {
-          background: #000;
-        }
+      .play-overlay {
+        position: absolute;
+        inset: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: rgba(0, 0, 0, 0.3);
+        opacity: 0;
+        transition: opacity 0.3s ease;
+        z-index: 1;
 
-        .duration {
-          position: absolute;
-          right: 6px;
-          bottom: 6px;
-          font-size: 12px;
-          color: #fff;
-          background: rgba(0, 0, 0, .55);
-          padding: 2px 6px;
-          border-radius: 4px;
-          z-index: 2;
-        }
-
-        .play-overlay {
-          position: absolute;
-          inset: 0;
+        .play-button {
+          width: 50px;
+          height: 50px;
+          background: rgba(255, 255, 255, 0.9);
+          border-radius: 50%;
           display: flex;
           align-items: center;
           justify-content: center;
-          background: rgba(0, 0, 0, 0.3);
-          opacity: 0;
-          transition: opacity 0.3s ease;
-          z-index: 1;
-
-          .play-button {
-            width: 50px;
-            height: 50px;
-            background: rgba(255, 255, 255, 0.9);
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 20px;
-            color: #333;
-            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
-          }
-        }
-
-        &:hover .play-overlay {
-          opacity: 1;
+          font-size: 20px;
+          color: #333;
+          box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
         }
       }
 
-      .v-title {
-        font-size: 13px;
-        color: #222;
-        white-space: nowrap;
-        overflow: hidden;
-        text-overflow: ellipsis;
-      }
-
-      .v-sub {
-        font-size: 12px;
-        color: #8a8a8a;
+      &:hover .play-overlay {
+        opacity: 1;
       }
     }
+
+    .v-title {
+      font-size: 13px;
+      color: #222;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .v-sub {
+      font-size: 12px;
+      color: #8a8a8a;
+    }
+  }
+
+  .loading-bar {
+    text-align: center;
+    color: #8a8a8a;
+    padding: 12px 0;
   }
 }
 

@@ -4,11 +4,13 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import videobackend.video.model.VideoItem;
 import videobackend.video.service.LocalVideoService;
 
 import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/db/videos")
@@ -21,8 +23,16 @@ public class LocalVideoController {
     }
 
     @GetMapping
-    public List<VideoItem> list() {
-        return localVideoService.listAll();
+    public Map<String, Object> list(@RequestParam(defaultValue = "1") int page,
+                                    @RequestParam(defaultValue = "20") int pageSize) {
+        List<VideoItem> items = localVideoService.listPage(page, pageSize);
+        long total = localVideoService.count();
+        return Map.of(
+                "list", items,
+                "page", page,
+                "pageSize", pageSize,
+                "total", total
+        );
     }
 
     @GetMapping("/{videoId}")
@@ -32,3 +42,5 @@ public class LocalVideoController {
                 .orElse(ResponseEntity.notFound().build());
     }
 }
+
+
