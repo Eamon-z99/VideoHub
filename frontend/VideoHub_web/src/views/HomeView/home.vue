@@ -165,9 +165,15 @@
           </template>
         </ElVirtualGrid>
       </div>
-      <div class="loading-bar" v-if="loadingMore">加载中...</div>
-      <div class="loading-bar" v-else-if="finished">已加载全部</div>
-      <div class="loading-bar" v-else-if="loadingVideos">加载中...</div>
+      <div 
+        ref="loadMoreTrigger" 
+        class="loading-bar"
+      >
+        <span v-if="loadingMore">加载中...</span>
+        <span v-else-if="finished">已加载全部</span>
+        <span v-else-if="loadingVideos">加载中...</span>
+        <span v-else style="visibility: hidden;">加载更多</span>
+      </div>
     </section>
   </div>
 
@@ -178,7 +184,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, computed } from 'vue'
+import { ref, onMounted, onUnmounted, computed, watch, nextTick } from 'vue'
 // @ts-ignore Element Plus 未在主导出暴露虚拟列表，子路径命名导出
 import { FixedSizeGrid as ElVirtualGrid } from 'element-plus/es/components/virtual-list/index.mjs'
 import { useRouter } from 'vue-router'
@@ -203,11 +209,6 @@ let timer: any
 const next = () => { slideIndex.value = (slideIndex.value + 1) % slides.value.length }
 const prev = () => { slideIndex.value = (slideIndex.value - 1 + slides.value.length) % slides.value.length }
 const go = (i: number) => { slideIndex.value = i }
-onMounted(() => {
-  timer = setInterval(next, 4000)
-  fetchVideosData()
-})
-onUnmounted(() => { if (timer) clearInterval(timer) })
 
 const recommends = ref([
   { cover: '/images/rec-1.jpg', title: '盾狗+蜂医 双人巅峰 04:05' },
@@ -227,9 +228,13 @@ const columnCount = 5
 const gridWidth = 1350
 const columnWidth = Math.floor(gridWidth / columnCount)
 const rowHeight = 230
-const rowCount = computed(() => Math.max(1, Math.ceil(videos.value.length / columnCount)))
-const loadedRowCount = computed(() => Math.max(1, Math.ceil(videos.value.length / columnCount)))
-const gridHeight = computed(() => loadedRowCount.value * rowHeight)
+// 计算已加载视频的行数（只显示已加载的数据）
+const rowCount = computed(() => Math.ceil(videos.value.length / columnCount))
+// 虚拟滚动的高度：基于已加载的行数，最小高度为1行
+const gridHeight = computed(() => {
+  const rows = rowCount.value
+  return rows > 0 ? rows * rowHeight : rowHeight
+})
 const fallbackCover = '/images/banner-1.jpg'
 const getPaddingStyle = (columnIndex: number) => {
   return {
@@ -302,32 +307,82 @@ const fetchVideosData = async (reset = false) => {
   } finally {
     loadingVideos.value = false
     loadingMore.value = false
-    ensureFillViewport()
   }
 }
 
-const ensureFillViewport = () => {
-  requestAnimationFrame(() => {
-    const { scrollHeight, clientHeight } = document.documentElement
-    if (!finished.value && !loadingVideos.value && !loadingMore.value && scrollHeight <= clientHeight + 100) {
-      fetchVideosData()
+// 使用 Intersection Observer 检测底部元素
+const loadMoreTrigger = ref<HTMLElement | null>(null)
+let observer: IntersectionObserver | null = null
+
+const setupIntersectionObserver = () => {
+  if (!loadMoreTrigger.value) return
+  
+  // 清理旧的 observer
+  if (observer) {
+    observer.disconnect()
+  }
+  
+  // 创建新的 observer
+  observer = new IntersectionObserver(
+    (entries) => {
+      const entry = entries[0]
+      // 当底部元素进入视口时，加载更多
+      if (entry.isIntersecting && !loadingVideos.value && !loadingMore.value && !finished.value) {
+        fetchVideosData()
+      }
+    },
+    {
+      root: null, // 使用视口作为根
+      rootMargin: '100px', // 提前100px触发
+      threshold: 0.1
     }
-  })
+  )
+  
+  observer.observe(loadMoreTrigger.value)
 }
 
-const handleWindowScroll = () => {
-  const { scrollTop, clientHeight, scrollHeight } = document.documentElement
-  if (!finished.value && !loadingMore.value && scrollTop + clientHeight >= scrollHeight - 300) {
-    fetchVideosData()
+// 监听 videos 变化，重新设置 observer
+watch(
+  () => videos.value.length,
+  () => {
+    if (!finished.value) {
+      nextTick(() => {
+        setupIntersectionObserver()
+      })
+    }
   }
-}
+)
+
+// 监听 finished 状态，如果已完成则停止观察
+watch(
+  () => finished.value,
+  (isFinished) => {
+    if (isFinished && observer) {
+      observer.disconnect()
+      observer = null
+    } else if (!isFinished) {
+      nextTick(() => {
+        setupIntersectionObserver()
+      })
+    }
+  }
+)
 
 onMounted(() => {
-  window.addEventListener('scroll', handleWindowScroll, { passive: true })
+  timer = setInterval(next, 4000)
+  fetchVideosData()
+  // 等待 DOM 渲染后设置 observer
+  nextTick(() => {
+    setupIntersectionObserver()
+  })
 })
 
 onUnmounted(() => {
-  window.removeEventListener('scroll', handleWindowScroll)
+  if (timer) clearInterval(timer)
+  if (observer) {
+    observer.disconnect()
+    observer = null
+  }
 })
 
 // 导航到创作中心
@@ -810,8 +865,7 @@ const playVideo = (video: any) => {
     overflow: hidden !important; /* 禁止独立滚动，统一跟随页面 */
     overflow-y: hidden !important;
     overflow-x: hidden !important;
-    max-height: none !important;
-    height: auto !important;
+    /* 高度由组件动态计算，不强制设置 */
     scrollbar-width: none;
     -ms-overflow-style: none;
 
@@ -975,6 +1029,13 @@ const playVideo = (video: any) => {
     text-align: center;
     color: #8a8a8a;
     padding: 12px 0;
+  }
+
+  .load-more-trigger {
+    height: 1px;
+    width: 100%;
+    visibility: hidden;
+    pointer-events: none;
   }
 }
 
