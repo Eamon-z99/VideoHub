@@ -1,9 +1,11 @@
 <script setup>
-import { ref } from 'vue';
-import { useRouter } from 'vue-router';
+import { ref, onMounted, onUnmounted, nextTick } from 'vue';
+import { useRoute, useRouter } from 'vue-router';
 import { useUserStore } from '@/stores/user';
 import axios from '@/utils/request';
+import { ElMessage } from 'element-plus';
 
+const route = useRoute();
 const router = useRouter();
 const userStore = useUserStore();
 
@@ -21,37 +23,116 @@ const form = ref({
   password: ''
 });
 
+const loading = ref(false);
+
 const closeLogin = () => {
   emit('update:show', false)
   // 清空输入框
   form.value.account = ''
   form.value.password = ''
+  loading.value = false
 }
 
+const handleKeyPress = (event) => {
+  if (event.key === 'Enter' && props.show) {
+    login();
+  }
+}
+
+onMounted(() => {
+  window.addEventListener('keypress', handleKeyPress);
+})
+
+onUnmounted(() => {
+  window.removeEventListener('keypress', handleKeyPress);
+})
+
 const login = async () => {
-  if (!form.value.account || !form.value.password) {
-    alert('请输入账号和密码')
-    return
+  // 验证输入
+  if (!form.value.account || !form.value.account.trim()) {
+    ElMessage.warning('请输入账号');
+    return;
+  }
+  if (!form.value.password || !form.value.password.trim()) {
+    ElMessage.warning('请输入密码');
+    return;
   }
   
+  loading.value = true;
+  
   try {
-    const response = await axios.post('/api/auth/login', form.value);
-    
-    // 存储token和用户信息
-    userStore.setToken(response.data.token);
-    userStore.setUser({
-      id: response.data.userId,
-      username: response.data.username,
-      loginAccount: response.data.loginAccount
+    const response = await axios.post('/api/auth/login', {
+      account: form.value.account.trim(),
+      password: form.value.password
     });
     
-    // 关闭登录框
-    closeLogin();
-    // 跳转到首页
-    router.push('/');
+    console.log('登录响应:', response.data);
+    
+    // 检查响应数据
+    if (response.data && response.data.success && response.data.token) {
+      // 存储token和用户信息
+      userStore.setToken(response.data.token);
+      userStore.setUser({
+        id: response.data.userId,
+        username: response.data.username,
+        loginAccount: response.data.loginAccount
+      });
+      
+      ElMessage.success('登录成功');
+      
+      // 关闭登录框
+      closeLogin();
+      
+      // 等待token更新和DOM更新后再跳转
+      await nextTick();
+      // 再等待一小段时间确保token已写入localStorage
+      await new Promise(resolve => setTimeout(resolve, 100));
+      
+      // 跳转到redirect参数指定的页面，或首页
+      let redirect = route.query.redirect;
+      let targetPath = '/';
+      
+      // 处理redirect参数
+      if (redirect && typeof redirect === 'string') {
+        try {
+          // 解码redirect参数
+          const decodedRedirect = decodeURIComponent(redirect);
+          // 确保redirect不是登录页，且不包含/login
+          if (decodedRedirect !== '/login' && !decodedRedirect.includes('/login')) {
+            targetPath = decodedRedirect;
+          }
+        } catch (e) {
+          console.error('解码redirect参数失败:', e);
+        }
+      }
+      
+      console.log('准备跳转到:', targetPath);
+      console.log('当前token:', userStore.token);
+      console.log('当前路由:', route.path);
+      
+      // 如果当前在登录页面，使用window.location强制跳转，避免路由守卫拦截
+      if (route.path === '/login') {
+        // 使用window.location.href强制跳转，避免路由守卫循环
+        window.location.href = targetPath;
+      } else {
+        // 不在登录页面，正常跳转
+        router.replace(targetPath).then(() => {
+          console.log('跳转成功');
+        }).catch(err => {
+          console.error('跳转失败:', err);
+          // 如果跳转失败，使用window.location强制跳转
+          window.location.href = targetPath;
+        });
+      }
+    } else {
+      throw new Error(response.data.message || '登录失败');
+    }
   } catch (error) {
-    console.error('登录失败:', error.response?.data?.message || error.message);
-    alert(`登录失败: ${error.response?.data?.message || '请检查账号密码'}`);
+    console.error('登录失败:', error);
+    const errorMessage = error.response?.data?.message || error.message || '登录失败，请检查账号密码';
+    ElMessage.error(errorMessage);
+  } finally {
+    loading.value = false;
   }
 };
 </script>
@@ -91,7 +172,13 @@ const login = async () => {
             />
             <a href="#" class="forget-pwd">忘记密码？</a>
           </div>
-          <button class="login-button" @click="login">登录</button>
+          <button 
+            class="login-button" 
+            @click="login"
+            :disabled="loading"
+          >
+            {{ loading ? '登录中...' : '登录' }}
+          </button>
           <div class="register-link">
             <button class="register-button">注册</button>
           </div>
@@ -232,8 +319,13 @@ const login = async () => {
   margin-top: 15px;
 }
 
-.login-button:hover {
+.login-button:hover:not(:disabled) {
   background: #00b5e5;
+}
+
+.login-button:disabled {
+  background: #99a2aa;
+  cursor: not-allowed;
 }
 
 .register-link {

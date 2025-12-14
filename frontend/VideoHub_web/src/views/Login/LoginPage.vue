@@ -1,10 +1,12 @@
 <script setup>
 import { ref, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { useUserStore } from '@/stores/user'
 import Login from '@/components/Login.vue'
 
 const route = useRoute()
 const router = useRouter()
+const userStore = useUserStore()
 const show = ref(true)
 
 onMounted(() => {
@@ -13,12 +15,15 @@ onMounted(() => {
 })
 
 const handleClosed = () => {
-  // 关闭后返回上一页或首页
-  const redirect = route.query.redirect
-  if (redirect && typeof redirect === 'string') {
-    router.replace(redirect)
-  } else {
-    router.replace('/')
+  // 只有在用户手动关闭（非登录成功）时才跳转
+  // 登录成功时，Login组件会自己处理跳转
+  if (!userStore.isAuthenticated) {
+    const redirect = route.query.redirect
+    if (redirect && typeof redirect === 'string') {
+      router.replace(redirect)
+    } else {
+      router.replace('/')
+    }
   }
 }
 </script>

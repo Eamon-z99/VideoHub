@@ -128,15 +128,44 @@ const router = createRouter({
   routes
 })
 
-router.beforeEach((to) => {
+router.beforeEach((to, from, next) => {
   const userStore = useUserStore()
   const isAuthed = !!userStore.token
-  if (to.meta.requiresAuth && !isAuthed) {
-    return { path: '/login', query: { redirect: to.fullPath } }
-  }
+  
+  // 如果访问登录页且已登录，重定向到首页或redirect参数指定的页面
   if (to.meta.guestOnly && isAuthed) {
-    const redirect = to.query.redirect || '/'
-    return typeof redirect === 'string' ? redirect : '/'
+    // 避免循环重定向：如果redirect参数包含/login，直接跳转到首页
+    const redirect = to.query.redirect
+    if (redirect && typeof redirect === 'string') {
+      // 解码redirect参数
+      try {
+        const decodedRedirect = decodeURIComponent(redirect)
+        // 如果redirect不是登录页，且不包含/login，才跳转
+        if (decodedRedirect !== '/login' && !decodedRedirect.includes('/login')) {
+          next(decodedRedirect)
+          return
+        }
+      } catch (e) {
+        console.error('解码redirect参数失败:', e)
+      }
+    }
+    // 默认跳转到首页
+    next('/')
+    return
   }
+  
+  // 如果需要认证但未登录，重定向到登录页
+  if (to.meta.requiresAuth && !isAuthed) {
+    // 避免循环：如果当前已经在登录页，不要添加redirect参数
+    if (to.path !== '/login') {
+      next({ path: '/login', query: { redirect: to.fullPath } })
+    } else {
+      next()
+    }
+    return
+  }
+  
+  // 其他情况正常通过
+  next()
 })
 export default router
