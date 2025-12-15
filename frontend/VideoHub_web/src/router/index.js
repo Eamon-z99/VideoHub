@@ -4,7 +4,7 @@ import VideoStart from '@/views/VideoStart/VideoStart.vue'
 import { useUserStore } from '@/stores/user'
 const Vip = () => import('@/views/Vip/Vip.vue')
 const MemberMall = () => import('@/views/Mall/MemberMall.vue')
-const LoginPage = () => import('@/views/Login/LoginPage.vue')
+const Login = () => import('@/components/Login.vue')
 const History = () => import('@/views/History/History.vue')
 const UserProfile = () => import('@/views/UserProfile/UserProfile.vue')
 const FeedHome = () => import('@/views/FeedHome/FeedHome.vue')
@@ -43,7 +43,7 @@ const routes = [
   {
     path: '/login',
     name: 'login',
-    component: LoginPage,
+    component: Login,
     meta: { guestOnly: true }
   },
   {

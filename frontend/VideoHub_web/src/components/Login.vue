@@ -1,5 +1,5 @@
 <script setup>
-import { ref, onMounted, onUnmounted, nextTick } from 'vue';
+import { ref, onMounted, onUnmounted, nextTick, computed } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useUserStore } from '@/stores/user';
 import axios from '@/utils/request';
@@ -16,6 +16,10 @@ const props = defineProps({
   }
 })
 
+// 如果是路由模式（/login），自动显示登录框
+const isRouteMode = computed(() => route.path === '/login')
+const shouldShow = computed(() => props.show || isRouteMode.value)
+
 const emit = defineEmits(['update:show'])
 
 const form = ref({
@@ -31,10 +35,19 @@ const closeLogin = () => {
   form.value.account = ''
   form.value.password = ''
   loading.value = false
+  
+  // 如果是路由模式且用户手动关闭，跳转到首页或redirect页面
+  if (isRouteMode.value && !userStore.isAuthenticated) {
+    const redirect = route.query.redirect
+    const targetPath = (redirect && typeof redirect === 'string' && redirect !== '/login') 
+      ? redirect 
+      : '/'
+    router.replace(targetPath)
+  }
 }
 
 const handleKeyPress = (event) => {
-  if (event.key === 'Enter' && props.show) {
+  if (event.key === 'Enter' && shouldShow.value) {
     login();
   }
 }
@@ -138,7 +151,7 @@ const login = async () => {
 </script>
 
 <template>
-  <div class="login-container" v-if="show" @click.self="closeLogin">
+  <div class="login-container" v-if="shouldShow" @click.self="closeLogin">
     <div class="login-box">
       <!-- 左侧背景图 -->
       <div class="login-left">
