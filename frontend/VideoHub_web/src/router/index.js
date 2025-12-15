@@ -114,19 +114,12 @@ const routes = [
   }
 ]
 
-// 获取路由 base，支持作为子应用运行
-const getRouterBase = () => {
-  // 如果是 qiankun 环境，使用 __MICRO_APP_BASE_ROUTE__ 或默认 /videohub
-  if (window.__POWERED_BY_QIANKUN__) {
-    return window.__MICRO_APP_BASE_ROUTE__ || '/videohub';
-  }
-  return import.meta.env.BASE_URL;
-};
-
-const router = createRouter({
-  history: createWebHistory(getRouterBase()),
-  routes
-})
+export const createAppRouter = (base) => {
+  const historyBase = base || import.meta.env.BASE_URL
+  const router = createRouter({
+    history: createWebHistory(historyBase),
+    routes
+  })
 
 router.beforeEach((to, from, next) => {
   const userStore = useUserStore()
@@ -168,4 +161,6 @@ router.beforeEach((to, from, next) => {
   // 其他情况正常通过
   next()
 })
-export default router
+
+  return router
+}

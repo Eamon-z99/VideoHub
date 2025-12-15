@@ -3,12 +3,16 @@ import { createRouter, createWebHistory } from 'vue-router'
 const routes = [
   {
     path: '/',
-    redirect: '/videohub'
+    redirect: '/videohub' // 默认进入子应用首页
   },
   {
-    path: '/videohub',
-    name: 'videohub',
+    path: '/videohub/:pathMatch(.*)*',
     component: () => import('@/views/MicroAppContainer.vue')
+  },
+  // 其他路径统一回到子应用首页
+  {
+    path: '/:pathMatch(.*)*',
+    redirect: '/videohub'
   }
 ]
 

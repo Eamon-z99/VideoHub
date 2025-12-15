@@ -2,7 +2,7 @@ import { createApp } from 'vue'
 import { createPinia } from 'pinia'
 import App from './App.vue'
 import router from './router'
-import { registerMicroApps, start, setDefaultMountApp } from 'qiankun'
+import { registerApplication, start } from 'single-spa'
 import ElementPlus from 'element-plus'
 import 'element-plus/dist/index.css'
 import * as ElementPlusIconsVue from '@element-plus/icons-vue'
@@ -21,51 +21,26 @@ for (const [key, component] of Object.entries(ElementPlusIconsVue)) {
 
 app.mount('#main-app')
 
-// 注册微应用
-registerMicroApps([
-  {
-    name: 'videohub-app', // 子应用名称
-    entry: '//localhost:5173', // 子应用地址（开发环境）
-    container: '#subapp-container', // 子应用挂载的容器
-    activeRule: '/videohub', // 激活路由规则
-    props: {
-      routerBase: '/videohub', // 传递给子应用的路由 base
+// single-spa 注册子应用（使用动态 import 加载子应用生命周期）
+const loadVideoHubApp = () =>
+  import(/* @vite-ignore */ 'http://localhost:5173/src/main.js')
+
+registerApplication({
+  name: 'videohub-app',
+  app: loadVideoHubApp,
+  activeWhen: (location) => location.pathname.startsWith('/videohub'),
+  customProps: {
+    routerBase: '/videohub',
+    // 将容器节点传给子应用，便于它选择挂载点
+    get container() {
+      return document.querySelector('#subapp-container')
     }
-  }
-], {
-  // 全局生命周期钩子
-  beforeLoad: (app) => {
-    console.log('[主应用] before load', app.name)
-    return Promise.resolve()
-  },
-  beforeMount: (app) => {
-    console.log('[主应用] before mount', app.name)
-    return Promise.resolve()
-  },
-  afterMount: (app) => {
-    console.log('[主应用] after mount', app.name)
-    return Promise.resolve()
-  },
-  beforeUnmount: (app) => {
-    console.log('[主应用] before unmount', app.name)
-    return Promise.resolve()
-  },
-  afterUnmount: (app) => {
-    console.log('[主应用] after unmount', app.name)
-    return Promise.resolve()
   }
 })
 
-// 设置默认进入的子应用
-// setDefaultMountApp('/videohub')
-
-// 启动 qiankun
-start({
-  sandbox: {
-    strictStyleIsolation: true, // 开启样式隔离
-    experimentalStyleIsolation: true
-  },
-  prefetch: true, // 预加载
-  singular: false // 是否单实例模式
+// 路由就绪后跳到子应用首页并启动 single-spa
+router.isReady().then(() => {
+  router.replace('/videohub')
+  start()
 })
 

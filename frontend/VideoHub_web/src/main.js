@@ -1,7 +1,7 @@
 import { createApp } from 'vue';
 import { createPinia } from 'pinia';
 import App from './App.vue';
-import router from './router';
+import { createAppRouter } from './router';
 import ElementPlus from 'element-plus';
 import 'element-plus/dist/index.css';
 import * as ElementPlusIconsVue from '@element-plus/icons-vue';
@@ -13,33 +13,42 @@ let app = null;
  */
 function render(props = {}) {
   const { container, routerBase } = props;
-  // 如果是在 qiankun 环境中，使用容器内的 #app，否则使用 document 的 #app
-  const mountElement = container ? container.querySelector('#app') : document.querySelector('#app');
-  
-  // 设置路由 base（如果从主应用传递过来）
-  if (routerBase && window.__POWERED_BY_QIANKUN__) {
-    window.__MICRO_APP_BASE_ROUTE__ = routerBase;
+  // 有 routerBase 即视为微应用模式（single-spa 传入）
+  const isMicroApp = !!routerBase;
+
+  // 获取挂载点：优先容器内的 #app，其次容器本身，再退回 document
+  const mountElement =
+    (container && (container.querySelector('#app') || container.firstElementChild || container)) ||
+    document.querySelector('#app');
+
+  // 计算路由 base：微应用模式优先 props.routerBase，否则默认 /videohub；独立运行取 import.meta.env.BASE_URL
+  const base = isMicroApp ? routerBase || '/videohub' : import.meta.env.BASE_URL;
+
+  // 设置全局 base，供路由内部判断
+  if (isMicroApp) {
+    window.__MICRO_APP_BASE_ROUTE__ = base;
   }
-  
+
   app = createApp(App);
   const pinia = createPinia();
-  
+  const router = createAppRouter(base);
+
   app.use(pinia);
   app.use(router);
   app.use(ElementPlus);
-  
+
   // 注册 Element Plus 图标
   for (const [key, component] of Object.entries(ElementPlusIconsVue)) {
     app.component(key, component);
   }
-  
+
   app.mount(mountElement || '#app');
 }
 
 /**
  * 独立运行时
  */
-if (!window.__POWERED_BY_QIANKUN__) {
+if (!isMicroFrontendEnv()) {
   render();
 }
 
@@ -61,4 +70,12 @@ export async function unmount() {
     app.unmount();
     app = null;
   }
+}
+
+// 兼容 single-spa：直接挂到全局，供 dynamic import 后使用
+window['videohub-app'] = { bootstrap, mount, unmount };
+
+function isMicroFrontendEnv() {
+  // 兼容 qiankun 注入标记（若未来仍需），否则依据是否存在全局标记或 routerBase
+  return Boolean(window.__POWERED_BY_QIANKUN__ || window.__MICRO_APP_BASE_ROUTE__);
 }
