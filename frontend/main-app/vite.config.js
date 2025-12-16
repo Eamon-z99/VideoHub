@@ -16,9 +16,21 @@ export default defineConfig({
   },
   server: {
     host: '0.0.0.0',
-    port: 8080, // 主应用端口
+    port: 5173, // 主应用端口
     open: true,
     cors: true,
+    proxy: {
+      '/api': {
+        target: 'http://localhost:8080',
+        changeOrigin: true,
+        secure: false
+      },
+      '/local-videos': {
+        target: 'http://localhost:8080',
+        changeOrigin: true,
+        secure: false
+      }
+    }
   },
   build: {
     outDir: 'dist',

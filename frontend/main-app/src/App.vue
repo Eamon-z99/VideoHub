@@ -5,14 +5,14 @@ import { RouterView } from 'vue-router'
 <template>
   <div class="main-app">
     <!-- 主应用导航栏（可选） -->
-    <header class="main-header">
+    <!-- <header class="main-header">
       <div class="header-content">
         <h1>VideoHub 微前端</h1>
         <nav class="main-nav">
           <router-link to="/videohub">视频中心</router-link>
         </nav>
       </div>
-    </header>
+    </header> -->
     
     <!-- 主应用路由视图和子应用容器 -->
     <main class="main-content">

@@ -5,6 +5,8 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 import org.springframework.web.util.UriUtils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import videobackend.video.model.VideoItem;
 
 import java.nio.charset.StandardCharsets;
@@ -22,13 +24,24 @@ import java.util.stream.Collectors;
 @Service
 public class LocalVideoService {
 
+    private static final Logger log = LoggerFactory.getLogger(LocalVideoService.class);
     private final JdbcTemplate jdbcTemplate;
     private final Path mediaRoot;
+    private final String cdnBaseUrl;
+    private final boolean useCdn;
 
     public LocalVideoService(JdbcTemplate jdbcTemplate,
-                             @Value("${media.storage.root}") String mediaStorageRoot) {
+                             @Value("${media.storage.root}") String mediaStorageRoot,
+                             @Value("${media.cdn.base-url:}") String cdnBaseUrl,
+                             @Value("${media.cdn.enabled:false}") boolean useCdn) {
         this.jdbcTemplate = jdbcTemplate;
         this.mediaRoot = Paths.get(mediaStorageRoot);
+        // 统一去掉末尾 /，便于后续拼接
+        this.cdnBaseUrl = StringUtils.hasText(cdnBaseUrl)
+                ? cdnBaseUrl.replaceAll("/+$", "")
+                : "";
+        this.useCdn = useCdn;
+        log.info("Media CDN enabled: {}, baseUrl: {}", this.useCdn, this.cdnBaseUrl);
     }
 
     public List<VideoItem> listPage(int page, int pageSize) {
@@ -84,6 +97,28 @@ public class LocalVideoService {
     private String buildLocalUrl(String sourceFile, String fileName) {
         if (!StringUtils.hasText(sourceFile) || !StringUtils.hasText(fileName)) {
             return "";
+        }
+
+        // 启用 CDN 时，直接返回 CDN 地址（无需检查本地文件存在）
+        if (useCdn && StringUtils.hasText(cdnBaseUrl)) {
+            String normalizedSource = normalizeSource(safeDecode(sourceFile)).replace("\\", "/");
+            String normalizedFile = safeDecode(fileName).replace("\\", "/");
+
+            // 组合相对路径（如果 fileName 已包含路径则直接用）
+            String relativePath;
+            if (normalizedFile.contains("/")) {
+                relativePath = normalizedFile;
+            } else {
+                String base = normalizedSource.startsWith("/") ? normalizedSource.substring(1) : normalizedSource;
+                relativePath = StringUtils.hasText(base) ? base + "/" + normalizedFile : normalizedFile;
+            }
+
+            String encoded = Arrays.stream(relativePath.split("/"))
+                    .filter(StringUtils::hasText)
+                    .map(seg -> UriUtils.encodePathSegment(seg, StandardCharsets.UTF_8))
+                    .collect(Collectors.joining("/"));
+
+            return cdnBaseUrl + "/" + encoded;
         }
 
         // 兼容数据库中已存的 URL 编码路径或包含 % 的原始文件名
@@ -162,6 +197,8 @@ public class LocalVideoService {
                 .filter(StringUtils::hasText)
                 .map(seg -> UriUtils.encodePathSegment(seg, StandardCharsets.UTF_8))
                 .collect(Collectors.joining("/"));
+
+        // CDN 未启用时只走本地映射
         return "/local-videos/" + encoded;
     }
 

@@ -23,7 +23,7 @@ app.mount('#main-app')
 
 // single-spa 注册子应用（使用动态 import 加载子应用生命周期）
 const loadVideoHubApp = () =>
-  import(/* @vite-ignore */ 'http://localhost:5173/src/main.js')
+  import(/* @vite-ignore */ 'http://localhost:5174/src/main.js')
 
 registerApplication({
   name: 'videohub-app',
