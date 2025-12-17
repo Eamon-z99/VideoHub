@@ -2,7 +2,7 @@
 import { ref, onMounted, onUnmounted, nextTick, computed } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useUserStore } from '@/stores/user';
-import axios from '@/utils/request';
+import { loginApi } from '@/api/auth';
 import { ElMessage } from 'element-plus';
 
 const route = useRoute();
@@ -74,10 +74,7 @@ const login = async () => {
   loading.value = true;
   
   try {
-    const response = await axios.post('/api/auth/login', {
-      account: form.value.account.trim(),
-      password: form.value.password
-    });
+    const response = await loginApi(form.value.account, form.value.password);
     
     console.log('登录响应:', response.data);
     

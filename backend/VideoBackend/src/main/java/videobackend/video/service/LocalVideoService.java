@@ -48,12 +48,13 @@ public class LocalVideoService {
         int safeSize = Math.max(1, Math.min(pageSize, 100));
         int safePage = Math.max(1, page);
         int offset = (safePage - 1) * safeSize;
+        // 使用随机顺序返回视频列表（MySQL: ORDER BY RAND()），避免前端再做乱序
         String sql = """
                 SELECT video_id, title, description, duration,
                        cover_url, storage_path, source_file,
                        view_count, file_size
                 FROM videos
-                ORDER BY create_time DESC
+                ORDER BY RAND()
                 LIMIT ? OFFSET ?
                 """;
         return jdbcTemplate.query(sql, (rs, i) -> mapToVideo(rs), safeSize, offset);
