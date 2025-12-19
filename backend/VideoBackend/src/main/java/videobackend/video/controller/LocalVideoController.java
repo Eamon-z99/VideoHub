@@ -35,6 +35,15 @@ public class LocalVideoController {
         );
     }
 
+    @GetMapping("/top")
+    public Map<String, Object> top(@RequestParam(defaultValue = "6") int limit) {
+        List<VideoItem> items = localVideoService.listTopByViewCount(limit);
+        return Map.of(
+                "list", items,
+                "total", items.size()
+        );
+    }
+
     @GetMapping("/{videoId}")
     public ResponseEntity<VideoItem> detail(@PathVariable String videoId) {
         return localVideoService.findByVideoId(videoId)

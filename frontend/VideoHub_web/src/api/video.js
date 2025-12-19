@@ -8,3 +8,7 @@ export const fetchVideoDetail = (id) => {
   return request.get(`/api/db/videos/${encodeURIComponent(id)}`)
 }
 
+export const fetchTopVideos = (limit = 6) => {
+  return request.get('/api/db/videos/top', { params: { limit } })
+}
+

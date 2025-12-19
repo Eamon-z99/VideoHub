@@ -26,7 +26,28 @@
           </button>
         </div>
         <div class="actions">
-          <div class="avatar" @click="showLogin=true"/>
+          <div 
+            class="user-area" 
+            @click="handleUserClick"
+            @mouseenter="showUserDropdown = true"
+            @mouseleave="handleUserAreaLeave"
+            v-if="isAuthenticated"
+          >
+            <div class="avatar" />
+            <span class="user-name">{{ displayName }}</span>
+            <UserDropdown 
+              v-model:visible="showUserDropdown"
+              @close="showUserDropdown = false"
+              @mouseenter="handleDropdownEnter"
+            />
+          </div>
+          <div 
+            class="user-area" 
+            @click="handleUserClick"
+            v-else
+          >
+            <div class="avatar" />
+          </div>
           <div class="action-col" @click="goTo('/vip')">
             <img src="/assets/vip.png" class="action-icon" /><span>大会员</span>
           </div>
@@ -111,9 +132,20 @@
     <section class="hero-grid">
       <div class="banner">
         <div class="slider" :style="{ transform: `translateX(-${slideIndex * 100}%)` }">
-          <div v-for="(s, i) in slides" :key="i" class="slide">
-            <img :src="s.src" :alt="s.alt" />
-            <div class="slide-caption">{{ s.caption }}</div>
+          <div
+            v-for="(s, i) in slides"
+            :key="i"
+            class="slide"
+            @click="playTopVideo(s)"
+          >
+            <div class="thumb-wrap">
+              <img :src="s.cover" :alt="s.title" @error="onImgError" />
+              <span class="duration">{{ s.duration }}</span>
+              <div class="play-overlay">
+                <div class="play-button">▶</div>
+              </div>
+            </div>
+            <div class="slide-caption">{{ s.title }}</div>
           </div>
         </div>
         <button class="arrow left" @click="prev">‹</button>
@@ -123,8 +155,19 @@
         </div>
       </div>
       <aside class="recommend">
-        <div class="top-video" v-for="(r, i) in recommends" :key="i">
-          <div class="thumb-wrap"><img :src="r.cover" @error="onImgError" /></div>
+        <div
+          class="top-video"
+          v-for="(r, i) in recommends"
+          :key="i"
+          @click="playTopVideo(r)"
+        >
+          <div class="thumb-wrap">
+            <img :src="r.cover" @error="onImgError" />
+            <span class="duration">{{ r.duration }}</span>
+            <div class="play-overlay">
+              <div class="play-button">▶</div>
+            </div>
+          </div>
           <div class="v-title" :title="r.title">{{ r.title }}</div>
           <div class="v-sub">推荐</div>
         </div>
@@ -189,33 +232,70 @@ import { ref, onMounted, onUnmounted, computed, watch, nextTick } from 'vue'
 import { FixedSizeGrid as ElVirtualGrid } from 'element-plus/es/components/virtual-list/index.mjs'
 import { useRouter } from 'vue-router'
 import Login from '@/components/Login.vue'
-import { fetchVideos } from '@/api/video'
+import UserDropdown from '@/components/UserDropdown.vue'
+import { fetchVideos, fetchTopVideos } from '@/api/video'
+import { useUserStore } from '@/stores/user'
 
 const router = useRouter()
+const userStore = useUserStore()
 
 let showLogin = ref(false)
+let showUserDropdown = ref(false)
+let dropdownTimer: any = null
+
+const isAuthenticated = computed(() => userStore.isAuthenticated)
+const displayName = computed(() => {
+  const user = (userStore as any).user || {}
+  return user.username || user.loginAccount || '未登录'
+})
+
+const handleUserClick = () => {
+  if (!isAuthenticated.value) {
+    // 未登录：打开登录弹窗
+    showLogin.value = true
+    return
+  }
+  // 已登录：显示下拉菜单（如果未显示）
+  if (!showUserDropdown.value) {
+    showUserDropdown.value = true
+  }
+}
+
+const handleUserAreaLeave = () => {
+  // 延迟关闭，给鼠标移动到弹窗的时间
+  dropdownTimer = setTimeout(() => {
+    showUserDropdown.value = false
+  }, 200)
+}
+
+const handleDropdownEnter = () => {
+  // 鼠标进入下拉菜单，取消关闭操作
+  if (dropdownTimer) {
+    clearTimeout(dropdownTimer)
+    dropdownTimer = null
+  }
+}
+
+// 监听弹窗显示状态，清除定时器
+watch(showUserDropdown, (val) => {
+  if (val && dropdownTimer) {
+    clearTimeout(dropdownTimer)
+    dropdownTimer = null
+  }
+})
 
 const categories = [
   '番剧','国创','综艺','动画','鬼畜','舞蹈','娱乐','科技','美食','汽车','运动','VLOG','单机游戏','公益','电影','电视剧','纪录片','音乐','知识','资讯','生活','时尚'
 ]
 
-const slides = ref([
-  { src: '/images/banner-1.jpg', alt: '1', caption: '正在直播LPL：JDG vs LGD!' },
-  { src: '/images/banner-2.jpg', alt: '2', caption: '蒙恬扁鹊 双人巅峰' },
-  { src: '/images/banner-3.jpg', alt: '3', caption: '生命体征维持器' }
-])
+const slides = ref<any[]>([])
 const slideIndex = ref(0)
 let timer: any
 const next = () => { slideIndex.value = (slideIndex.value + 1) % slides.value.length }
 const prev = () => { slideIndex.value = (slideIndex.value - 1 + slides.value.length) % slides.value.length }
 const go = (i: number) => { slideIndex.value = i }
 
-const recommends = ref([
-  { cover: '/images/rec-1.jpg', title: '盾狗+蜂医 双人巅峰 04:05' },
-  { cover: '/images/rec-2.jpg', title: '生命体征维持器 04:57' },
-  { cover: '/images/rec-3.jpg', title: '为什么小妹很会赚钱 05:12' },
-  { cover: '/images/rec-4.jpg', title: '开学第一天 01:52' }
-])
+const recommends = ref<any[]>([])
 
 const videos = ref<any[]>([])
 const loadingVideos = ref(false)
@@ -276,6 +356,30 @@ const normalizeList = (data: any) => {
       isVideo: !!item?.playUrl
     }
   })
+}
+
+// 加载播放量最高的视频用于顶部轮播和右侧推荐
+const loadTopVideos = async () => {
+  try {
+    const { data } = await fetchTopVideos(6)
+    const list = Array.isArray(data?.list) ? data.list : []
+    const mapped = list.map((item: any) => {
+      const rawCover = (item?.coverUrl || '').trim()
+      const safeCover = rawCover || fallbackCover
+      const durationText = formatDuration(item?.duration)
+      return {
+        ...item,
+        cover: safeCover,
+        title: item?.title || '本地视频',
+        duration: durationText,
+        id: item?.videoId || item?.id
+      }
+    })
+    slides.value = mapped
+    recommends.value = mapped
+  } catch (e) {
+    // 失败时保持默认空状态，主列表仍可正常加载
+  }
 }
 
 const fetchVideosData = async (reset = false) => {
@@ -371,6 +475,7 @@ watch(
 onMounted(() => {
   timer = setInterval(next, 4000)
   fetchVideosData()
+  loadTopVideos()
   // 等待 DOM 渲染后设置 observer
   nextTick(() => {
     setupIntersectionObserver()
@@ -385,6 +490,11 @@ onUnmounted(() => {
   }
 })
 
+const playTopVideo = (video: any) => {
+  if (!video || !video.id) return
+  router.push(`/video/${encodeURIComponent(video.id)}`)
+}
+
 // 导航到创作中心
 const goTo = (path: string) => { router.push(path) }
 
@@ -392,12 +502,10 @@ const navigateToCreatorCenter = () => {
   router.push('/submitHome?view=contentManagement')
 }
 
-// 播放视频
+// 播放视频（列表区域）
 const playVideo = (video: any) => {
-  if (video.isVideo) {
-    // 跳转到视频播放页面
-    router.push(`/video/${encodeURIComponent(video.id)}`)
-  }
+  if (!video || !video.id) return
+  router.push(`/video/${encodeURIComponent(video.id)}`)
 }
 </script>
 
@@ -517,12 +625,37 @@ const playVideo = (video: any) => {
     margin-right: 1vw;
   }
 
-  .avatar {
-    width: 32px;
-    height: 32px;
-    border-radius: 50%;
-    background: #d8d8d8;
-    border: 2px solid rgba(255, 255, 255, .8);
+  .user-area {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+    padding: 4px 8px;
+    border-radius: 20px;
+    transition: background 0.2s;
+    
+    &:hover {
+      background: rgba(255, 255, 255, 0.1);
+    }
+    
+    .avatar {
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      background: #d8d8d8;
+      border: 2px solid rgba(255, 255, 255, .8);
+      flex-shrink: 0;
+    }
+    
+    .user-name {
+      font-size: 13px;
+      color: #fff;
+      white-space: nowrap;
+      max-width: 120px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
   }
 
   .action-col {
@@ -651,19 +784,18 @@ const playVideo = (video: any) => {
         display: flex;
         justify-content: center;
         align-items: center;
-        background-color: #f0f0f0;
+        background-color: #F6F7F8;
         border-radius: 8px;
         padding: 8px 12px;
         text-decoration: none;
-        color: #61666d;
+        color: #61666D;
         font-size: 14px;
-        transition: background-color 0.3s, color 0.3s;
+        letter-spacing: 2px;
+        transition: color 0.3s;
         height: 15px;
         white-space: nowrap;
-
         &:hover {
-          background-color: #e0e0e0;
-          color: black;
+            color: #000000;
         }
       }
     }
@@ -729,7 +861,7 @@ const playVideo = (video: any) => {
   /* 防止子项内容撑破导致列宽不一致 */
   > * { min-width: 0; }
 
-  .banner {
+    .banner {
     position: relative;
     background: linear-gradient(135deg, #2b2b3a, #5b6bd5);
     border-radius: 8px;
@@ -741,34 +873,87 @@ const playVideo = (video: any) => {
     height: 390px;
     width: 100%;
 
-    .slider {
+      .slider {
       position: absolute;
       inset: 0;
       display: flex;
       transition: transform .45s ease;
 
       .slide {
-        min-width: 100%;
-        position: relative;
+          min-width: 100%;
+          position: relative;
+          cursor: pointer;
 
-        img {
-          width: 100%;
-          height: 100%;
-          object-fit: cover;
-        }
+          .thumb-wrap {
+            position: relative;
+            width: 100%;
+            height: 100%;
+            border-radius: 8px;
+            overflow: hidden;
+            background: #f1f2f3;
 
-        .slide-caption {
-          position: absolute;
-          left: 16px;
-          bottom: 12px;
-          background: rgba(0, 0, 0, .45);
-          color: #fff;
-          padding: 6px 10px;
-          font-size: 12px;
-          border-radius: 4px;
-          backdrop-filter: blur(2px);
+            img {
+              position: absolute;
+              inset: 0;
+              width: 100%;
+              height: 100%;
+              object-fit: cover;
+            }
+
+            .duration {
+              position: absolute;
+              right: 6px;
+              bottom: 6px;
+              font-size: 12px;
+              color: #fff;
+              background: rgba(0, 0, 0, .55);
+              padding: 2px 6px;
+              border-radius: 4px;
+              z-index: 2;
+            }
+
+            .play-overlay {
+              position: absolute;
+              inset: 0;
+              display: flex;
+              align-items: center;
+              justify-content: center;
+              background: rgba(0, 0, 0, 0.3);
+              opacity: 0;
+              transition: opacity 0.3s ease;
+              z-index: 1;
+
+              .play-button {
+                width: 50px;
+                height: 50px;
+                background: rgba(255, 255, 255, 0.9);
+                border-radius: 50%;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                font-size: 20px;
+                color: #333;
+                box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
+              }
+            }
+
+            &:hover .play-overlay {
+              opacity: 1;
+            }
+          }
+
+          .slide-caption {
+            position: absolute;
+            left: 16px;
+            bottom: 12px;
+            background: rgba(0, 0, 0, .45);
+            color: #fff;
+            padding: 6px 10px;
+            font-size: 12px;
+            border-radius: 4px;
+            backdrop-filter: blur(2px);
+          }
         }
-      }
     }
 
     .arrow {
@@ -822,6 +1007,7 @@ const playVideo = (video: any) => {
       display: grid;
       grid-template-rows: auto auto auto;
       gap: 6px;
+      cursor: pointer;
       
       .thumb-wrap {
         position: relative;
@@ -837,6 +1023,47 @@ const playVideo = (video: any) => {
           width: 100%;
           height: 100%;
           object-fit: cover;
+        }
+
+        .duration {
+          position: absolute;
+          right: 6px;
+          bottom: 6px;
+          font-size: 12px;
+          color: #fff;
+          background: rgba(0, 0, 0, .55);
+          padding: 2px 6px;
+          border-radius: 4px;
+          z-index: 2;
+        }
+
+        .play-overlay {
+          position: absolute;
+          inset: 0;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          background: rgba(0, 0, 0, 0.3);
+          opacity: 0;
+          transition: opacity 0.3s ease;
+          z-index: 1;
+
+          .play-button {
+            width: 50px;
+            height: 50px;
+            background: rgba(255, 255, 255, 0.9);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 20px;
+            color: #333;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
+          }
+        }
+
+        &:hover .play-overlay {
+          opacity: 1;
         }
       }
 

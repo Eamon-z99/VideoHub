@@ -60,6 +60,22 @@ public class LocalVideoService {
         return jdbcTemplate.query(sql, (rs, i) -> mapToVideo(rs), safeSize, offset);
     }
 
+    /**
+     * 按播放量倒序获取前 N 个视频（用于首页推荐/轮播）
+     */
+    public List<VideoItem> listTopByViewCount(int limit) {
+        int safeLimit = Math.max(1, Math.min(limit, 100));
+        String sql = """
+                SELECT video_id, title, description, duration,
+                       cover_url, storage_path, source_file,
+                       view_count, file_size
+                FROM videos
+                ORDER BY view_count DESC
+                LIMIT ?
+                """;
+        return jdbcTemplate.query(sql, (rs, i) -> mapToVideo(rs), safeLimit);
+    }
+
     public long count() {
         Long total = jdbcTemplate.queryForObject("SELECT COUNT(*) FROM videos", Long.class);
         return total == null ? 0 : total;
