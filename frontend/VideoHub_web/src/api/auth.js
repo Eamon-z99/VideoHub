@@ -22,3 +22,11 @@ export const registerApi = (data) => {
   return request.post('/api/auth/register', data)
 }
 
+/**
+ * 用户退出登录
+ * @returns {Promise} 返回退出登录响应
+ */
+export const logoutApi = () => {
+  return request.post('/api/auth/logout')
+}
+

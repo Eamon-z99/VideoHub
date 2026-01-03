@@ -302,12 +302,24 @@ const toggleTheme = () => {
   ElMessage.info('主题切换功能开发中')
 }
 
-const handleLogout = () => {
-  userStore.logout()
-  ElMessage.success('已退出登录')
-  emit('close')
-  emit('update:visible', false)
-  router.push('/')
+const handleLogout = async () => {
+  try {
+    // 调用退出登录
+    await userStore.logout()
+    ElMessage.success('已退出登录')
+    // 关闭下拉菜单
+    emit('close')
+    emit('update:visible', false)
+    // 跳转到首页
+    router.push('/')
+  } catch (error) {
+    // 即使退出失败，也清除本地存储并跳转
+    console.error('退出登录失败:', error)
+    ElMessage.warning('退出登录时出现错误，但已清除本地登录信息')
+    emit('close')
+    emit('update:visible', false)
+    router.push('/')
+  }
 }
 </script>
 

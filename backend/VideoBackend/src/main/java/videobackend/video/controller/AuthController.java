@@ -49,5 +49,28 @@ public class AuthController {
                     .body(Map.of("success", false, "message", "登录失败，请稍后重试"));
         }
     }
+
+    /**
+     * 用户退出登录
+     * 虽然JWT是无状态的，但提供此接口用于记录日志和统一处理
+     * @return 退出登录响应
+     */
+    @PostMapping("/logout")
+    public ResponseEntity<?> logout() {
+        try {
+            // 执行退出登录（可以在这里添加日志记录、清除服务端缓存等操作）
+            authService.logout();
+            return ResponseEntity.ok(Map.of(
+                    "success", true,
+                    "message", "退出登录成功"
+            ));
+        } catch (Exception e) {
+            // 即使出现异常，也返回成功，因为JWT是无状态的，客户端清除token即可
+            return ResponseEntity.ok(Map.of(
+                    "success", true,
+                    "message", "退出登录成功"
+            ));
+        }
+    }
 }
 

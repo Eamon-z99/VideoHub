@@ -26,6 +26,7 @@ public class JwtInterceptor implements HandlerInterceptor {
         String path = request.getRequestURI();
         if (path.startsWith("/api/auth/login") || 
             path.startsWith("/api/auth/register") ||
+            path.startsWith("/api/auth/logout") ||
             path.startsWith("/local-videos/") ||
             path.startsWith("/error")) {
             return true;
