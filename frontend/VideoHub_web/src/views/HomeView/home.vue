@@ -1,74 +1,7 @@
 <template>
   <div class="home">
+    <TopHeader />
     <header class="site-header">
-      <div class="header-inner">
-        <ul class="nav-left">
-          <li class="nav-item" @click="goTo('/')">
-            <img src="/assets/home.png" class="nav-icon" />
-            <span>首页</span>
-          </li>
-          <li class="nav-item"><span>番剧</span></li>
-          <li class="nav-item" @click="goTo('/live')"><span>直播</span></li>
-          <li class="nav-item"><span>游戏中心</span></li>
-          <li class="nav-item" @click="goTo('/mall')"><span>会员购</span></li>
-          <li class="nav-item"><span>漫画</span></li>
-          <li class="nav-item"><span>赛事</span></li>
-          <li class="nav-item">
-            <img src="/assets/download-client.png" class="nav-icon" />
-            <span>下载客户端</span>
-          </li>
-        </ul>
-        <div class="search">
-          <input class="search-input" placeholder="搜索你感兴趣的内容" />
-          <button class="search-btn">
-            <!-- 🔍 -->
-            <img src="/assets/search-button.png" class="search-btn-img"/>
-          </button>
-        </div>
-        <div class="actions">
-          <div 
-            class="user-area" 
-            @click="handleUserClick"
-            @mouseenter="showUserDropdown = true"
-            @mouseleave="handleUserAreaLeave"
-            v-if="isAuthenticated"
-          >
-            <div class="avatar" />
-            <span class="user-name">{{ displayName }}</span>
-            <UserDropdown 
-              v-model:visible="showUserDropdown"
-              @close="showUserDropdown = false"
-              @mouseenter="handleDropdownEnter"
-            />
-          </div>
-          <div 
-            class="user-area" 
-            @click="handleUserClick"
-            v-else
-          >
-            <div class="avatar" />
-          </div>
-          <div class="action-col" @click="goTo('/vip')">
-            <img src="/assets/vip.png" class="action-icon" /><span>大会员</span>
-          </div>
-          <div class="action-col" @click="goTo('/messages')">
-            <img src="/assets/messages.png" class="action-icon" /><span>消息</span>
-          </div>
-          <div class="action-col" @click="goTo('/feed')">
-            <img src="/assets/feed.png" class="action-icon" /><span>动态</span>
-          </div>
-          <div class="action-col" @click="goTo('/profile')">
-            <img src="/assets/favorites.png" class="action-icon" /><span>收藏</span>
-          </div>
-          <div class="action-col" @click="goTo('/history')">
-            <img src="/assets/history.png" class="action-icon" /><span>历史</span>
-          </div>
-          <div class="action-col" @click="navigateToCreatorCenter">
-            <img src="/assets/creator-center.png" class="action-icon" /><span>创作中心</span>
-          </div>
-          <button class="primary" @click="goTo('/submitHome?view=submit')">投稿</button>
-        </div>
-      </div>
       <img class="header-bg" src="/assets/header.png" alt="banner" />
     </header>
     <section class="navigation-section">
@@ -219,11 +152,6 @@
       </div>
     </section>
   </div>
-
-
-  <!-- 登录组件 -->
-  <!-- <Login v-if="showLogin" @close="showLogin=false" /> -->
-  <Login v-model:show="showLogin" @close="showLogin=false" />
 </template>
 
 <script setup lang="ts">
@@ -231,58 +159,10 @@ import { ref, onMounted, onUnmounted, computed, watch, nextTick } from 'vue'
 // @ts-ignore Element Plus 未在主导出暴露虚拟列表，子路径命名导出
 import { FixedSizeGrid as ElVirtualGrid } from 'element-plus/es/components/virtual-list/index.mjs'
 import { useRouter } from 'vue-router'
-import Login from '@/components/Login.vue'
-import UserDropdown from '@/components/UserDropdown.vue'
+import TopHeader from '@/components/TopHeader.vue'
 import { fetchVideos, fetchTopVideos } from '@/api/video'
-import { useUserStore } from '@/stores/user'
 
 const router = useRouter()
-const userStore = useUserStore()
-
-let showLogin = ref(false)
-let showUserDropdown = ref(false)
-let dropdownTimer: any = null
-
-const isAuthenticated = computed(() => userStore.isAuthenticated)
-const displayName = computed(() => {
-  const user = (userStore as any).user || {}
-  return user.username || user.loginAccount || '未登录'
-})
-
-const handleUserClick = () => {
-  if (!isAuthenticated.value) {
-    // 未登录：打开登录弹窗
-    showLogin.value = true
-    return
-  }
-  // 已登录：显示下拉菜单（如果未显示）
-  if (!showUserDropdown.value) {
-    showUserDropdown.value = true
-  }
-}
-
-const handleUserAreaLeave = () => {
-  // 延迟关闭，给鼠标移动到弹窗的时间
-  dropdownTimer = setTimeout(() => {
-    showUserDropdown.value = false
-  }, 200)
-}
-
-const handleDropdownEnter = () => {
-  // 鼠标进入下拉菜单，取消关闭操作
-  if (dropdownTimer) {
-    clearTimeout(dropdownTimer)
-    dropdownTimer = null
-  }
-}
-
-// 监听弹窗显示状态，清除定时器
-watch(showUserDropdown, (val) => {
-  if (val && dropdownTimer) {
-    clearTimeout(dropdownTimer)
-    dropdownTimer = null
-  }
-})
 
 const categories = [
   '番剧','国创','综艺','动画','鬼畜','舞蹈','娱乐','科技','美食','汽车','运动','VLOG','单机游戏','公益','电影','电视剧','纪录片','音乐','知识','资讯','生活','时尚'
@@ -511,9 +391,10 @@ const playVideo = (video: any) => {
 
 <style lang="scss" scoped>
 .home {
+  position: relative;
   background: #fff;
   min-width: 1600px;
-  max-width: 1800px;
+  max-width: 2300px;
   width: 100%;
   margin: 0 auto;
 }
@@ -528,181 +409,6 @@ const playVideo = (video: any) => {
     width: 100%;
     height: 156px;
     object-fit: cover;
-  }
-
-  .header-inner {
-    position: relative;
-    z-index: 1;
-    height: 64px;
-    display: grid;
-    grid-template-columns: auto 1fr auto;
-    align-items: center;
-    gap: 12px;
-    padding: 8px 24px;
-  }
-
-  .nav-left {
-    display: flex;
-    gap: 20px;
-    list-style: none;
-    padding: 0;
-    margin-left: 1vw;
-    align-items: center;
-  }
-
-  .nav-item {
-    display: flex;
-    align-items: center;
-    color: #fff;
-    font-size: 14px;
-    gap: 6px;
-    cursor: pointer;
-
-    span {
-      transition: color .2s;
-    }
-
-    &:hover span {
-      color: #00a1d6;
-      animation: jump 0.3s ease;
-    }
-  }
-
-  .nav-icon {
-    width: 18px;
-    height: 18px;
-    filter: brightness(0) invert(1);
-  }
-
-  .search {
-    display: grid;
-    grid-template-columns: 1fr 40px;
-    background: #fff;
-    border-radius: 8px;
-    overflow: hidden;
-    width: 500px;
-    margin: 0 auto;
-
-    .search-input {
-      height: 36px;
-      padding: 0 12px;
-      border: 0;
-      outline: none;
-      font-size: 14px;
-    }
-
-    .search-btn {
-      margin-left: 4px;
-      margin-top: 4px;
-      border: 0;
-      background: transparent;
-      cursor: pointer;
-      font-size: 16px;
-      padding: 8px;
-      width: 25px;
-      height: 25px;
-      border-radius: 8px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-
-      &:hover {
-        background-color: #f5f5f5;
-      }
-
-      .search-btn-img {
-        width: 20px;
-        height: 20px;
-        margin-top: 4px;
-      }
-    }
-  }
-
-  .actions {
-    display: flex;
-    gap: 20px;
-    align-items: center;
-    margin-right: 1vw;
-  }
-
-  .user-area {
-    position: relative;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    cursor: pointer;
-    padding: 4px 8px;
-    border-radius: 20px;
-    transition: background 0.2s;
-    
-    &:hover {
-      background: rgba(255, 255, 255, 0.1);
-    }
-    
-    .avatar {
-      width: 32px;
-      height: 32px;
-      border-radius: 50%;
-      background: #d8d8d8;
-      border: 2px solid rgba(255, 255, 255, .8);
-      flex-shrink: 0;
-    }
-    
-    .user-name {
-      font-size: 13px;
-      color: #fff;
-      white-space: nowrap;
-      max-width: 120px;
-      overflow: hidden;
-      text-overflow: ellipsis;
-    }
-  }
-
-  .action-col {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    color: #fff;
-    gap: 4px;
-    font-size: 12px;
-
-    span {
-      transition: color .2s;
-    }
-
-    &:hover span {
-      color: #00a1d6;
-      animation: jump 0.3s ease;
-    }
-
-    &:hover .action-icon {
-      animation: jump 0.3s ease;
-    }
-  }
-
-  .action-icon {
-    width: 19px;
-    height: 19px;
-    /* 轻微发光，略细于上一版 */
-    filter: brightness(0) invert(1) drop-shadow(0 0 0.3px rgba(255, 255, 255, 0.85));
-  }
-
-  .action {
-    background: rgba(255, 255, 255, 0.2);
-    border: 1px solid rgba(255, 255, 255, 0.4);
-    color: #fff;
-    padding: 6px 10px;
-    border-radius: 6px;
-    cursor: pointer;
-  }
-
-  .primary {
-    background: #fb7299;
-    border: none;
-    color: #fff;
-    padding: 6px 12px;
-    border-radius: 6px;
-    cursor: pointer;
   }
 }
 
