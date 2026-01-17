@@ -1,7 +1,11 @@
 <template>
   <div 
     class="top-header" 
-    :class="{ scrolled: isScrolled, fixed: isFixed }"
+    :class="{ 
+      scrolled: isScrolled || (!transparentAtTop && !fixedOnScroll),
+      fixed: isFixed,
+      'always-opaque': !transparentAtTop && !isScrolled
+    }"
     :style="headerStyle"
   >
     <div class="header-inner">
@@ -83,6 +87,19 @@ import Login from '@/components/Login.vue'
 import UserDropdown from '@/components/UserDropdown.vue'
 import { useUserStore } from '@/stores/user'
 
+// Props
+interface Props {
+  // 是否需要在下滑时固定在顶部的悬浮开关（默认 true）
+  fixedOnScroll?: boolean
+  // 页面最顶部时背景色是否需要透明（默认 true）
+  transparentAtTop?: boolean
+}
+
+const props = withDefaults(defineProps<Props>(), {
+  fixedOnScroll: true,
+  transparentAtTop: true
+})
+
 const router = useRouter()
 const userStore = useUserStore()
 
@@ -100,6 +117,14 @@ const displayName = computed(() => {
 })
 
 const handleScroll = () => {
+  // 如果不需要固定悬浮，设置固定状态并返回
+  if (!props.fixedOnScroll) {
+    isFixed.value = false
+    // 如果背景不透明，应该显示深色文字和图标（通过 scrolled 类）
+    isScrolled.value = !props.transparentAtTop
+    return
+  }
+
   // 优先检查 .scroll-container，如果没有则检查 window
   const scrollContainer = document.querySelector('.scroll-container') as HTMLElement
   let currentScrollTop = 0
@@ -113,14 +138,15 @@ const handleScroll = () => {
   scrollTop.value = currentScrollTop
   
   // 设置滚动阈值：80px
-  // 0-80px：顶部栏跟随页面内容向上移动（使用 absolute 定位，通过 transform 向上移动）
+  // 0-80px：顶部栏保持在页面内容顶部（使用 absolute 定位）
   // 超过 80px：顶部栏固定在视口顶部（使用 fixed 定位），显示白色背景（悬浮状态）
   const scrollThreshold = 80
   
   if (currentScrollTop <= scrollThreshold) {
-    // 0-80px：跟随页面滚动
+    // 0-80px：保持在页面内容顶部
     isFixed.value = false
-    isScrolled.value = false
+    // 根据 transparentAtTop 决定是否显示白色背景
+    isScrolled.value = !props.transparentAtTop
   } else {
     // 超过 80px：固定在视口顶部
     isFixed.value = true
@@ -129,6 +155,16 @@ const handleScroll = () => {
 }
 
 const headerStyle = computed(() => {
+  // 如果不需要固定悬浮，始终使用 absolute 定位
+  if (!props.fixedOnScroll) {
+    return {
+      position: 'absolute' as const,
+      top: '0',
+      left: '0',
+      right: '0'
+    }
+  }
+
   if (isFixed.value) {
     // 超过80px：固定在视口顶部
     return {
@@ -149,25 +185,34 @@ const headerStyle = computed(() => {
 })
 
 onMounted(() => {
-  // 初始检查一次，如果页面已经在滚动位置，应该显示白色背景
-  handleScroll()
-  
-  // 监听 .scroll-container 的滚动事件
-  const scrollContainer = document.querySelector('.scroll-container')
-  if (scrollContainer) {
-    scrollContainer.addEventListener('scroll', handleScroll, { passive: true })
+  // 如果不需要固定悬浮，根据 transparentAtTop 设置初始状态
+  if (!props.fixedOnScroll) {
+    isFixed.value = false
+    isScrolled.value = !props.transparentAtTop
   } else {
-    // 如果没有 .scroll-container，则监听 window
-    window.addEventListener('scroll', handleScroll, { passive: true })
+    // 初始检查一次
+    handleScroll()
+    
+    // 监听滚动事件
+    const scrollContainer = document.querySelector('.scroll-container')
+    if (scrollContainer) {
+      scrollContainer.addEventListener('scroll', handleScroll, { passive: true })
+    } else {
+      // 如果没有 .scroll-container，则监听 window
+      window.addEventListener('scroll', handleScroll, { passive: true })
+    }
   }
 })
 
 onUnmounted(() => {
-  const scrollContainer = document.querySelector('.scroll-container')
-  if (scrollContainer) {
-    scrollContainer.removeEventListener('scroll', handleScroll)
-  } else {
-    window.removeEventListener('scroll', handleScroll)
+  // 如果需要固定悬浮，才移除滚动事件监听
+  if (props.fixedOnScroll) {
+    const scrollContainer = document.querySelector('.scroll-container')
+    if (scrollContainer) {
+      scrollContainer.removeEventListener('scroll', handleScroll)
+    } else {
+      window.removeEventListener('scroll', handleScroll)
+    }
   }
   
   if (dropdownTimer) {
@@ -233,10 +278,19 @@ const navigateToCreatorCenter = () => {
     background-color: #ffffff !important;
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
   }
+
+  &.always-opaque {
+    background-color: #ffffff !important;
+  }
 }
 
 // 确保背景色优先级足够高
 .top-header.scrolled {
+  background-color: #ffffff !important;
+  background: #ffffff !important;
+}
+
+.top-header.always-opaque {
   background-color: #ffffff !important;
   background: #ffffff !important;
 }

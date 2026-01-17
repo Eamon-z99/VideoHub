@@ -4,10 +4,13 @@
     <section class="player-area">
       <div class="player">
         <video
+          ref="videoPlayer"
           class="video"
           :src="videoSrc"
           controls
           :poster="posterUrl"
+          @timeupdate="onTimeUpdate"
+          @loadedmetadata="onVideoLoaded"
         />
       </div>
 
@@ -101,14 +104,18 @@
 </template>
 
 <script setup>
-import { ref, onMounted, watch } from 'vue'
+import { ref, onMounted, watch, onUnmounted } from 'vue'
 import { useRoute } from 'vue-router'
 import { View, ChatDotRound, Timer } from '@element-plus/icons-vue'
 import { Pointer, Star, Share } from '@element-plus/icons-vue'
 import { fetchVideoDetail } from '@/api/video'
+import { recordHistory } from '@/api/history'
+import { useUserStore } from '@/stores/user'
 
 const route = useRoute()
+const userStore = useUserStore()
 
+const videoPlayer = ref(null)
 const videoData = ref({
   id: '',
   title: '',
@@ -128,6 +135,13 @@ const videoSrc = ref('')
 const posterUrl = ref('')
 const loading = ref(false)
 const fallbackCover = '/images/banner-1.jpg'
+
+// 播放历史记录相关
+let recordTimer = null
+let lastRecordTimestamp = 0 // 上次记录的时间戳（毫秒）
+let lastRecordPlayTime = 0 // 上次记录的播放时间（秒）
+const RECORD_INTERVAL = 10000 // 每10秒记录一次
+const MIN_PLAY_TIME_DIFF = 5 // 播放时间变化超过5秒才记录
 
 const loadVideo = async () => {
   const videoId = route.params.id
@@ -188,6 +202,65 @@ const submitComment = () => {
   })
   commentText.value = ''
 }
+
+// 视频时间更新事件
+const onTimeUpdate = () => {
+  if (!videoPlayer.value || !userStore.isAuthenticated) return
+  
+  const currentTime = Math.floor(videoPlayer.value.currentTime)
+  const now = Date.now()
+  
+  // 每10秒记录一次，或者播放时间变化超过5秒
+  if (now - lastRecordTimestamp >= RECORD_INTERVAL || 
+      Math.abs(currentTime - lastRecordPlayTime) >= MIN_PLAY_TIME_DIFF) {
+    recordPlayHistory(currentTime)
+    lastRecordTimestamp = now
+    lastRecordPlayTime = currentTime
+  }
+}
+
+// 视频加载完成事件
+const onVideoLoaded = () => {
+  if (!videoPlayer.value || !userStore.isAuthenticated) return
+  
+  // 视频加载完成后立即记录一次
+  const currentTime = Math.floor(videoPlayer.value.currentTime || 0)
+  recordPlayHistory(currentTime)
+  lastRecordTimestamp = Date.now()
+  lastRecordPlayTime = currentTime
+}
+
+// 记录播放历史
+const recordPlayHistory = async (playTime) => {
+  if (!userStore.isAuthenticated) return
+  
+  const userId = userStore.user?.userId || userStore.user?.id
+  if (!userId || !videoData.value.videoId) return
+
+  // 优先从video元素获取实际时长，其次从videoData获取
+  let duration = null
+  if (videoPlayer.value && videoPlayer.value.duration) {
+    duration = Math.floor(videoPlayer.value.duration)
+  } else if (videoData.value.duration) {
+    duration = typeof videoData.value.duration === 'number' 
+      ? videoData.value.duration 
+      : parseInt(videoData.value.duration)
+  }
+
+  try {
+    await recordHistory(userId, videoData.value.videoId, playTime, duration)
+  } catch (error) {
+    console.error('记录播放历史失败:', error)
+  }
+}
+
+// 清理定时器
+onUnmounted(() => {
+  if (recordTimer) {
+    clearInterval(recordTimer)
+    recordTimer = null
+  }
+})
 </script>
 
 <style lang="scss" scoped>
