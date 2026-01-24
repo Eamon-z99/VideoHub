@@ -108,7 +108,7 @@
     </section>
 
     <section class="section">
-      <div class="video-virtual-wrapper">
+      <div ref="videoWrapperRef" class="video-virtual-wrapper">
         <ElVirtualGrid
           class="video-virtual-grid"
           :data="videos"
@@ -184,12 +184,57 @@ const finished = ref(false)
 const page = ref(1)
 const pageSize = 20
 const totalCount = ref(0)
-const columnCount = 5
-const gridWidth = 1350
-const columnWidth = Math.floor(gridWidth / columnCount)
+// 响应式窗口宽度
+const windowWidth = ref(typeof window !== 'undefined' ? window.innerWidth : 1350)
+// 视频容器ref，用于获取实际宽度
+const videoWrapperRef = ref<HTMLElement | null>(null)
+// 实际容器宽度
+const actualContainerWidth = ref(1350)
+
+// 响应式计算容器宽度：小屏幕1350px，大屏幕75%宽度
+const containerWidth = computed(() => {
+  const screenWidth = windowWidth.value
+  if (screenWidth >= 1800) {
+    // 大屏幕：75%宽度，但不超过2300px（与.home的max-width一致）
+    return Math.min(Math.floor(screenWidth * 0.75), 2300)
+  }
+  return 1350
+})
+
+// 更新实际容器宽度
+const updateActualWidth = () => {
+  if (videoWrapperRef.value) {
+    const rect = videoWrapperRef.value.getBoundingClientRect()
+    actualContainerWidth.value = Math.floor(rect.width)
+  }
+}
+
+// 网格可用宽度 = 实际容器宽度（已经减去了padding）
+const gridWidth = computed(() => {
+  // 使用实际测量的宽度，如果没有则使用计算值
+  const width = actualContainerWidth.value > 0 ? actualContainerWidth.value : (containerWidth.value - 40)
+  return width
+})
+
+// 响应式计算列数：小屏幕5列，大屏幕根据宽度动态计算
+// 每列约270px（包含.video的左右padding各8px），但至少5列
+const columnCount = computed(() => {
+  const width = gridWidth.value
+  // 每列约270px，但至少5列
+  const cols = Math.max(5, Math.floor(width / 270))
+  return cols
+})
+
+// 列宽 = 网格宽度 / 列数（每个.video有左右各8px padding，已包含在计算中）
+const columnWidth = computed(() => {
+  const width = gridWidth.value
+  const cols = columnCount.value
+  // 确保列宽是整数，并且能够整除
+  return Math.floor(width / cols)
+})
 const rowHeight = 230
 // 计算已加载视频的行数（只显示已加载的数据）
-const rowCount = computed(() => Math.ceil(videos.value.length / columnCount))
+const rowCount = computed(() => Math.ceil(videos.value.length / columnCount.value))
 // 虚拟滚动的高度：基于已加载的行数，最小高度为1行
 const gridHeight = computed(() => {
   const rows = rowCount.value
@@ -199,7 +244,7 @@ const fallbackCover = '/images/banner-1.jpg'
 const getPaddingStyle = (columnIndex: number) => {
   return {
     paddingLeft: columnIndex === 0 ? '0px' : undefined,
-    paddingRight: columnIndex === columnCount - 1 ? '0px' : undefined
+    paddingRight: columnIndex === columnCount.value - 1 ? '0px' : undefined
   }
 }
 
@@ -332,8 +377,19 @@ watch(
     if (!finished.value) {
       nextTick(() => {
         setupIntersectionObserver()
+        updateActualWidth()
       })
     }
+  }
+)
+
+// 监听容器宽度变化，更新实际宽度
+watch(
+  () => containerWidth.value,
+  () => {
+    nextTick(() => {
+      updateActualWidth()
+    })
   }
 )
 
@@ -352,6 +408,9 @@ watch(
   }
 )
 
+// 窗口大小变化处理函数
+let handleResize: (() => void) | null = null
+
 onMounted(() => {
   timer = setInterval(next, 4000)
   fetchVideosData()
@@ -359,7 +418,18 @@ onMounted(() => {
   // 等待 DOM 渲染后设置 observer
   nextTick(() => {
     setupIntersectionObserver()
+    // 更新实际容器宽度
+    updateActualWidth()
   })
+  // 监听窗口大小变化
+  handleResize = () => {
+    windowWidth.value = window.innerWidth
+    // 延迟更新，等待DOM更新完成
+    nextTick(() => {
+      updateActualWidth()
+    })
+  }
+  window.addEventListener('resize', handleResize)
 })
 
 onUnmounted(() => {
@@ -367,6 +437,10 @@ onUnmounted(() => {
   if (observer) {
     observer.disconnect()
     observer = null
+  }
+  if (handleResize) {
+    window.removeEventListener('resize', handleResize)
+    handleResize = null
   }
 })
 
@@ -414,6 +488,7 @@ const playVideo = (video: any) => {
 
 .navigation-section {
   max-width: 1350px;
+  width: 100%;
   margin: -30px auto 0;
   padding: 0 20px;
   display: flex;
@@ -556,12 +631,14 @@ const playVideo = (video: any) => {
 /* 顶部区域：5列网格，轮播占两列两行 */
 .hero-grid {
   max-width: 1350px;
+  width: 100%;
   margin: 20px auto 20px;
   padding: 0 20px;
+  box-sizing: border-box;
   display: grid;
   grid-template-columns: repeat(5, 1fr);
-  /* 顶部每个卡片的行高，轮播图将占两行 */
-  grid-auto-rows: 220px;
+  /* 每个卡片的行高自适应内容 */
+  grid-auto-rows: auto;
   gap: 16px;
   overflow-y: hidden;
   /* 防止子项内容撑破导致列宽不一致 */
@@ -574,10 +651,9 @@ const playVideo = (video: any) => {
     overflow: hidden;
     box-shadow: 0 2px 8px rgba(0, 0, 0, .08);
     grid-column: 1 / span 2;  /* 占两列 */
-    grid-row: 1 / span 2;     /* 占两行 */
-    /* 高度 = 两行高度 + 中间一条间距 */
-    height: 390px;
+    grid-row: 1 / span 3;
     width: 100%;
+    height: 85%;
 
       .slider {
       position: absolute;
@@ -711,9 +787,10 @@ const playVideo = (video: any) => {
 
     .top-video {
       display: grid;
-      grid-template-rows: auto auto auto;
+      grid-template-rows: minmax(0, 1fr) auto auto;
       gap: 6px;
       cursor: pointer;
+      min-height: 0;
       
       .thumb-wrap {
         position: relative;
@@ -781,20 +858,25 @@ const playVideo = (video: any) => {
 
 .section {
   max-width: 1350px;
+  width: 100%;
   margin: 80px auto 40px;
   padding: 0 20px;
+  box-sizing: border-box;
 
   .video-virtual-wrapper {
-    max-width: 1350px;
-    margin: 0 auto;
-    padding: 0 0;
+    width: 100%;
+    margin: 0;
+    padding: 0;
     display: flex;
-    justify-content: center;
+    justify-content: flex-start;
     overflow: visible; /* 交给页面滚动 */
+    box-sizing: border-box;
   }
 
   .video-virtual-grid {
     width: 100%;
+    max-width: 100%;
+    box-sizing: border-box;
     overflow: hidden !important; /* 禁止独立滚动，统一跟随页面 */
     overflow-y: hidden !important;
     overflow-x: hidden !important;
@@ -878,6 +960,8 @@ const playVideo = (video: any) => {
   .video {
     padding: 8px;
     box-sizing: border-box;
+    width: 100%;
+    overflow: hidden;
 
     .card {
       display: grid;
@@ -979,5 +1063,25 @@ const playVideo = (video: any) => {
   0% { transform: translateY(0); }
   50% { transform: translateY(-3px); }
   100% { transform: translateY(0); }
+}
+
+/* 大屏幕响应式：当屏幕宽度超过1800px时，让内容区域占据75%宽度 */
+@media (min-width: 1800px) {
+  .navigation-section,
+  .hero-grid,
+  .section {
+    max-width: 75%;
+  }
+
+  .section .video-virtual-wrapper {
+    width: 100%;
+  }
+  
+  .navigation-section,
+  .hero-grid,
+  .section {
+    padding: 0 20px;
+    box-sizing: border-box;
+  }
 }
 </style>
