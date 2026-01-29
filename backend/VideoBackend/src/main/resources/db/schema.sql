@@ -101,24 +101,44 @@ CREATE TABLE IF NOT EXISTS `play_history` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='播放历史表';
 
 -- ============================================
--- 5. 收藏表
+-- 5. 收藏夹表
+-- ============================================
+CREATE TABLE IF NOT EXISTS `favorite_folders` (
+    `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '收藏夹ID',
+    `user_id` BIGINT UNSIGNED NOT NULL COMMENT '用户ID',
+    `name` VARCHAR(100) NOT NULL COMMENT '收藏夹名称',
+    `is_public` TINYINT DEFAULT 1 COMMENT '是否公开：0-私密，1-公开',
+    `create_time` DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    `update_time` DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+    PRIMARY KEY (`id`),
+    UNIQUE KEY `uk_user_name` (`user_id`, `name`),
+    INDEX `idx_user_id` (`user_id`),
+    INDEX `idx_create_time` (`create_time`),
+    FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='收藏夹表';
+
+-- ============================================
+-- 6. 收藏表
 -- ============================================
 CREATE TABLE IF NOT EXISTS `favorites` (
     `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '收藏ID',
     `user_id` BIGINT UNSIGNED NOT NULL COMMENT '用户ID',
     `video_id` VARCHAR(50) NOT NULL COMMENT '视频ID',
+    `folder_id` BIGINT UNSIGNED DEFAULT NULL COMMENT '收藏夹ID（为空表示默认收藏夹）',
     `create_time` DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
     PRIMARY KEY (`id`),
     UNIQUE KEY `uk_user_video` (`user_id`, `video_id`),
     INDEX `idx_user_id` (`user_id`),
     INDEX `idx_video_id` (`video_id`),
+    INDEX `idx_folder_id` (`folder_id`),
     INDEX `idx_create_time` (`create_time`),
     FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE,
-    FOREIGN KEY (`video_id`) REFERENCES `videos` (`video_id`) ON DELETE CASCADE
+    FOREIGN KEY (`video_id`) REFERENCES `videos` (`video_id`) ON DELETE CASCADE,
+    FOREIGN KEY (`folder_id`) REFERENCES `favorite_folders` (`id`) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='收藏表';
 
 -- ============================================
--- 6. 评论表
+-- 7. 评论表
 -- ============================================
 CREATE TABLE IF NOT EXISTS `comments` (
     `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '评论ID',

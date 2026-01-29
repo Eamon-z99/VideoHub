@@ -63,6 +63,24 @@ CREATE TABLE `comments`  (
 ) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = utf8mb4_unicode_ci COMMENT = '评论表' ROW_FORMAT = Dynamic;
 
 -- ----------------------------
+-- Table structure for favorite_folders
+-- ----------------------------
+DROP TABLE IF EXISTS `favorite_folders`;
+CREATE TABLE `favorite_folders`  (
+  `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '收藏夹ID',
+  `user_id` bigint UNSIGNED NOT NULL COMMENT '用户ID',
+  `name` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL COMMENT '收藏夹名称',
+  `is_public` tinyint NULL DEFAULT 1 COMMENT '是否公开：0-私密，1-公开',
+  `create_time` datetime NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  `update_time` datetime NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+  PRIMARY KEY (`id`) USING BTREE,
+  UNIQUE INDEX `uk_user_name`(`user_id` ASC, `name` ASC) USING BTREE,
+  INDEX `idx_user_id`(`user_id` ASC) USING BTREE,
+  INDEX `idx_create_time`(`create_time` ASC) USING BTREE,
+  CONSTRAINT `favorite_folders_ibfk_1` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE ON UPDATE RESTRICT
+) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = utf8mb4_unicode_ci COMMENT = '收藏夹表' ROW_FORMAT = Dynamic;
+
+-- ----------------------------
 -- Records of comments
 -- ----------------------------
 
@@ -74,14 +92,17 @@ CREATE TABLE `favorites`  (
   `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '收藏ID',
   `user_id` bigint UNSIGNED NOT NULL COMMENT '用户ID',
   `video_id` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL COMMENT '视频ID',
+  `folder_id` bigint UNSIGNED NULL DEFAULT NULL COMMENT '收藏夹ID（为空表示默认收藏夹）',
   `create_time` datetime NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
   PRIMARY KEY (`id`) USING BTREE,
   UNIQUE INDEX `uk_user_video`(`user_id` ASC, `video_id` ASC) USING BTREE,
   INDEX `idx_user_id`(`user_id` ASC) USING BTREE,
   INDEX `idx_video_id`(`video_id` ASC) USING BTREE,
+  INDEX `idx_folder_id`(`folder_id` ASC) USING BTREE,
   INDEX `idx_create_time`(`create_time` ASC) USING BTREE,
   CONSTRAINT `favorites_ibfk_1` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE ON UPDATE RESTRICT,
-  CONSTRAINT `favorites_ibfk_2` FOREIGN KEY (`video_id`) REFERENCES `videos` (`video_id`) ON DELETE CASCADE ON UPDATE RESTRICT
+  CONSTRAINT `favorites_ibfk_2` FOREIGN KEY (`video_id`) REFERENCES `videos` (`video_id`) ON DELETE CASCADE ON UPDATE RESTRICT,
+  CONSTRAINT `favorites_ibfk_3` FOREIGN KEY (`folder_id`) REFERENCES `favorite_folders` (`id`) ON DELETE SET NULL ON UPDATE RESTRICT
 ) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = utf8mb4_unicode_ci COMMENT = '收藏表' ROW_FORMAT = Dynamic;
 
 -- ----------------------------

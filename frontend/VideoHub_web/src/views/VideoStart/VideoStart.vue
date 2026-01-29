@@ -8,6 +8,7 @@
           class="video"
           :src="videoSrc"
           controls
+          autoplay
           :poster="posterUrl"
           @timeupdate="onTimeUpdate"
           @loadedmetadata="onVideoLoaded"
@@ -28,7 +29,16 @@
           </div>
           <div class="actions">
             <el-button size="small" round plain :icon="Pointer">点赞</el-button>
-            <el-button size="small" round plain :icon="Star">收藏</el-button>
+            <el-button 
+              size="small" 
+              round 
+              :type="isFavorited ? 'primary' : 'default'"
+              :icon="Star"
+              @click="toggleFavorite"
+              :loading="favoriteLoading"
+            >
+              {{ isFavorited ? '已收藏' : '收藏' }}
+            </el-button>
             <el-button size="small" round plain :icon="Share">分享</el-button>
           </div>
         </div>
@@ -110,7 +120,9 @@ import { View, ChatDotRound, Timer } from '@element-plus/icons-vue'
 import { Pointer, Star, Share } from '@element-plus/icons-vue'
 import { fetchVideoDetail } from '@/api/video'
 import { recordHistory } from '@/api/history'
+import { addFavorite, removeFavorite, checkFavorite } from '@/api/favorite'
 import { useUserStore } from '@/stores/user'
+import { ElMessage } from 'element-plus'
 
 const route = useRoute()
 const userStore = useUserStore()
@@ -136,6 +148,10 @@ const posterUrl = ref('')
 const loading = ref(false)
 const fallbackCover = '/images/banner-1.jpg'
 
+// 收藏相关
+const isFavorited = ref(false)
+const favoriteLoading = ref(false)
+
 // 播放历史记录相关
 let recordTimer = null
 let lastRecordTimestamp = 0 // 上次记录的时间戳（毫秒）
@@ -159,6 +175,11 @@ const loadVideo = async () => {
       data.sourceFile || '本地视频',
       data.storagePath || '',
     ].filter(Boolean)
+    
+    // 检查收藏状态
+    if (userStore.isAuthenticated) {
+      await checkFavoriteStatus(videoId)
+    }
   } catch (e) {
     title.value = '未找到视频'
     videoSrc.value = ''
@@ -167,8 +188,83 @@ const loadVideo = async () => {
   }
 }
 
-onMounted(loadVideo)
-watch(() => route.params.id, () => loadVideo())
+// 检查收藏状态
+const checkFavoriteStatus = async (videoId) => {
+  if (!userStore.isAuthenticated) return
+  
+  const userId = userStore.user?.userId || userStore.user?.id
+  if (!userId) return
+  
+  try {
+    const { data } = await checkFavorite(userId, videoId)
+    if (data.success) {
+      isFavorited.value = data.isFavorited || false
+    }
+  } catch (error) {
+    console.error('检查收藏状态失败:', error)
+  }
+}
+
+// 切换收藏状态
+const toggleFavorite = async () => {
+  if (!userStore.isAuthenticated) {
+    ElMessage.warning('请先登录')
+    return
+  }
+  
+  const userId = userStore.user?.userId || userStore.user?.id
+  if (!userId) {
+    ElMessage.warning('用户信息获取失败')
+    return
+  }
+  
+  const videoId = videoData.value.videoId || route.params.id
+  if (!videoId) return
+  
+  favoriteLoading.value = true
+  try {
+    if (isFavorited.value) {
+      // 取消收藏
+      const { data } = await removeFavorite(userId, videoId)
+      if (data.success) {
+        isFavorited.value = false
+        ElMessage.success('已取消收藏')
+      } else {
+        ElMessage.error(data.message || '取消收藏失败')
+      }
+    } else {
+      // 添加收藏
+      const { data } = await addFavorite(userId, videoId)
+      if (data.success) {
+        isFavorited.value = true
+        ElMessage.success('收藏成功')
+      } else {
+        ElMessage.warning(data.message || '收藏失败')
+      }
+    }
+  } catch (error) {
+    console.error('收藏操作失败:', error)
+    ElMessage.error('操作失败，请稍后重试')
+  } finally {
+    favoriteLoading.value = false
+  }
+}
+
+onMounted(() => {
+  loadVideo()
+})
+
+watch(() => route.params.id, () => {
+  loadVideo()
+})
+
+watch(() => userStore.isAuthenticated, (isAuth) => {
+  if (isAuth && videoData.value.videoId) {
+    checkFavoriteStatus(videoData.value.videoId)
+  } else {
+    isFavorited.value = false
+  }
+})
 
 const commentText = ref('')
 const comments = ref([
@@ -221,13 +317,22 @@ const onTimeUpdate = () => {
 
 // 视频加载完成事件
 const onVideoLoaded = () => {
-  if (!videoPlayer.value || !userStore.isAuthenticated) return
+  if (!videoPlayer.value) return
   
-  // 视频加载完成后立即记录一次
-  const currentTime = Math.floor(videoPlayer.value.currentTime || 0)
-  recordPlayHistory(currentTime)
-  lastRecordTimestamp = Date.now()
-  lastRecordPlayTime = currentTime
+  // 尝试自动播放（如果浏览器策略允许）
+  videoPlayer.value.play().catch(err => {
+    // 如果自动播放被阻止，静默失败（用户仍可手动播放）
+    // 现代浏览器通常不允许自动播放带声音的视频，除非用户已与页面交互
+    console.log('自动播放被阻止（可能需要用户交互）:', err.message)
+  })
+  
+  // 视频加载完成后立即记录一次（如果已登录）
+  if (userStore.isAuthenticated) {
+    const currentTime = Math.floor(videoPlayer.value.currentTime || 0)
+    recordPlayHistory(currentTime)
+    lastRecordTimestamp = Date.now()
+    lastRecordPlayTime = currentTime
+  }
 }
 
 // 记录播放历史
