@@ -8,11 +8,11 @@ export const getFavoriteFolderList = (userId) => {
   })
 }
 
-export const createFavoriteFolder = (userId, name, isPublic = true) => {
+export const createFavoriteFolder = (userId, name, isPublic = true, description = null) => {
   return request({
     url: '/api/favorite-folders/create',
     method: 'post',
-    data: { userId, name, isPublic }
+    data: { userId, name, isPublic, description }
   })
 }
 
@@ -24,6 +24,14 @@ export const renameFavoriteFolder = (userId, folderId, name) => {
   })
 }
 
+export const updateFavoriteFolder = (userId, folderId, name, isPublic, description) => {
+  return request({
+    url: '/api/favorite-folders/update',
+    method: 'post',
+    data: { userId, folderId, name, isPublic, description }
+  })
+}
+
 export const deleteFavoriteFolder = (userId, folderId) => {
   return request({
     url: `/api/favorite-folders/${folderId}`,
@@ -31,5 +39,6 @@ export const deleteFavoriteFolder = (userId, folderId) => {
     params: { userId }
   })
 }
+
 
 

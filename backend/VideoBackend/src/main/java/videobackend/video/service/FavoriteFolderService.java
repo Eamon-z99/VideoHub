@@ -35,7 +35,7 @@ public class FavoriteFolderService {
             return existing.get();
         }
 
-        String insertSql = "INSERT INTO favorite_folders (user_id, name, is_public, create_time, update_time) VALUES (?, ?, 1, NOW(), NOW())";
+        String insertSql = "INSERT INTO favorite_folders (user_id, name, is_public, description, create_time, update_time) VALUES (?, ?, 1, NULL, NOW(), NOW())";
         jdbcTemplate.update(insertSql, userId, DEFAULT_FOLDER_NAME);
 
         return findFolderIdByName(userId, DEFAULT_FOLDER_NAME)
@@ -60,7 +60,7 @@ public class FavoriteFolderService {
         // 将 favorites.folder_id 为空的记录归到默认收藏夹（通过 defaultFolderId）
         Long defaultFolderId = ensureDefaultFolder(userId);
         String sql = """
-                SELECT ff.id, ff.user_id, ff.name, ff.is_public, ff.create_time,
+                SELECT ff.id, ff.user_id, ff.name, ff.is_public, ff.description, ff.create_time,
                        (
                          SELECT COUNT(*) FROM favorites f
                          WHERE f.user_id = ff.user_id
@@ -68,29 +68,47 @@ public class FavoriteFolderService {
                              (ff.id = ? AND (f.folder_id IS NULL OR f.folder_id = ff.id))
                              OR (ff.id <> ? AND f.folder_id = ff.id)
                            )
-                       ) AS cnt
+                       ) AS cnt,
+                       (
+                         SELECT v.cover_url FROM favorites f
+                         INNER JOIN videos v ON f.video_id = v.video_id
+                         WHERE f.user_id = ff.user_id
+                           AND (
+                             (ff.id = ? AND (f.folder_id IS NULL OR f.folder_id = ff.id))
+                             OR (ff.id <> ? AND f.folder_id = ff.id)
+                           )
+                         ORDER BY f.create_time ASC
+                         LIMIT 1
+                       ) AS cover_url
                 FROM favorite_folders ff
                 WHERE ff.user_id = ?
                 ORDER BY (ff.id = ?) DESC, ff.create_time DESC
                 """;
-        return jdbcTemplate.query(sql, (rs, i) -> mapFolder(rs), defaultFolderId, defaultFolderId, userId, defaultFolderId);
+        return jdbcTemplate.query(sql, (rs, i) -> mapFolder(rs), defaultFolderId, defaultFolderId, defaultFolderId, defaultFolderId, userId, defaultFolderId);
     }
 
     /**
      * 创建收藏夹
      */
     @Transactional
-    public Long createFolder(Long userId, String name, Boolean isPublic) {
+    public Long createFolder(Long userId, String name, Boolean isPublic, String description) {
         if (name == null || name.trim().isEmpty()) {
             throw new IllegalArgumentException("收藏夹名称不能为空");
         }
         String safeName = name.trim();
+        if (safeName.length() > 20) {
+            throw new IllegalArgumentException("收藏夹名称最多20个字符");
+        }
+        String safeDescription = description != null && !description.trim().isEmpty() ? description.trim() : null;
+        if (safeDescription != null && safeDescription.length() > 200) {
+            throw new IllegalArgumentException("收藏夹描述最多200个字符");
+        }
 
         // 保证默认收藏夹存在
         ensureDefaultFolder(userId);
 
-        String insertSql = "INSERT INTO favorite_folders (user_id, name, is_public, create_time, update_time) VALUES (?, ?, ?, NOW(), NOW())";
-        jdbcTemplate.update(insertSql, userId, safeName, (isPublic != null && !isPublic) ? 0 : 1);
+        String insertSql = "INSERT INTO favorite_folders (user_id, name, is_public, description, create_time, update_time) VALUES (?, ?, ?, ?, NOW(), NOW())";
+        jdbcTemplate.update(insertSql, userId, safeName, (isPublic != null && !isPublic) ? 0 : 1, safeDescription);
 
         return findFolderIdByName(userId, safeName)
                 .orElseThrow(() -> new RuntimeException("创建收藏夹失败"));
@@ -117,6 +135,37 @@ public class FavoriteFolderService {
 
         String updateSql = "UPDATE favorite_folders SET name = ?, update_time = NOW() WHERE id = ? AND user_id = ?";
         int updated = jdbcTemplate.update(updateSql, safeName, folderId, userId);
+        return updated > 0;
+    }
+
+    /**
+     * 更新收藏夹（名称、描述、公开状态）
+     */
+    @Transactional
+    public boolean updateFolder(Long userId, Long folderId, String name, Boolean isPublic, String description) {
+        if (name == null || name.trim().isEmpty()) {
+            throw new IllegalArgumentException("名称不能为空");
+        }
+        String safeName = name.trim();
+        if (safeName.length() > 20) {
+            throw new IllegalArgumentException("收藏夹名称最多20个字符");
+        }
+        String safeDescription = description != null && !description.trim().isEmpty() ? description.trim() : null;
+        if (safeDescription != null && safeDescription.length() > 200) {
+            throw new IllegalArgumentException("收藏夹描述最多200个字符");
+        }
+
+        // 不允许更新默认收藏夹（按名称判断）
+        String checkSql = "SELECT name FROM favorite_folders WHERE id = ? AND user_id = ?";
+        List<Map<String, Object>> rows = jdbcTemplate.queryForList(checkSql, folderId, userId);
+        if (rows.isEmpty()) return false;
+        String oldName = String.valueOf(rows.get(0).get("name"));
+        if (DEFAULT_FOLDER_NAME.equals(oldName)) {
+            throw new IllegalArgumentException("默认收藏夹不允许编辑");
+        }
+
+        String updateSql = "UPDATE favorite_folders SET name = ?, is_public = ?, description = ?, update_time = NOW() WHERE id = ? AND user_id = ?";
+        int updated = jdbcTemplate.update(updateSql, safeName, (isPublic != null && !isPublic) ? 0 : 1, safeDescription, folderId, userId);
         return updated > 0;
     }
 
@@ -163,16 +212,21 @@ public class FavoriteFolderService {
         else if (cntObj != null) cnt = Long.valueOf(cntObj.toString());
 
         Integer isPublicInt = rs.getObject("is_public") != null ? rs.getInt("is_public") : 1;
+        String description = rs.getString("description");
+        String coverUrl = rs.getString("cover_url");
         Timestamp createTime = rs.getTimestamp("create_time");
         return new FavoriteFolderItem(
                 id,
                 userId,
                 rs.getString("name"),
                 isPublicInt == 1,
+                description,
+                coverUrl,
                 cnt,
                 createTime != null ? createTime.toLocalDateTime().format(DATE_FORMATTER) : null
         );
     }
 }
+
 
 

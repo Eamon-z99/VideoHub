@@ -35,7 +35,24 @@
             :class="{ active: t.key === activeTab }"
             @click="onTabChange(t.key)"
           >
-            <span class="tab-icon" :class="t.key" />
+            <span class="tab-icon" :class="t.key">
+              <!-- 主页图标 -->
+              <svg v-if="t.key === 'home'" t="1769841391403" class="icon" viewBox="0 0 1024 1024" version="1.1" xmlns="http://www.w3.org/2000/svg" width="22" height="22">
+                <path d="M691.1168 896 577.7792 896c-18.1824 0-32.9344-14.8416-32.9344-33.1456l0-225.472c0-1.5424 0.0128-3.0464 0.0384-4.4928L479.0464 632.8896c0.0128 1.4656 0.032 2.9696 0.032 4.4928l0 225.472c0 18.2976-14.7584 33.1456-32.9408 33.1456L332.8064 896c-64.5632 0-117.088-56.992-117.088-127.0656L215.7184 589.0304l-6.0608 0c-34.3552 0-62.6688-17.6128-75.7312-47.136-10.7008-24.3456-9.536-63.3792 25.792-100.1408l266.2144-277.0048C448.7616 141.0432 479.3152 128 511.9744 128s63.2064 13.0432 86.0224 36.7296l266.2528 277.0048c35.4624 36.8832 36.544 75.9616 25.7344 100.2304-12.9152 29.408-41.2352 47.0528-75.6928 47.0528l-6.0672 0 0 179.9168C808.2048 839.008 755.68 896 691.1168 896L691.1168 896zM610.7328 829.7152l80.3904 0c31.6352 0 51.2064-31.5456 51.2064-60.7808L742.3296 555.8784c0-18.2912 14.7584-33.1456 32.9408-33.1456l39.0016 0c10.6752 0 13.8368-3.8976 15.5008-7.7248 1.248-3.4496 0.16-13.5936-12.9024-27.168L550.656 210.8544c-20.5248-21.3504-56.8192-21.3504-77.3888 0.0128L207.0656 487.8464c-13.0752 13.6064-14.144 23.7952-12.8768 27.2832 1.6128 3.6672 4.8064 7.6032 15.4496 7.6032l39.0208 0c18.1824 0 32.9408 14.8416 32.9408 33.1456l0 213.0624c0 29.2352 19.5648 60.7808 51.2064 60.7808l80.3904 0-0.096-199.9936c-0.2944-14.9952-0.6592-33.664 13.7216-48.4096 14.3616-14.7328 33.9456-14.7328 40.3648-14.7328l89.568 0c6.4384 0 26.0032 0 40.3648 14.7328 14.3616 14.752 14.0032 33.4208 13.7088 48.4096l-0.096 7.6608L610.7328 829.7152 610.7328 829.7152zM610.7328 829.7152" fill="currentColor"/>
+              </svg>
+              <!-- 动态图标 -->
+              <svg v-else-if="t.key === 'dynamics'" t="1769841252767" class="icon" viewBox="0 0 1024 1024" version="1.1" xmlns="http://www.w3.org/2000/svg" width="22" height="22">
+                <path d="M541.87 55.47l-0.06 296.95c44.59-51.23 110.27-83.62 183.53-83.62 134.32 0 243.2 108.88 243.2 243.2v29.87l-296.95-0.06c51.23 44.59 83.62 110.27 83.62 183.53 0 134.32-108.88 243.2-243.2 243.2h-29.87l0.02-296.91c-44.59 51.21-110.26 83.58-183.49 83.58-134.32 0-243.2-108.88-243.2-243.2v-29.87l296.95 0.06c-51.23-44.59-83.62-110.27-83.62-183.53 0-134.32 108.88-243.2 243.2-243.2h29.87z m0 488.83v362.03l5-0.83c81.83-15.74 144.32-85.85 148.39-171.27l0.21-8.89c0-89.41-63.95-163.87-148.6-180.16l-5-0.88z m-62.17-2.43H117.67l0.83 5c15.74 81.83 85.85 144.32 171.27 148.39l8.89 0.21c89.41 0 163.87-63.95 180.16-148.6l0.88-5z m245.63-213.34c-89.41 0-163.87 63.95-180.16 148.6l-0.88 5h362.03l-0.83-5c-15.74-81.83-85.85-144.32-171.27-148.39l-8.89-0.21z m-243.2-210.9l-5 0.88c-84.65 16.28-148.6 90.75-148.6 180.16l0.21 8.89c4.07 85.42 66.56 155.53 148.39 171.27l5 0.83V117.63z" fill="currentColor"/>
+              </svg>
+              <!-- 投稿图标 -->
+              <svg v-else-if="t.key === 'submit'" t="1769843304015" class="icon" viewBox="0 0 1030 1024" version="1.1" xmlns="http://www.w3.org/2000/svg" width="22" height="22">
+                <path d="M973.69003 866.154339l-341.707922-1.436626 362.526207-355.681248c21.19403-21.193831 21.19403-55.687044 0-76.900661L651.582819 89.230294c-21.19403-21.213417-55.687044-21.193831-76.881075 0L38.095563 625.798301c-21.174244 21.213617-21.193831 55.705632 0 76.899462l165.927901 165.875536-157.660106-2.419959c-22.238722 0-40.255107 18.017584-40.255107 40.256306l0-3.030745c0 22.239921 18.016385 40.256306 40.255107 40.256306l927.326473 0c22.220335 0 40.255107-18.016385 40.255107-40.256306l0 3.030745C1013.945137 884.171923 995.910365 866.154339 973.69003 866.154339zM306.230967 903.780629l-60.759005-60.759005 0 0L71.622432 669.190481c-2.703567-2.722154-2.74294-7.143157 0-9.884898L608.190439 122.737376c2.741741-2.74294 7.161744-2.703567 9.884898 0l342.90591 342.925497c2.723154 2.74274 2.723154 7.12357 0.019587 9.846724L593.488007 843.021423l-60.757806 60.759005L306.230967 903.780429zM615.196289 180.595348c-14.149007-1.677063-27.311883 8.34754-29.106866 22.614467l-49.235019 390.995505L150.555116 637.77538c-14.3073 1.618103-24.58753 14.504966-22.970426 28.811066 1.500383 13.31897 12.78733 23.147306 25.87046 23.147306 0.967544 0 1.953476-0.039373 2.940606-0.158293l406.682869-45.861106c11.97708-1.340691 21.451656-10.714735 22.94964-22.634054l51.780293-411.359498C639.605739 195.435287 629.481404 182.391531 615.196289 180.595348z" fill="currentColor"/>
+              </svg>
+              <!-- 收藏图标 -->
+              <svg v-else-if="t.key === 'collections'" t="1769841362388" class="icon" viewBox="0 0 1024 1024" version="1.1" xmlns="http://www.w3.org/2000/svg" width="22" height="22">
+                <path d="M327.728136 804.301276l150.60509-60.966537 33.721009-13.627369 33.721009 13.627369 150.609183 60.914348-4.484128-166.562527-0.907673-32.985252 20.663622-25.711592 96.563266-120.353089L652.842749 411.574776l-30.030967-9.081843-17.825994-25.716708-92.931552-134.033669-92.871177 134.033669-17.825994 25.716708-30.033014 9.081843-155.490354 47.120181 96.566336 120.29476 20.663622 25.711592-0.907673 32.985252L327.728136 804.301276M789.940197 939.129031 512.054235 826.727031 234.17339 939.129031l8.115841-303.886125L62.389956 411.175687l282.879696-85.667102L512.054235 84.869946l166.843936 240.638639 282.711873 85.667102L781.766027 635.243929 789.940197 939.129031 789.940197 939.129031 789.940197 939.129031z" fill="currentColor"/>
+              </svg>
+            </span>
             <span class="tab-text">{{ t.label }}</span>
             <span v-if="t.count != null" class="tab-count">{{ t.count }}</span>
           </button>
@@ -78,8 +95,8 @@
                   <svg class="folder-icon" width="18" height="18" viewBox="0 0 18 18" fill="none" xmlns="http://www.w3.org/2000/svg">
                     <path d="M2 4C2 3.44772 2.44772 3 3 3H7.5L9 5H15C15.5523 5 16 5.44772 16 6V14C16 14.5523 15.5523 15 15 15H3C2.44772 15 2 14.5523 2 14V4Z" stroke="currentColor" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
                   </svg>
-                  <span class="folder-name">{{ f.name }}</span>
-                  <span class="folder-count">{{ f.count }}</span>
+                <span class="folder-name">{{ f.name }}</span>
+                <span class="folder-count">{{ f.count }}</span>
                 </div>
                 <div
                   class="folder-more"
@@ -130,9 +147,41 @@
               <div class="fav-title">{{ activeFolder?.name || '默认收藏夹' }}</div>
               <div class="fav-sub">公开 · 视频数：{{ activeFolder?.count ?? 0 }}</div>
             </div>
-            <button class="play-all">播放全部</button>
+            <button v-if="!isBatchMode" class="play-all">播放全部</button>
             <div class="fav-tools">
-              <button class="tool-btn">批量操作</button>
+              <button v-if="!isBatchMode" class="tool-btn" @click="enterBatchMode">批量操作</button>
+              <button v-else class="tool-btn" @click="exitBatchMode">退出管理</button>
+            </div>
+          </div>
+
+          <!-- 批量操作头部 -->
+          <div v-if="activeTab === 'collections' && isBatchMode" class="batch-header">
+            <div class="batch-left">
+              <label class="select-all-label">
+                <input 
+                  type="checkbox" 
+                  :checked="isAllSelected" 
+                  @change="toggleSelectAll"
+                />
+                <span>全选</span>
+              </label>
+              <span class="selected-count">已经选择 {{ selectedFavoriteIds.length }} 个视频</span>
+            </div>
+            <div class="batch-right">
+              <button 
+                class="batch-btn delete-btn" 
+                @click="batchUnfavorite" 
+                :disabled="selectedFavoriteIds.length === 0"
+              >
+                批量取消收藏
+              </button>
+              <button 
+                class="batch-btn move-btn" 
+                @click="openBatchMoveDialog" 
+                :disabled="selectedFavoriteIds.length === 0"
+              >
+                批量移动
+              </button>
             </div>
           </div>
 
@@ -156,13 +205,29 @@
               v-for="v in videos"
               :key="v.id"
               class="video-card"
+              :class="{ 
+                'batch-mode': isBatchMode,
+                'selected': isBatchMode && selectedFavoriteIds.includes(v.favoriteId)
+              }"
             >
-              <div class="card-inner">
-                <div class="thumb" @click="$router.push(`/video/${v.id}`)">
-                  <img v-if="v.cover" :src="v.cover" alt="" @error="onImageError" />
-                  <div v-else class="thumb-ph" />
-                  <span class="duration">{{ v.duration }}</span>
+              <div 
+                class="card-inner"
+                :class="{ 'selected': isBatchMode && selectedFavoriteIds.includes(v.favoriteId) }"
+              >
+                <!-- 批量选择复选框 -->
+                <div v-if="isBatchMode" class="batch-checkbox">
+                  <input 
+                    type="checkbox" 
+                    :checked="selectedFavoriteIds.includes(v.favoriteId)"
+                    @change="toggleSelect(v.favoriteId)"
+                    @click.stop
+                  />
                 </div>
+                <div class="thumb" @click="isBatchMode ? null : $router.push(`/video/${v.id}`)">
+                  <img v-if="v.cover" :src="v.cover" alt="" @error="onImageError" />
+                <div v-else class="thumb-ph" />
+                <span class="duration">{{ v.duration }}</span>
+              </div>
                 <div class="v-title-row">
                   <div class="v-title" :title="v.title" @click="$router.push(`/video/${v.id}`)">{{ v.title }}</div>
                   <div
@@ -186,19 +251,32 @@
                     </div>
                   </div>
                 </div>
-                <div class="v-meta">
-                  <span>▶ {{ v.play }}</span>
-                  <span>💬 {{ v.danmaku }}</span>
-                  <span class="time">{{ v.time }}</span>
+              <div class="v-meta">
+                <span>▶ {{ v.play }}</span>
+                <span>💬 {{ v.danmaku }}</span>
+                <span class="time">{{ v.time }}</span>
                 </div>
               </div>
             </article>
             <div v-if="loading && videos.length > 0" class="loading-more">加载中...</div>
           </div>
 
-          <!-- 移动到收藏夹弹层 -->
+          <!-- 分页组件 -->
+          <div v-if="activeTab === 'collections' && total > 0" class="pagination-wrapper">
+            <el-config-provider :locale="zhCn">
+              <el-pagination
+                v-model:current-page="page"
+                :page-size="pageSize"
+                :total="total"
+                layout="prev, pager, next, jumper, total"
+                @current-change="handlePageChange"
+              />
+            </el-config-provider>
+          </div>
+
+          <!-- 移动到收藏夹弹层（单个） -->
           <div
-            v-if="moveDialog.visible"
+            v-if="moveDialog.visible && !moveDialog.isBatch"
             class="move-dialog-mask"
             @click="closeMoveDialog"
           >
@@ -218,10 +296,106 @@
             </div>
           </div>
 
+          <!-- 批量移动到收藏夹弹层 -->
+          <div
+            v-if="moveDialog.visible && moveDialog.isBatch"
+            class="move-dialog-mask"
+            @click="closeMoveDialog"
+          >
+            <div class="move-dialog" @click.stop>
+              <div class="move-dialog-title">批量移动到（已选择 {{ selectedFavoriteIds.length }} 个视频）</div>
+              <ul class="move-folder-list">
+                <li
+                  v-for="f in folders"
+                  :key="f.id"
+                  class="move-folder-item"
+                  @click="confirmBatchMove(f.id)"
+                >
+                  <span class="name">{{ f.name }}</span>
+                  <span class="count">{{ f.count }}</span>
+                </li>
+              </ul>
+            </div>
+          </div>
+
+          <!-- 编辑收藏夹弹层 -->
+          <div
+            v-if="editFolderDialog.visible"
+            class="edit-folder-dialog-mask"
+            @click="closeEditFolderDialog"
+          >
+            <div class="edit-folder-dialog" @click.stop>
+              <div class="edit-folder-header">
+                <div class="edit-folder-title">{{ editFolderDialog.mode === 'create' ? '收藏夹信息' : '编辑收藏夹' }}</div>
+                <button class="edit-folder-close" @click="closeEditFolderDialog">×</button>
+              </div>
+              <div class="edit-folder-body">
+                <!-- 封面图片 -->
+                <div class="edit-folder-cover">
+                  <img
+                    v-if="editFolderDialog.coverUrl"
+                    :src="editFolderDialog.coverUrl"
+                    alt="封面"
+                    @error="onImageError"
+                  />
+                  <div v-else class="edit-folder-cover-placeholder">
+                    <svg width="48" height="48" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                      <path d="M4 16L8.586 11.414C9.367 10.633 10.633 10.633 11.414 11.414L16 16M14 14L15.586 12.414C16.367 11.633 17.633 11.633 18.414 12.414L20 14M14 8H14.01M6 20H18C19.105 20 20 19.105 20 18V6C20 4.895 19.105 4 18 4H6C4.895 4 4 4.895 4 6V18C4 19.105 4.895 20 6 20Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                    </svg>
+                  </div>
+                </div>
+                <!-- 名称输入 -->
+                <div class="edit-folder-field">
+                  <label class="edit-folder-label">名称 <span class="required-star">*</span></label>
+                  <div class="edit-folder-input-wrapper">
+                    <input
+                      v-model="editFolderDialog.name"
+                      type="text"
+                      class="edit-folder-input"
+                      placeholder="请输入收藏夹名称"
+                      maxlength="20"
+                    />
+                    <span class="edit-folder-char-count">{{ editFolderDialog.name.length }} / 20</span>
+                  </div>
+                </div>
+                <!-- 公开/私密 -->
+                <div class="edit-folder-field">
+                  <label class="edit-folder-label">公开</label>
+                  <div class="edit-folder-switch-wrapper">
+                    <label class="edit-folder-switch">
+                      <input
+                        v-model="editFolderDialog.isPublic"
+                        type="checkbox"
+                        class="edit-folder-switch-input"
+                      />
+                      <span class="edit-folder-switch-slider"></span>
+                    </label>
+                    <span class="edit-folder-switch-text">{{ editFolderDialog.isPublic ? '公开' : '私密' }}</span>
+                  </div>
+                </div>
+                <!-- 描述 -->
+                <div class="edit-folder-field">
+                  <label class="edit-folder-label">简介</label>
+                  <textarea
+                    v-model="editFolderDialog.description"
+                    class="edit-folder-textarea"
+                    placeholder="可以简单描述下你的收藏夹"
+                    maxlength="200"
+                    rows="4"
+                  ></textarea>
+                  <div class="edit-folder-char-count-right">{{ editFolderDialog.description.length }} / 200</div>
+                </div>
+              </div>
+              <div class="edit-folder-footer">
+                <button class="edit-folder-btn cancel" @click="closeEditFolderDialog">取消</button>
+                <button class="edit-folder-btn confirm" @click="confirmEditFolder">{{ editFolderDialog.mode === 'create' ? '创建' : '确定' }}</button>
+              </div>
+            </div>
+          </div>
+
           <div v-else-if="activeTab === 'home'" class="empty">主页内容</div>
           <div v-else-if="activeTab === 'dynamics'" class="empty">动态内容</div>
           <div v-else-if="activeTab === 'submit'" class="empty">投稿内容</div>
-          <div v-else class="empty">暂无内容</div>
         </section>
       </div>
     </main>
@@ -234,12 +408,14 @@ import { getFavoriteListByFolder } from '@/api/favorite'
 import { getFavoriteFolderList, createFavoriteFolder } from '@/api/favoriteFolder'
 import { useUserStore } from '@/stores/user'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import zhCn from 'element-plus/dist/locale/zh-cn.mjs'
 
 export default {
   name: 'UserProfile',
   components: { TopHeader },
   data () {
     return {
+      zhCn,
       coverImage: '/assets/topheader/favorite.png',
       activeTab: 'collections',
       tabs: [
@@ -259,15 +435,28 @@ export default {
       page: 1,
       pageSize: 20,
       total: 0,
-      finished: false,
       // 右侧视频更多菜单
       videoMenuForId: null,
       // 左侧收藏夹更多菜单
       folderMenuForId: null,
+      // 批量操作相关
+      isBatchMode: false,
+      selectedFavoriteIds: [], // 选中的收藏ID列表（favoriteId）
       // 移动视频对话框
       moveDialog: {
         visible: false,
-        video: null
+        video: null,
+        isBatch: false // 是否为批量移动
+      },
+      // 编辑收藏夹对话框
+      editFolderDialog: {
+        visible: false,
+        mode: 'create', // 'create' 或 'edit'
+        folder: null,
+        name: '',
+        description: '',
+        isPublic: true,
+        coverUrl: ''
       }
     }
   },
@@ -283,6 +472,11 @@ export default {
       }
       const userStore = useUserStore()
       return userStore.user?.userId || userStore.user?.id
+    },
+    // 是否全选
+    isAllSelected () {
+      if (this.videos.length === 0) return false
+      return this.videos.every(v => this.selectedFavoriteIds.includes(v.favoriteId))
     }
   },
   mounted () {
@@ -304,7 +498,7 @@ export default {
     onTabChange (key) {
       // 如果切换到收藏tab，重置并加载数据
       if (key === 'collections' && this.currentUserId) {
-        this.activeTab = key
+      this.activeTab = key
         this.initCollections()
       } else {
         this.activeTab = key
@@ -328,7 +522,10 @@ export default {
           this.folders = (data.list || []).map(it => ({
             id: it.id,
             name: it.name,
-            count: it.count ?? 0
+            count: it.count ?? 0,
+            description: it.description || '',
+            coverUrl: it.coverUrl || '',
+            isPublic: it.isPublic !== false
           }))
           // 如果当前选中的收藏夹已不存在，重置
           if (this.activeFolderId && !this.folders.some(f => f.id === this.activeFolderId)) {
@@ -350,27 +547,14 @@ export default {
 
     async onCreateFolder () {
       if (!this.currentUserId) return
-      try {
-        const name = await ElMessageBox.prompt('请输入收藏夹名称', '新建收藏夹', {
-          confirmButtonText: '创建',
-          cancelButtonText: '取消',
-          inputPlaceholder: '例如：学习/游戏/前端',
-          inputValidator: (v) => {
-            if (!v || !String(v).trim()) return '名称不能为空'
-            if (String(v).trim().length > 30) return '名称最多30个字符'
-            return true
-          }
-        }).then(res => res.value)
-
-        const { data } = await createFavoriteFolder(this.currentUserId, name, true)
-        if (data.success) {
-          ElMessage.success('创建成功')
-          await this.loadFolders()
-        } else {
-          ElMessage.warning(data.message || '创建失败')
-        }
-      } catch (e) {
-        // cancel
+      this.editFolderDialog = {
+        visible: true,
+        mode: 'create',
+        folder: null,
+        name: '',
+        description: '',
+        isPublic: true,
+        coverUrl: ''
       }
     },
 
@@ -381,7 +565,6 @@ export default {
       if (reset) {
         this.page = 1
         this.videos = []
-        this.finished = false
       }
       
       this.loading = true
@@ -391,35 +574,31 @@ export default {
           const list = data.list || []
           const total = data.total || 0
           
-          // 格式化视频数据，使用 Set 去重（基于 videoId）
-          const existingIds = new Set(this.videos.map(v => v.id))
-          const formattedVideos = list
-            .map(item => ({
-              id: item.videoId || item.id,
-              favoriteId: item.id,
-              cover: item.coverUrl || '',
-              title: item.title || '未知标题',
-              duration: item.duration || '00:00',
-              play: '--',
-              danmaku: '--',
-              time: this.formatTime(item.createTime)
-            }))
-            .filter(item => !existingIds.has(item.id)) // 过滤掉已存在的视频
+          // 格式化视频数据
+          const formattedVideos = list.map(item => ({
+            id: item.videoId || item.id,
+            favoriteId: item.id,
+            cover: item.coverUrl || '',
+            title: item.title || '未知标题',
+            duration: item.duration || '00:00',
+            play: '--',
+            danmaku: '--',
+            time: this.formatTime(item.createTime)
+          }))
           
-          // 追加新数据
-          this.videos = [...this.videos, ...formattedVideos]
+          // 替换数据（分页模式，不再追加）
+          this.videos = formattedVideos
           
           this.total = total
           this.tabs.find(t => t.key === 'collections').count = total
           // 更新当前收藏夹数量（后端列表也有 count，但这里做一次即时刷新）
           const currentFolder = this.folders.find(f => f.id === folderId)
-          if (currentFolder) currentFolder.count = total
-          
-          // 判断是否加载完成
-          if (this.videos.length >= total || list.length < this.pageSize) {
-            this.finished = true
-          } else {
-            this.page += 1
+          if (currentFolder) {
+            currentFolder.count = total
+            // 更新封面（使用第一个视频的封面）
+            if (formattedVideos.length > 0 && formattedVideos[0].cover) {
+              currentFolder.coverUrl = formattedVideos[0].cover
+            }
           }
         }
       } catch (error) {
@@ -429,6 +608,21 @@ export default {
         }
       } finally {
         this.loading = false
+      }
+    },
+
+    // 分页切换处理
+    handlePageChange (newPage) {
+      this.page = newPage
+      if (this.activeFolderId) {
+        this.loadFavorites(this.currentUserId, this.activeFolderId, false)
+        // 滚动到顶部
+        this.$nextTick(() => {
+          const rightPanel = document.querySelector('.right-panel')
+          if (rightPanel) {
+            rightPanel.scrollIntoView({ behavior: 'smooth', block: 'start' })
+          }
+        })
       }
     },
 
@@ -462,15 +656,94 @@ export default {
       }
     },
 
+    // 批量操作相关方法
+    enterBatchMode () {
+      this.isBatchMode = true
+      this.selectedFavoriteIds = []
+    },
+
+    exitBatchMode () {
+      this.isBatchMode = false
+      this.selectedFavoriteIds = []
+    },
+
+    toggleSelectAll (e) {
+      if (e.target.checked) {
+        // 全选：添加所有视频的 favoriteId
+        this.selectedFavoriteIds = this.videos.map(v => v.favoriteId).filter(id => id)
+      } else {
+        // 取消全选
+        this.selectedFavoriteIds = []
+      }
+    },
+
+    toggleSelect (favoriteId) {
+      const index = this.selectedFavoriteIds.indexOf(favoriteId)
+      if (index > -1) {
+        this.selectedFavoriteIds.splice(index, 1)
+      } else {
+        this.selectedFavoriteIds.push(favoriteId)
+      }
+    },
+
+    // 批量取消收藏
+    async batchUnfavorite () {
+      if (this.selectedFavoriteIds.length === 0) {
+        ElMessage.warning('请先选择要取消收藏的视频')
+        return
+      }
+
+      try {
+        await ElMessageBox.confirm(
+          `确定要取消收藏选中的 ${this.selectedFavoriteIds.length} 个视频吗？`,
+          '批量取消收藏',
+          { confirmButtonText: '确定', cancelButtonText: '取消', type: 'warning' }
+        )
+
+        const userStore = useUserStore()
+        const userId = userStore.user?.userId || userStore.user?.id
+        if (!userId) return
+
+        const { batchDeleteFavorites } = await import('@/api/favorite')
+        const { data } = await batchDeleteFavorites(userId, this.selectedFavoriteIds)
+        
+        if (data.success) {
+          ElMessage.success(`已取消收藏 ${this.selectedFavoriteIds.length} 个视频`)
+          this.selectedFavoriteIds = []
+          await this.initCollections()
+        } else {
+          ElMessage.warning(data.message || '批量取消收藏失败')
+        }
+      } catch (e) {
+        if (e !== 'cancel') {
+          console.error('批量取消收藏失败:', e)
+          ElMessage.error('批量取消收藏失败')
+        }
+      }
+    },
+
+    // 打开批量移动对话框
+    openBatchMoveDialog () {
+      if (this.selectedFavoriteIds.length === 0) {
+        ElMessage.warning('请先选择要移动的视频')
+        return
+      }
+      this.moveDialog.visible = true
+      this.moveDialog.isBatch = true
+      this.moveDialog.video = null
+    },
+
     openMoveDialog (video) {
       this.moveDialog.video = video
       this.moveDialog.visible = true
+      this.moveDialog.isBatch = false
       this.videoMenuForId = null
     },
 
     closeMoveDialog () {
       this.moveDialog.visible = false
       this.moveDialog.video = null
+      this.moveDialog.isBatch = false
     },
 
     async confirmMove (targetFolderId) {
@@ -498,6 +771,58 @@ export default {
       }
     },
 
+    // 批量移动
+    async confirmBatchMove (targetFolderId) {
+      if (!targetFolderId || targetFolderId === this.activeFolderId) {
+        ElMessage.warning('不能移动到当前收藏夹')
+        return
+      }
+
+      if (this.selectedFavoriteIds.length === 0) {
+        this.closeMoveDialog()
+        return
+      }
+
+      const userStore = useUserStore()
+      const userId = userStore.user?.userId || userStore.user?.id
+      if (!userId) return
+
+      try {
+        // 获取选中的视频信息
+        const selectedVideos = this.videos.filter(v => this.selectedFavoriteIds.includes(v.favoriteId))
+        
+        // 批量移动：循环调用单个移动API
+        const { addFavoriteToFolder } = await import('@/api/favorite')
+        let successCount = 0
+        let failCount = 0
+
+        for (const video of selectedVideos) {
+          try {
+            const { data } = await addFavoriteToFolder(userId, video.id, targetFolderId)
+            if (data.success) {
+              successCount++
+            } else {
+              failCount++
+            }
+          } catch (e) {
+            failCount++
+          }
+        }
+
+        if (successCount > 0) {
+          ElMessage.success(`已成功移动 ${successCount} 个视频${failCount > 0 ? `，${failCount} 个失败` : ''}`)
+          this.selectedFavoriteIds = []
+          this.closeMoveDialog()
+          await this.initCollections()
+        } else {
+          ElMessage.warning('移动失败，请稍后重试')
+        }
+      } catch (e) {
+        console.error('批量移动失败:', e)
+        ElMessage.error('批量移动失败')
+      }
+    },
+
     toggleFolderMenu (folderId) {
       this.folderMenuForId = this.folderMenuForId === folderId ? null : folderId
     },
@@ -511,32 +836,105 @@ export default {
     async onRenameFolder (folder) {
       if (!folder || !folder.id) return
       if (folder.name === '默认收藏夹') {
-        ElMessage.warning('默认收藏夹不允许重命名')
+        ElMessage.warning('默认收藏夹不允许编辑')
         return
       }
+      
+      // 先打开对话框，显示基本信息（使用已有的封面或空）
+      let coverUrl = folder.coverUrl || ''
+      this.editFolderDialog = {
+        visible: true,
+        mode: 'edit',
+        folder: folder,
+        name: folder.name || '',
+        description: folder.description || '',
+        isPublic: folder.isPublic !== false,
+        coverUrl: coverUrl
+      }
+      this.folderMenuForId = null
+      
+      // 无论封面是否已有，都调用API获取第一个视频的封面（确保是最新的）
       try {
-        const name = await ElMessageBox.prompt('请输入新的收藏夹名称', '编辑信息', {
-          confirmButtonText: '保存',
-          cancelButtonText: '取消',
-          inputValue: folder.name,
-          inputValidator: (v) => {
-            if (!v || !String(v).trim()) return '名称不能为空'
-            if (String(v).trim().length > 30) return '名称最多30个字符'
-            return true
+        const { data } = await getFavoriteListByFolder(this.currentUserId, folder.id, 1, 1)
+        if (data && data.success && data.list && data.list.length > 0) {
+          const firstVideo = data.list[0]
+          // API返回的原始数据中字段是 coverUrl
+          const newCoverUrl = firstVideo.coverUrl || ''
+          
+          // 如果获取到了封面，更新所有相关数据
+          if (newCoverUrl && newCoverUrl.trim() !== '') {
+            coverUrl = newCoverUrl
+            // 更新 folder 对象（Vue 3 直接赋值即可）
+            folder.coverUrl = coverUrl
+            // 同时更新 folders 数组中对应的收藏夹
+            const folderInList = this.folders.find(f => f.id === folder.id)
+            if (folderInList) {
+              folderInList.coverUrl = coverUrl
+            }
+            // 更新对话框中的封面（Vue 3 直接赋值即可）
+            this.editFolderDialog.coverUrl = coverUrl
           }
-        }).then(res => res.value)
-        const userId = this.currentUserId
-        const { renameFavoriteFolder } = await import('@/api/favoriteFolder')
-        const { data } = await renameFavoriteFolder(userId, folder.id, name)
-        if (data.success) {
-          ElMessage.success('已更新')
-          this.folderMenuForId = null
-          await this.loadFolders()
-        } else {
-          ElMessage.warning(data.message || '更新失败')
         }
       } catch (e) {
-        // cancel
+        console.error('加载封面失败:', e)
+      }
+    },
+    
+    closeEditFolderDialog () {
+      this.editFolderDialog.visible = false
+    },
+    
+    async confirmEditFolder () {
+      const { name, description, isPublic } = this.editFolderDialog
+      if (!name || !name.trim()) {
+        ElMessage.warning('名称不能为空')
+        return
+      }
+      if (name.trim().length > 20) {
+        ElMessage.warning('名称最多20个字符')
+        return
+      }
+      if (description && description.trim().length > 200) {
+        ElMessage.warning('描述最多200个字符')
+        return
+      }
+      
+      try {
+        if (this.editFolderDialog.mode === 'create') {
+          const { data } = await createFavoriteFolder(
+            this.currentUserId,
+            name.trim(),
+            isPublic,
+            description.trim() || null
+          )
+          if (data.success) {
+            ElMessage.success('创建成功')
+            this.closeEditFolderDialog()
+            await this.loadFolders()
+          } else {
+            ElMessage.warning(data.message || '创建失败')
+          }
+        } else {
+          // edit mode
+          const { updateFavoriteFolder } = await import('@/api/favoriteFolder')
+          const { data } = await updateFavoriteFolder(
+            this.currentUserId,
+            this.editFolderDialog.folder.id,
+            name.trim(),
+            isPublic,
+            description.trim() || null
+          )
+          if (data.success) {
+            ElMessage.success('已更新')
+            this.closeEditFolderDialog()
+            await this.loadFolders()
+          } else {
+            ElMessage.warning(data.message || '更新失败')
+          }
+        }
+      } catch (e) {
+        console.error('操作失败:', e)
+        ElMessage.error('操作失败')
       }
     },
 
@@ -624,7 +1022,7 @@ export default {
 // 统一内容区域宽度，避免 header / main 各自写死不同的 width 导致不一致
 .user-profile-container {
   width: 100%;
-  max-width: 75%;
+  max-width: 85%;
   min-width: 1200px;
   margin: 0 auto;
   padding: 0 8px;
@@ -632,12 +1030,12 @@ export default {
 
 .profile-header {
   position: relative;
-  height: 230px;
+  height: 210px;
   overflow: hidden;
 
   .profile-header-inner {
     position: relative;
-    height: 90%;
+    height: 100%;
   }
 
   // 顶部大图
@@ -772,10 +1170,56 @@ export default {
     position: relative;
 
     .tab-icon {
-      width: 16px;
-      height: 16px;
-      border-radius: 4px;
-      background: #e8f7ff;
+      width: 22px;
+      height: 22px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      transition: color 0.3s;
+      svg {
+        width: 22px;
+        height: 22px;
+      }
+
+      // 主页 - 绿色
+      &.home {
+        color: #00d26a;
+      }
+
+      // 动态 - 粉色
+      &.dynamics {
+        color: #fb7299;
+      }
+
+      // 投稿 - 蓝色
+      &.submit {
+        color: #00a1d6;
+      }
+
+      // 收藏 - 黄色
+      &.collections {
+        color: #ffb02e;
+      }
+    }
+
+    &.active .tab-icon {
+      // 激活状态保持各自颜色，但可以稍微加深
+      &.home {
+        color: #00c05a;
+      }
+
+      &.dynamics {
+        color: #fb5a8a;
+      }
+
+      &.submit {
+        color: #0091c6;
+      }
+
+      &.collections {
+        color: #ffa01e;
+      }
     }
 
     .tab-count {
@@ -794,7 +1238,7 @@ export default {
       position: absolute;
       left: 8px;
       right: 8px;
-      bottom: -10px;
+      bottom: -15px;
       height: 2px;
       background: #00a1d6;
       border-radius: 2px;
@@ -803,7 +1247,7 @@ export default {
 }
 
 .content-wrap {
-  padding: 16px 0 36px;
+  padding: 0px 0 36px;
 }
 
 .content-inner {
@@ -999,6 +1443,88 @@ export default {
   border-bottom: 1px solid #eee;
 }
 
+.batch-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 0;
+  border-bottom: 1px solid #f0f0f0;
+  margin-bottom: 20px;
+
+  .batch-left {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+
+    .select-all-label {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      cursor: pointer;
+      font-size: 14px;
+      color: #222;
+      user-select: none;
+
+      input[type="checkbox"] {
+        width: 16px;
+        height: 16px;
+        cursor: pointer;
+      }
+    }
+
+    .selected-count {
+      font-size: 14px;
+      color: #666;
+    }
+  }
+
+  .batch-right {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+
+    .batch-btn {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      padding: 6px 16px;
+      border: 1px solid #e3e3e3;
+      background: #fff;
+      border-radius: 4px;
+      font-size: 14px;
+      color: #666;
+      cursor: pointer;
+      transition: all 0.2s;
+
+      &:hover:not(:disabled) {
+        border-color: #00a1d6;
+        color: #00a1d6;
+      }
+
+      &:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+      }
+
+      &.delete-btn {
+        color: #ff4d4f;
+        
+        &:hover:not(:disabled) {
+          border-color: #ff4d4f;
+          color: #ff4d4f;
+        }
+      }
+
+      &.move-btn {
+        &:hover:not(:disabled) {
+          border-color: #00a1d6;
+          color: #00a1d6;
+        }
+      }
+    }
+  }
+}
+
 .fav-left {
   flex: 1;
 }
@@ -1030,6 +1556,13 @@ export default {
   border-radius: 8px;
   padding: 9px 12px;
   cursor: pointer;
+  font-size: 14px;
+  transition: all 0.2s;
+
+  &:hover {
+    border-color: #00a1d6;
+    color: #00a1d6;
+  }
 }
 
 .toolbar {
@@ -1097,8 +1630,32 @@ export default {
   cursor: pointer;
   position: relative;
 
+  &.batch-mode {
+    cursor: default;
+  }
+
   .card-inner {
     position: relative;
+
+    .batch-checkbox {
+      position: absolute;
+      top: 8px;
+      left: 8px;
+      z-index: 10;
+      border-radius: 4px;
+      padding: 4px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 20px;
+      height: 20px;
+
+      input[type="checkbox"] {
+        cursor: pointer;
+        width: 16px;
+        height: 16px;
+      }
+    }
   }
 
   .thumb {
@@ -1293,6 +1850,297 @@ export default {
   text-align: center;
   color: #999;
   padding: 60px 0;
+}
+
+.pagination-wrapper {
+  display: flex;
+  justify-content: center;
+  padding: 24px 0;
+  margin-top: 20px;
+  border-top: 1px solid #f0f0f0;
+}
+
+/* 编辑收藏夹对话框 */
+.edit-folder-dialog-mask {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.edit-folder-dialog {
+  width: 420px;
+  max-height: 85vh;
+  background: #fff;
+  border-radius: 12px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.24);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  box-sizing: border-box;
+}
+
+.edit-folder-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px 0;
+  border-bottom: none;
+  flex-shrink: 0;
+}
+
+.edit-folder-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: #222;
+}
+
+.edit-folder-close {
+  width: 32px;
+  height: 32px;
+  border: none;
+  background: transparent;
+  font-size: 24px;
+  color: #999;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  transition: all 0.2s;
+
+  &:hover {
+    background: #f5f7fa;
+    color: #666;
+  }
+}
+
+.edit-folder-body {
+  padding: 8px 16px 16px;
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  box-sizing: border-box;
+  width: 100%;
+  
+  &::-webkit-scrollbar {
+    display: none;
+  }
+  
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.edit-folder-cover {
+  width: 100%;
+  height: 160px;
+  border-radius: 8px;
+  overflow: hidden;
+  background: #f5f7fa;
+  margin-bottom: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  flex-shrink: 0;
+
+  img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+  }
+}
+
+.edit-folder-cover-placeholder {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #ccc;
+}
+
+.edit-folder-field {
+  margin-bottom: 16px;
+
+  &:last-child {
+    margin-bottom: 0;
+  }
+}
+
+.edit-folder-label {
+  display: block;
+  font-size: 14px;
+  font-weight: 500;
+  color: #222;
+  margin-bottom: 8px;
+  
+  .required-star {
+    color: #ff4757;
+  }
+}
+
+.edit-folder-input-wrapper {
+  position: relative;
+}
+
+.edit-folder-input {
+  width: 100%;
+  height: 40px;
+  padding: 0 12px;
+  padding-right: 60px;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  font-size: 14px;
+  color: #222;
+  outline: none;
+  transition: border-color 0.2s;
+  box-sizing: border-box;
+
+  &:focus {
+    border-color: #00a1d6;
+  }
+
+  &::placeholder {
+    color: #999;
+  }
+}
+
+.edit-folder-char-count {
+  position: absolute;
+  right: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 12px;
+  color: #999;
+}
+
+.edit-folder-switch-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.edit-folder-switch {
+  position: relative;
+  display: inline-block;
+  width: 44px;
+  height: 24px;
+  cursor: pointer;
+}
+
+.edit-folder-switch-input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+
+  &:checked + .edit-folder-switch-slider {
+    background-color: #00AEEC;
+
+    &:before {
+      transform: translateX(20px);
+    }
+  }
+}
+
+.edit-folder-switch-slider {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: #ccc;
+  transition: 0.3s;
+  border-radius: 24px;
+
+  &:before {
+    position: absolute;
+    content: "";
+    height: 18px;
+    width: 18px;
+    left: 3px;
+    bottom: 3px;
+    background-color: white;
+    transition: 0.3s;
+    border-radius: 50%;
+  }
+}
+
+.edit-folder-switch-text {
+  font-size: 14px;
+  color: #666;
+}
+
+.edit-folder-textarea {
+  width: 100%;
+  min-height: 80px;
+  padding: 12px;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  font-size: 14px;
+  color: #222;
+  outline: none;
+  resize: vertical;
+  font-family: inherit;
+  transition: border-color 0.2s;
+  box-sizing: border-box;
+
+  &:focus {
+    border-color: #00a1d6;
+  }
+
+  &::placeholder {
+    color: #999;
+  }
+}
+
+.edit-folder-char-count-right {
+  text-align: right;
+  margin-top: 6px;
+  font-size: 12px;
+  color: #999;
+}
+
+.edit-folder-footer {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 0px 16px 12px;
+  border-top: none;
+  flex-shrink: 0;
+}
+
+.edit-folder-btn {
+  flex: 1;
+  padding: 10px 20px;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+  border: none;
+
+  &.cancel {
+    background: #f5f7fa;
+    color: #666;
+
+    &:hover {
+      background: #e5e7eb;
+    }
+  }
+
+  &.confirm {
+    background: #00AEEC;
+    color: #fff;
+
+    &:hover {
+      background: #009dd9;
+    }
+  }
 }
 
 .loading,

@@ -42,8 +42,9 @@ public class FavoriteFolderController {
             Long userId = Long.valueOf(request.get("userId").toString());
             String name = String.valueOf(request.get("name"));
             Boolean isPublic = request.get("isPublic") != null ? Boolean.valueOf(request.get("isPublic").toString()) : true;
+            String description = request.get("description") != null ? String.valueOf(request.get("description")) : null;
 
-            Long id = folderService.createFolder(userId, name, isPublic);
+            Long id = folderService.createFolder(userId, name, isPublic, description);
             return ResponseEntity.ok(Map.of(
                     "success", true,
                     "id", id,
@@ -81,6 +82,30 @@ public class FavoriteFolderController {
         }
     }
 
+    @PostMapping("/update")
+    public ResponseEntity<?> update(@RequestBody Map<String, Object> request) {
+        try {
+            Long userId = Long.valueOf(request.get("userId").toString());
+            Long folderId = Long.valueOf(request.get("folderId").toString());
+            String name = String.valueOf(request.get("name"));
+            Boolean isPublic = request.get("isPublic") != null ? Boolean.valueOf(request.get("isPublic").toString()) : true;
+            String description = request.get("description") != null ? String.valueOf(request.get("description")) : null;
+
+            boolean ok = folderService.updateFolder(userId, folderId, name, isPublic, description);
+            if (ok) {
+                return ResponseEntity.ok(Map.of("success", true, "message", "更新成功"));
+            }
+            return ResponseEntity.status(404).body(Map.of("success", false, "message", "收藏夹不存在"));
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.ok(Map.of("success", false, "message", e.getMessage()));
+        } catch (Exception e) {
+            return ResponseEntity.status(500).body(Map.of(
+                    "success", false,
+                    "message", "更新失败: " + e.getMessage()
+            ));
+        }
+    }
+
     @DeleteMapping("/{folderId}")
     public ResponseEntity<?> delete(@PathVariable Long folderId, @RequestParam Long userId) {
         try {
@@ -99,5 +124,6 @@ public class FavoriteFolderController {
         }
     }
 }
+
 
 
