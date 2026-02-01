@@ -177,6 +177,15 @@
                 </div>
               </div>
             </div>
+            <!-- 加载更多触发器 -->
+            <div 
+              ref="loadMoreTrigger" 
+              class="loading-bar"
+            >
+              <span v-if="loadingMore">加载中...</span>
+              <span v-else-if="finished">已加载全部</span>
+              <span v-else style="visibility: hidden;">加载更多</span>
+            </div>
           </section>
         </div>
       </div>
@@ -189,7 +198,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, watch } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
 import { Delete, ArrowUp } from '@element-plus/icons-vue'
 import TopHeader from '@/components/TopHeader.vue'
@@ -200,6 +209,8 @@ const router = useRouter()
 const userStore = useUserStore()
 
 const loading = ref(false)
+const loadingMore = ref(false)
+const finished = ref(false)
 const activeTab = ref('all')
 const keyword = ref('')
 const historyList = ref([])
@@ -412,7 +423,7 @@ const batchDelete = async () => {
     const response = await batchDeleteHistory(userId, selectedIds.value)
     if (response.data.success) {
       selectedIds.value = []
-      await loadHistory()
+      await loadHistory(true) // 重置加载
     }
   } catch (error) {
     console.error('批量删除失败:', error)
@@ -432,11 +443,15 @@ const deleteItem = async (id) => {
   try {
     const response = await deleteHistory(id, userId)
     if (response.data.success) {
-      await loadHistory()
       // 从选中列表中移除
       const index = selectedIds.value.indexOf(id)
       if (index > -1) {
         selectedIds.value.splice(index, 1)
+      }
+      // 从列表中移除该项
+      const itemIndex = historyList.value.findIndex(item => item.id === id)
+      if (itemIndex > -1) {
+        historyList.value.splice(itemIndex, 1)
       }
     }
   } catch (error) {
@@ -475,7 +490,7 @@ const formatDuration = (seconds) => {
 }
 
 // 加载历史记录
-const loadHistory = async () => {
+const loadHistory = async (reset = false) => {
   if (!userStore.isAuthenticated) {
     return
   }
@@ -486,15 +501,34 @@ const loadHistory = async () => {
     return
   }
 
-  loading.value = true
+  // 如果正在加载，则跳过
+  if (loading.value || loadingMore.value) {
+    return
+  }
+
+  // 重置时清空数据
+  if (reset) {
+    page.value = 1
+    finished.value = false
+    historyList.value = []
+    total.value = 0
+  }
+
+  const isFirstPage = page.value === 1
+  if (isFirstPage) {
+    loading.value = true
+  } else {
+    loadingMore.value = true
+  }
+
   try {
     const response = await getHistoryList(userId, page.value, pageSize.value)
     if (response.data.success) {
-      historyList.value = response.data.list || []
+      const newList = response.data.list || []
       total.value = response.data.total || 0
       
       // 转换数据格式以适配前端显示
-      historyList.value = historyList.value.map(item => ({
+      const mappedList = newList.map(item => ({
         id: item.id,
         videoId: item.videoId,
         title: item.title,
@@ -508,11 +542,25 @@ const loadHistory = async () => {
         watchCount: item.watchCount || 1,
         up: item.uploaderName || '未知UP主'
       }))
+
+      // 追加数据而不是替换
+      historyList.value = [...historyList.value, ...mappedList]
+
+      // 判断是否已加载全部
+      if ((total.value && historyList.value.length >= total.value) || mappedList.length < pageSize.value) {
+        finished.value = true
+      } else {
+        page.value += 1
+      }
     }
   } catch (error) {
     console.error('加载历史记录失败:', error)
+    if (isFirstPage) {
+      historyList.value = []
+    }
   } finally {
     loading.value = false
+    loadingMore.value = false
   }
 }
 
@@ -536,6 +584,8 @@ const clearAll = async () => {
     if (response.data.success) {
       historyList.value = []
       total.value = 0
+      finished.value = true
+      page.value = 1
     }
   } catch (error) {
     console.error('清空历史记录失败:', error)
@@ -548,13 +598,82 @@ const goToVideo = (videoId) => {
   router.push(`/video/${encodeURIComponent(videoId)}`)
 }
 
-// 监听筛选条件变化，重新加载数据
+// 使用 Intersection Observer 检测底部元素，实现无限滚动
+const loadMoreTrigger = ref(null)
+let observer = null
+
+const setupIntersectionObserver = () => {
+  if (!loadMoreTrigger.value) return
+  
+  // 清理旧的 observer
+  if (observer) {
+    observer.disconnect()
+  }
+  
+  // 创建新的 observer
+  observer = new IntersectionObserver(
+    (entries) => {
+      const entry = entries[0]
+      // 当底部元素进入视口时，加载更多
+      if (entry.isIntersecting && !loading.value && !loadingMore.value && !finished.value) {
+        loadHistory()
+      }
+    },
+    {
+      root: null, // 使用视口作为根
+      rootMargin: '100px', // 提前100px触发
+      threshold: 0.1
+    }
+  )
+  
+  observer.observe(loadMoreTrigger.value)
+}
+
+// 监听历史记录列表变化，重新设置 observer
+watch(
+  () => historyList.value.length,
+  () => {
+    if (!finished.value) {
+      nextTick(() => {
+        setupIntersectionObserver()
+      })
+    }
+  }
+)
+
+// 监听 finished 状态，如果已完成则停止观察
+watch(
+  () => finished.value,
+  (isFinished) => {
+    if (isFinished && observer) {
+      observer.disconnect()
+      observer = null
+    } else if (!isFinished) {
+      nextTick(() => {
+        setupIntersectionObserver()
+      })
+    }
+  }
+)
+
+// 监听筛选条件变化，重新加载数据（重置）
 watch([activeTab, selectedDuration, selectedTime, startDate, endDate], () => {
-  loadHistory()
+  loadHistory(true) // 重置加载
 }, { deep: true })
 
 onMounted(() => {
-  loadHistory()
+  loadHistory(true) // 初始加载
+  // 等待 DOM 渲染后设置 observer
+  nextTick(() => {
+    setupIntersectionObserver()
+  })
+})
+
+onUnmounted(() => {
+  if (observer) {
+    observer.disconnect()
+    observer = null
+  }
 })
 </script>
 
@@ -563,7 +682,7 @@ onMounted(() => {
   min-width: 1600px;
   max-width: 2300px;
   width: 100%;
-  height: 100%;
+  min-height: 100%;
   margin: 0 auto;
   background: #fff;
   padding-top: 64px;
@@ -1047,6 +1166,13 @@ onMounted(() => {
   .loading, .empty {
     text-align: center;
     padding: 60px 20px;
+    color: #999;
+    font-size: 14px;
+  }
+
+  .loading-bar {
+    text-align: center;
+    padding: 20px;
     color: #999;
     font-size: 14px;
   }

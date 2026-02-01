@@ -90,8 +90,9 @@
                 :key="f.id"
                 class="folder"
                 :class="{ active: f.id === activeFolderId }"
+                @click="onFolderSelect(f)"
               >
-                <div class="folder-main" @click="onFolderSelect(f)">
+                <div class="folder-main">
                   <svg class="folder-icon" width="18" height="18" viewBox="0 0 18 18" fill="none" xmlns="http://www.w3.org/2000/svg">
                     <path d="M2 4C2 3.44772 2.44772 3 3 3H7.5L9 5H15C15.5523 5 16 5.44772 16 6V14C16 14.5523 15.5523 15 15 15H3C2.44772 15 2 14.5523 2 14V4Z" stroke="currentColor" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
                   </svg>
@@ -442,6 +443,8 @@ export default {
       // 批量操作相关
       isBatchMode: false,
       selectedFavoriteIds: [], // 选中的收藏ID列表（favoriteId）
+      // 视频数据缓存：{ folderId: { videos: [], total: number, page: number } }
+      videosCache: {},
       // 移动视频对话框
       moveDialog: {
         visible: false,
@@ -506,12 +509,23 @@ export default {
     },
     async initCollections () {
       await this.loadFolders()
-      // 默认选中第一个（通常是“默认收藏夹”）
+      // 默认选中第一个（通常是"默认收藏夹"）
       if (!this.activeFolderId && this.folders.length > 0) {
         this.activeFolderId = this.folders[0].id
       }
       if (this.activeFolderId) {
-        await this.loadFavorites(this.currentUserId, this.activeFolderId, true)
+        // 检查缓存
+        const cached = this.videosCache[this.activeFolderId]
+        if (cached) {
+          // 使用缓存数据
+          this.videos = cached.videos
+          this.total = cached.total
+          this.page = cached.page || 1
+          this.tabs.find(t => t.key === 'collections').count = cached.total
+        } else {
+          // 没有缓存，加载数据
+          await this.loadFavorites(this.currentUserId, this.activeFolderId, true)
+        }
       }
     },
 
@@ -541,8 +555,22 @@ export default {
     onFolderSelect (folder) {
       if (!folder || !folder.id) return
       if (folder.id === this.activeFolderId) return
-      this.activeFolderId = folder.id
-      this.loadFavorites(this.currentUserId, folder.id, true)
+      
+      // 检查缓存中是否有该收藏夹的数据
+      const cached = this.videosCache[folder.id]
+      if (cached) {
+        // 使用缓存数据
+        this.activeFolderId = folder.id
+        this.videos = cached.videos
+        this.total = cached.total
+        this.page = cached.page || 1
+        // 更新tab计数
+        this.tabs.find(t => t.key === 'collections').count = cached.total
+      } else {
+        // 没有缓存，加载数据
+        this.activeFolderId = folder.id
+        this.loadFavorites(this.currentUserId, folder.id, true)
+      }
     },
 
     async onCreateFolder () {
@@ -600,6 +628,13 @@ export default {
               currentFolder.coverUrl = formattedVideos[0].cover
             }
           }
+          
+          // 缓存数据
+          this.videosCache[folderId] = {
+            videos: formattedVideos,
+            total: total,
+            page: this.page
+          }
         }
       } catch (error) {
         console.error('加载收藏列表失败:', error)
@@ -615,7 +650,16 @@ export default {
     handlePageChange (newPage) {
       this.page = newPage
       if (this.activeFolderId) {
-        this.loadFavorites(this.currentUserId, this.activeFolderId, false)
+        // 检查缓存中是否有该页的数据
+        const cached = this.videosCache[this.activeFolderId]
+        if (cached && cached.page === newPage) {
+          // 使用缓存数据
+          this.videos = cached.videos
+          this.total = cached.total
+        } else {
+          // 没有缓存，加载数据
+          this.loadFavorites(this.currentUserId, this.activeFolderId, false)
+        }
         // 滚动到顶部
         this.$nextTick(() => {
           const rightPanel = document.querySelector('.right-panel')
@@ -646,6 +690,8 @@ export default {
         if (data.success) {
           ElMessage.success('已取消收藏')
           this.videoMenuForId = null
+          // 清除当前收藏夹的缓存，重新加载
+          this.clearFolderCache(this.activeFolderId)
           await this.initCollections()
         } else {
           ElMessage.warning(data.message || '取消收藏失败')
@@ -710,6 +756,8 @@ export default {
         if (data.success) {
           ElMessage.success(`已取消收藏 ${this.selectedFavoriteIds.length} 个视频`)
           this.selectedFavoriteIds = []
+          // 清除当前收藏夹的缓存，重新加载
+          this.clearFolderCache(this.activeFolderId)
           await this.initCollections()
         } else {
           ElMessage.warning(data.message || '批量取消收藏失败')
@@ -760,6 +808,9 @@ export default {
         if (data.success) {
           ElMessage.success(data.message || '已移动')
           this.closeMoveDialog()
+          // 清除相关收藏夹的缓存
+          this.clearFolderCache(this.activeFolderId)
+          this.clearFolderCache(targetFolderId)
           await this.initCollections()
         } else {
           ElMessage.warning(data.message || '移动失败')
@@ -813,6 +864,9 @@ export default {
           ElMessage.success(`已成功移动 ${successCount} 个视频${failCount > 0 ? `，${failCount} 个失败` : ''}`)
           this.selectedFavoriteIds = []
           this.closeMoveDialog()
+          // 清除相关收藏夹的缓存
+          this.clearFolderCache(this.activeFolderId)
+          this.clearFolderCache(targetFolderId)
           await this.initCollections()
         } else {
           ElMessage.warning('移动失败，请稍后重试')
@@ -956,9 +1010,13 @@ export default {
         if (data.success) {
           ElMessage.success('已删除')
           this.folderMenuForId = null
+          // 清除被删除收藏夹的缓存
+          this.clearFolderCache(folder.id)
           // 如果当前选中的是被删除的收藏夹，重置
           if (this.activeFolderId === folder.id) {
             this.activeFolderId = null
+            this.videos = []
+            this.total = 0
           }
           await this.initCollections()
         } else {
@@ -1014,7 +1072,7 @@ export default {
   width: 100%;
   margin: 0 auto;
   background: #FFFFFF;
-  min-height: 100vh;
+  min-height: 105vh;
   // 本页 TopHeader 需要覆盖在封面图上，因此不预留顶部空间
   padding-top: 0;
 }
