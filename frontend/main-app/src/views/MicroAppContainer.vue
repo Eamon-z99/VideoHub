@@ -1,7 +1,7 @@
 <template>
-  <div class="micro-app-container">
-    <!-- 子应用将通过 qiankun 自动挂载到 #subapp-container -->
-  </div>
+  <!-- <div class="micro-app-container">
+    子应用将通过 qiankun 自动挂载到 #subapp-container
+  </div> -->
 </template>
 
 <script setup>
@@ -9,9 +9,9 @@
 </script>
 
 <style scoped>
-.micro-app-container {
+/* .micro-app-container {
   width: 100%;
   height: 100%;
-}
+} */
 </style>
 

@@ -10,7 +10,9 @@ public record VideoItem(
         String storagePath,
         String sourceFile,
         Long viewCount,
-        Long fileSize
+        Long fileSize,
+        String uploaderName,
+        String uploadDate
 ) {
 }
 

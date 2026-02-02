@@ -14,7 +14,11 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.sql.Timestamp;
 import java.text.Normalizer;
+import java.time.LocalDate;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
@@ -44,16 +48,28 @@ public class LocalVideoService {
         log.info("Media CDN enabled: {}, baseUrl: {}", this.useCdn, this.cdnBaseUrl);
     }
 
+    private static final DateTimeFormatter UPLOAD_DATE_FORMATTER =
+            DateTimeFormatter.ofPattern("MM-dd");
+
     public List<VideoItem> listPage(int page, int pageSize) {
         int safeSize = Math.max(1, Math.min(pageSize, 100));
         int safePage = Math.max(1, page);
         int offset = (safePage - 1) * safeSize;
         // 使用随机顺序返回视频列表（MySQL: ORDER BY RAND()），避免前端再做乱序
         String sql = """
-                SELECT video_id, title, description, duration,
-                       cover_url, storage_path, source_file,
-                       view_count, file_size
-                FROM videos
+                SELECT v.video_id,
+                       v.title,
+                       v.description,
+                       v.duration,
+                       v.cover_url,
+                       v.storage_path,
+                       v.source_file,
+                       v.view_count,
+                       v.file_size,
+                       u.username AS uploader_name,
+                       v.create_time
+                FROM videos v
+                LEFT JOIN users u ON v.user_id = u.id
                 ORDER BY RAND()
                 LIMIT ? OFFSET ?
                 """;
@@ -66,11 +82,20 @@ public class LocalVideoService {
     public List<VideoItem> listTopByViewCount(int limit) {
         int safeLimit = Math.max(1, Math.min(limit, 100));
         String sql = """
-                SELECT video_id, title, description, duration,
-                       cover_url, storage_path, source_file,
-                       view_count, file_size
-                FROM videos
-                ORDER BY view_count DESC
+                SELECT v.video_id,
+                       v.title,
+                       v.description,
+                       v.duration,
+                       v.cover_url,
+                       v.storage_path,
+                       v.source_file,
+                       v.view_count,
+                       v.file_size,
+                       u.username AS uploader_name,
+                       v.create_time
+                FROM videos v
+                LEFT JOIN users u ON v.user_id = u.id
+                ORDER BY v.view_count DESC
                 LIMIT ?
                 """;
         return jdbcTemplate.query(sql, (rs, i) -> mapToVideo(rs), safeLimit);
@@ -83,11 +108,20 @@ public class LocalVideoService {
 
     public Optional<VideoItem> findByVideoId(String videoId) {
         String sql = """
-                SELECT video_id, title, description, duration,
-                       cover_url, storage_path, source_file,
-                       view_count, file_size
-                FROM videos
-                WHERE video_id = ?
+                SELECT v.video_id,
+                       v.title,
+                       v.description,
+                       v.duration,
+                       v.cover_url,
+                       v.storage_path,
+                       v.source_file,
+                       v.view_count,
+                       v.file_size,
+                       u.username AS uploader_name,
+                       v.create_time
+                FROM videos v
+                LEFT JOIN users u ON v.user_id = u.id
+                WHERE v.video_id = ?
                 """;
         List<VideoItem> list = jdbcTemplate.query(sql, (rs, i) -> mapToVideo(rs), videoId);
         return list.stream().findFirst();
@@ -97,6 +131,21 @@ public class LocalVideoService {
         String sourceFile = rs.getString("source_file");
         String storagePath = rs.getString("storage_path");
         String coverFile = rs.getString("cover_url");
+
+        // 优先使用数据库中的用户名，其次用目录名推导
+        String uploaderFromDb = rs.getString("uploader_name");
+        String uploaderName = firstNonBlank(uploaderFromDb, buildUploaderName(sourceFile));
+
+        // 上传日期：优先用视频表 create_time，格式 MM-dd
+        String uploadDate = null;
+        Timestamp createTime = rs.getTimestamp("create_time");
+        if (createTime != null) {
+            LocalDate date = createTime.toInstant()
+                    .atZone(ZoneId.systemDefault())
+                    .toLocalDate();
+            uploadDate = UPLOAD_DATE_FORMATTER.format(date);
+        }
+
         return new VideoItem(
                 rs.getString("video_id"),
                 firstNonBlank(rs.getString("title"), "本地视频"),
@@ -107,8 +156,31 @@ public class LocalVideoService {
                 storagePath,
                 sourceFile,
                 rs.getObject("view_count") == null ? null : rs.getLong("view_count"),
-                rs.getObject("file_size") == null ? null : rs.getLong("file_size")
+                rs.getObject("file_size") == null ? null : rs.getLong("file_size"),
+                uploaderName,
+                uploadDate
         );
+    }
+
+    /**
+     * 从 source_file 推导一个“UP”显示名，例如 "Videos/290/xxx.mp4" -> "Videos/290"
+     */
+    private String buildUploaderName(String sourceFile) {
+        if (!StringUtils.hasText(sourceFile)) {
+            return "本地媒体库";
+        }
+        String normalized = sourceFile.replace("\\", "/");
+        // 去掉开头的 /
+        if (normalized.startsWith("/")) {
+            normalized = normalized.substring(1);
+        }
+        String[] parts = normalized.split("/");
+        if (parts.length >= 2) {
+            // 使用前两个层级，形如 "Videos/290"
+            return parts[0] + "/" + parts[1];
+        }
+        // 只有一层目录时直接返回
+        return parts[0];
     }
 
     private String buildLocalUrl(String sourceFile, String fileName) {

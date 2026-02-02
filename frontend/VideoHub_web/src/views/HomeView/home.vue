@@ -122,20 +122,15 @@
         >
           <template #default="{ data, rowIndex, columnIndex, style }">
             <div :style="[style, getPaddingStyle(columnIndex)]" class="video">
-              <div v-if="data && data[rowIndex * columnCount + columnIndex]" class="card" @click="playVideo(data[rowIndex * columnCount + columnIndex])">
-                <div class="thumb-wrap">
-                  <img
-                    :src="data[rowIndex * columnCount + columnIndex].cover"
-                    loading="lazy"
-                    @error="onImgError"
-                  />
-                  <span class="duration">{{ data[rowIndex * columnCount + columnIndex].duration }}</span>
-                  <div v-if="data[rowIndex * columnCount + columnIndex].isVideo" class="play-overlay">
-                    <div class="play-button">▶</div>
-                  </div>
-                </div>
-                <div class="v-title" :title="data[rowIndex * columnCount + columnIndex].title">{{ data[rowIndex * columnCount + columnIndex].title }}</div>
-                <div class="v-sub">{{ data[rowIndex * columnCount + columnIndex].playCount }} · {{ data[rowIndex * columnCount + columnIndex].up }}</div>
+              <div
+                v-if="data && data[rowIndex * columnCount + columnIndex]"
+                class="card"
+                @click="playVideo(data[rowIndex * columnCount + columnIndex])"
+              >
+                <VideoCard
+                  :video="data[rowIndex * columnCount + columnIndex]"
+                  :on-img-error="onImgError"
+                />
               </div>
             </div>
           </template>
@@ -160,6 +155,7 @@ import { ref, onMounted, onUnmounted, computed, watch, nextTick } from 'vue'
 import { FixedSizeGrid as ElVirtualGrid } from 'element-plus/es/components/virtual-list/index.mjs'
 import { useRouter } from 'vue-router'
 import TopHeader from '@/components/TopHeader.vue'
+import VideoCard from '@/components/VideoCard.vue'
 import { fetchVideos, fetchTopVideos } from '@/api/video'
 
 const router = useRouter()
