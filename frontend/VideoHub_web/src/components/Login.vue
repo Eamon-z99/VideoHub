@@ -3,6 +3,7 @@ import { ref, onMounted, onUnmounted, nextTick, computed } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useUserStore } from '@/stores/user';
 import { loginApi } from '@/api/auth';
+import { fetchMyProfile } from '@/api/userProfile';
 import { ElMessage } from 'element-plus';
 
 const route = useRoute();
@@ -28,6 +29,21 @@ const form = ref({
 });
 
 const loading = ref(false);
+
+// 规范化头像 URL
+const normalizeAvatarUrl = (url) => {
+  if (!url) return ''
+  // 如果已经是完整 URL（http/https），直接返回
+  if (url.startsWith('http://') || url.startsWith('https://')) {
+    return url
+  }
+  // 如果是相对路径（以 / 开头），直接返回
+  if (url.startsWith('/')) {
+    return url
+  }
+  // 其他情况，当作相对路径处理
+  return '/' + url
+}
 
 const closeLogin = () => {
   emit('update:show', false)
@@ -80,13 +96,35 @@ const login = async () => {
     
     // 检查响应数据
     if (response.data && response.data.success && response.data.token) {
-      // 存储token和用户信息
+      // 存储token和用户基本信息
       userStore.setToken(response.data.token);
       userStore.setUser({
         id: response.data.userId,
+        userId: response.data.userId,
         username: response.data.username,
         loginAccount: response.data.loginAccount
       });
+      
+      // 登录成功后立即获取完整用户资料（包括头像、签名等）
+      try {
+        const profileResponse = await fetchMyProfile();
+        if (profileResponse.data && profileResponse.data.success) {
+          const profileData = profileResponse.data;
+          const normalizedAvatar = normalizeAvatarUrl(profileData.avatar);
+          // 更新用户资料到 store
+          userStore.setUser({
+            id: profileData.id || response.data.userId,
+            userId: profileData.id || response.data.userId,
+            username: profileData.username || response.data.username,
+            loginAccount: response.data.loginAccount || profileData.account,
+            avatar: normalizedAvatar,
+            bio: profileData.bio || ''
+          });
+        }
+      } catch (profileError) {
+        // 如果获取资料失败，不影响登录流程，只记录错误
+        console.warn('获取用户资料失败，但不影响登录:', profileError);
+      }
       
       ElMessage.success('登录成功');
       

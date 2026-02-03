@@ -469,6 +469,8 @@ onUnmounted(() => {
             height: 40px;
             border-radius: 50%;
             flex: 0 0 40px;
+            position: relative;
+            z-index: 99999;
           }
           .content {
             flex: 1 1 auto;
@@ -507,7 +509,13 @@ onUnmounted(() => {
       gap: 10px;
       align-items: center;
 
-      .u-avatar { width: 48px; height: 48px; border-radius: 50%; }
+      .u-avatar { 
+        width: 48px; 
+        height: 48px; 
+        border-radius: 50%; 
+        position: relative;
+        z-index: 99999;
+      }
       .u-info {
         .u-name { font-weight: 600; }
         .u-stats { color: #8a8a8a; font-size: 12px; margin-top: 2px; }

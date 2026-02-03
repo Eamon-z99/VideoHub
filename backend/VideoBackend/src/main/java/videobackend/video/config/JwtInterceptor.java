@@ -2,12 +2,16 @@ package videobackend.video.config;
 
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 import org.springframework.web.servlet.HandlerInterceptor;
 import videobackend.video.util.JwtUtil;
 
 @Component
 public class JwtInterceptor implements HandlerInterceptor {
+
+    private static final Logger logger = LoggerFactory.getLogger(JwtInterceptor.class);
 
     private final JwtUtil jwtUtil;
 
@@ -28,6 +32,7 @@ public class JwtInterceptor implements HandlerInterceptor {
             path.startsWith("/api/auth/register") ||
             path.startsWith("/api/auth/logout") ||
             path.startsWith("/local-videos/") ||
+            path.startsWith("/avatars/") ||
             path.startsWith("/error")) {
             return true;
         }

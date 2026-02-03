@@ -15,7 +15,7 @@
         <!-- 用户信息头部 -->
         <div class="user-header">
           <div class="user-avatar">
-            <img :src="userAvatar" :alt="username" />
+            <img v-if="userAvatar" :src="userAvatar" :alt="username" />
           </div>
           <div class="user-name">{{ username }}</div>
           <div class="user-coins">
@@ -113,10 +113,29 @@ const userStore = useUserStore()
 
 const wrapperRef = ref(null)
 
+// 规范化头像 URL
+const normalizeAvatarUrl = (url) => {
+  if (!url) return ''
+  // 如果已经是完整 URL（http/https），直接返回
+  if (url.startsWith('http://') || url.startsWith('https://')) {
+    return url
+  }
+  // 如果是相对路径（以 / 开头），直接返回
+  if (url.startsWith('/')) {
+    return url
+  }
+  // 其他情况，当作相对路径处理
+  return '/' + url
+}
+
 // 用户信息
 const user = computed(() => userStore.user || {})
 const username = computed(() => user.value.username || user.value.loginAccount || '未登录')
-const userAvatar = computed(() => user.value.avatar || 'https://placehold.co/80x80')
+const userAvatar = computed(() => {
+  const avatar = user.value.avatar || user.value.avatarUrl || ''
+  if (!avatar) return ''
+  return normalizeAvatarUrl(avatar)
+})
 
 // 虚拟数据（后续可以从后端获取）
 const coins = ref(1206)
@@ -403,11 +422,15 @@ const handleLogout = async () => {
       overflow: hidden;
       border: 3px solid #fff;
       box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+      position: relative;
+      z-index: 99999;
       
       img {
         width: 100%;
         height: 100%;
         object-fit: cover;
+        position: relative;
+        z-index: 99999;
       }
     }
     

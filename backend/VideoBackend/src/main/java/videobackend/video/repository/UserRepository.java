@@ -33,6 +33,30 @@ public class UserRepository {
         }
     }
 
+    public Optional<User> findById(Long id) {
+        String sql = """
+                SELECT id, username, account, password, email, avatar, bio, status, create_time, update_time
+                FROM users
+                WHERE id = ?
+                """;
+        try {
+            User user = jdbcTemplate.queryForObject(sql, new UserRowMapper(), id);
+            return Optional.ofNullable(user);
+        } catch (Exception e) {
+            return Optional.empty();
+        }
+    }
+
+    public void updateAvatar(Long userId, String avatarUrl) {
+        String sql = "UPDATE users SET avatar = ?, update_time = NOW() WHERE id = ?";
+        jdbcTemplate.update(sql, avatarUrl, userId);
+    }
+
+    public void updateBio(Long userId, String bio) {
+        String sql = "UPDATE users SET bio = ?, update_time = NOW() WHERE id = ?";
+        jdbcTemplate.update(sql, bio, userId);
+    }
+
     private static class UserRowMapper implements RowMapper<User> {
         @Override
         public User mapRow(ResultSet rs, int rowNum) throws SQLException {

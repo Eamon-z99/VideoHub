@@ -9,14 +9,27 @@
         <img class="cover" :src="coverImage" alt="cover" @error="onImageError" @load="onImageLoad" />
         <div class="header-inner user-profile-container">
           <div class="user-row">
-            <img class="avatar" :src="avatar" alt="avatar" />
+            <div class="avatar-wrap" @click="onChangeAvatarClick">
+              <img class="avatar" :src="avatar" alt="avatar" />
+              <div v-if="avatarUploading" class="avatar-mask">上传中...</div>
+            </div>
+            <input
+              ref="avatarInput"
+              type="file"
+              accept="image/*"
+              class="avatar-input"
+              @change="onAvatarSelected"
+            />
             <div class="user-meta">
               <div class="name-row">
                 <div class="name">{{ nickname }}</div>
                 <span class="badge level">LV5</span>
                 <span class="badge vip">大会员</span>
               </div>
-              <div class="sub-row">编辑个性签名</div>
+              <div class="sub-row" @click="editBio">
+                <span v-if="bio">{{ bio }}</span>
+                <span v-else class="bio-placeholder">编辑个性签名</span>
+              </div>
             </div>
           </div>
         </div>
@@ -407,6 +420,7 @@
 import TopHeader from '@/components/TopHeader.vue'
 import { getFavoriteListByFolder } from '@/api/favorite'
 import { getFavoriteFolderList, createFavoriteFolder } from '@/api/favoriteFolder'
+import { fetchMyProfile, updateAvatar as apiUpdateAvatar, updateBio as apiUpdateBio } from '@/api/userProfile'
 import { useUserStore } from '@/stores/user'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import zhCn from 'element-plus/dist/locale/zh-cn.mjs'
@@ -426,7 +440,11 @@ export default {
         { key: 'collections', label: '收藏', count: 0 }
       ],
       nickname: '皇升级',
-      avatar: '/public/favicon.ico',
+      avatar: '',
+      bio: '',
+      avatarUploading: false,
+      // store 引用（用于刷新后从 localStorage 同步头像/签名）
+      userStore: null,
       stats: { following: 24, followers: 3, likes: 0, views: 0 },
       activeFolderId: null,
       folders: [],
@@ -482,11 +500,26 @@ export default {
       return this.videos.every(v => this.selectedFavoriteIds.includes(v.favoriteId))
     }
   },
+  created () {
+    // 刷新页面时，优先从 userStore(localStorage) 同步头像/签名，避免接口未返回/网络慢导致空白
+    this.userStore = useUserStore()
+    this.syncProfileFromStore()
+    // 监听 store.user 变化（比如上传头像成功后 store 更新），同步到本页展示
+    this.$watch(
+      () => this.userStore.user,
+      () => this.syncProfileFromStore(),
+      { deep: true }
+    )
+  },
   mounted () {
-    // 如果初始就是收藏tab，则加载数据
-    if (this.activeTab === 'collections' && this.currentUserId) {
-      this.initCollections()
-    }
+    // 先加载当前用户资料（头像 + 签名）
+    this.loadProfile()
+      .finally(() => {
+        // 如果初始就是收藏tab，则加载数据
+        if (this.activeTab === 'collections' && this.currentUserId) {
+          this.initCollections()
+        }
+      })
     
     // 监听tab切换（只在从其他tab切换到collections时加载）
     let previousTab = this.activeTab
@@ -498,6 +531,66 @@ export default {
     })
   },
   methods: {
+    syncProfileFromStore () {
+      try {
+        const store = this.userStore || useUserStore()
+        const u = store.user || {}
+        if (u.username) this.nickname = u.username
+        // 头像优先取 store 的 avatar（刷新后 localStorage 会带着）
+        if (u.avatar) {
+          this.avatar = this.normalizeAvatarUrl(u.avatar)
+        } else if (!this.avatar) {
+          // 兜底占位
+          this.avatar = '/public/favicon.ico'
+        }
+        if (typeof u.bio === 'string') {
+          this.bio = u.bio
+        }
+      } catch (e) {
+        // ignore
+      }
+    },
+    normalizeAvatarUrl (url) {
+      if (!url) return '/public/favicon.ico'
+      // 如果已经是完整 URL（http/https），直接返回
+      if (url.startsWith('http://') || url.startsWith('https://')) {
+        return url
+      }
+      // 如果是相对路径（以 / 开头），直接返回
+      if (url.startsWith('/')) {
+        return url
+      }
+      // 其他情况，当作相对路径处理
+      return '/' + url
+    },
+    async loadProfile () {
+      try {
+        const userStore = this.userStore || useUserStore()
+        if (!userStore.isAuthenticated) return
+        const { data } = await fetchMyProfile()
+        if (data && data.id) {
+          this.nickname = data.username || this.nickname
+          if (data.avatar) {
+            this.avatar = this.normalizeAvatarUrl(data.avatar)
+          }
+          this.bio = data.bio || ''
+          // 同步到全局 userStore，保证顶部头像一致
+          const currentUser = userStore.user || {}
+          const normalizedAvatar = data.avatar ? this.normalizeAvatarUrl(data.avatar) : (currentUser.avatar || '')
+          userStore.setUser({
+            ...currentUser,
+            id: data.id,
+            userId: data.id,
+            username: data.username || currentUser.username,
+            loginAccount: currentUser.loginAccount || data.account,
+            avatar: normalizedAvatar,
+            bio: data.bio || currentUser.bio
+          })
+        }
+      } catch (e) {
+        console.warn('加载用户资料失败:', e)
+      }
+    },
     onTabChange (key) {
       // 如果切换到收藏tab，重置并加载数据
       if (key === 'collections' && this.currentUserId) {
@@ -505,6 +598,84 @@ export default {
         this.initCollections()
       } else {
         this.activeTab = key
+      }
+    },
+
+    // 点击头像更换
+    onChangeAvatarClick () {
+      if (this.avatarUploading) return
+      const input = this.$refs.avatarInput
+      if (input) {
+        input.click()
+      }
+    },
+
+    // 选择头像文件
+    async onAvatarSelected (event) {
+      const file = event?.target?.files?.[0]
+      if (!file) return
+      this.avatarUploading = true
+      try {
+        const { data } = await apiUpdateAvatar(file)
+        if (data && data.success && data.avatar) {
+          const normalizedAvatar = this.normalizeAvatarUrl(data.avatar)
+          this.avatar = normalizedAvatar
+          ElMessage.success('头像已更新')
+          // 更新全局 store
+          const userStore = useUserStore()
+          const currentUser = userStore.user || {}
+          userStore.setUser({
+            ...currentUser,
+            avatar: normalizedAvatar
+          })
+        } else {
+          ElMessage.error(data?.message || '头像更新失败')
+        }
+      } catch (e) {
+        console.error('头像上传失败:', e)
+        ElMessage.error('头像上传失败，请稍后重试')
+      } finally {
+        this.avatarUploading = false
+        if (event && event.target) {
+          // 允许再次选择同一个文件
+          event.target.value = ''
+        }
+      }
+    },
+
+    // 编辑个性签名
+    async editBio () {
+      const current = this.bio || ''
+      try {
+        const { value } = await ElMessageBox.prompt('请输入个性签名', '编辑个性签名', {
+          inputValue: current,
+          inputPlaceholder: '这个人很神秘，还没有写签名~',
+          inputType: 'textarea',
+          confirmButtonText: '保存',
+          cancelButtonText: '取消',
+          inputMaxlength: 80,
+          inputValidator: (val) => {
+            if (val && val.length > 80) return '签名不能超过 80 个字符'
+            return true
+          }
+        })
+        const bio = (value || '').trim()
+        const { data } = await apiUpdateBio(bio)
+        if (data && data.success) {
+          this.bio = data.bio || bio
+          ElMessage.success('签名已更新')
+          const userStore = useUserStore()
+          const currentUser = userStore.user || {}
+          userStore.setUser({
+            ...currentUser,
+            bio: this.bio
+          })
+        } else {
+          ElMessage.error(data?.message || '签名更新失败')
+        }
+      } catch (e) {
+        if (e === 'cancel' || e === 'close') return
+        console.error('更新签名失败:', e)
       }
     },
     async initCollections () {
@@ -1125,14 +1296,41 @@ export default {
     padding-bottom: 14px;
   }
 
-  .avatar {
+  .avatar-wrap {
+    position: relative;
     width: 64px;
     height: 64px;
+    cursor: pointer;
+    flex-shrink: 0;
+  }
+
+  .avatar {
+    width: 100%;
+    height: 100%;
     border-radius: 50%;
     border: 3px solid #fff;
     object-fit: cover;
     background: #fff;
     box-shadow: 0 2px 10px rgba(0, 0, 0, 0.12);
+    display: block;
+    position: relative;
+    z-index: 99999;
+  }
+
+  .avatar-input {
+    display: none;
+  }
+
+  .avatar-mask {
+    position: absolute;
+    inset: 0;
+    border-radius: 50%;
+    background: rgba(0, 0, 0, 0.45);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 12px;
+    color: #fff;
   }
 
   .user-meta {
@@ -1156,6 +1354,11 @@ export default {
       font-size: 12px;
       color: rgba(255, 255, 255, 0.85);
       text-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
+      cursor: pointer;
+    }
+
+    .bio-placeholder {
+      opacity: 0.9;
     }
 
     .badge {

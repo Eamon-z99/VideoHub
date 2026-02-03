@@ -268,7 +268,14 @@ const sections = ref([
 .rank-item { display: grid; grid-template-columns: 22px 32px 1fr auto; gap: 8px; align-items: center; padding: 6px 0; }
 .rank-item .idx { font-size: 12px; color: #999; }
 .rank-item .idx.top { color: #ff7b8c; font-weight: 700; }
-.rank-item .avatar { width: 32px; height: 32px; border-radius: 50%; object-fit: cover; }
+.rank-item .avatar { 
+  width: 32px; 
+  height: 32px; 
+  border-radius: 50%; 
+  object-fit: cover; 
+  position: relative;
+  z-index: 99999;
+}
 .rank-item .u-meta .name { font-size: 13px; color: #222; }
 .rank-item .u-meta .desc { font-size: 12px; color: #8a8a8a; }
 .rank-item .heat { font-size: 12px; color: #fb7299; }

@@ -8,7 +8,9 @@
       <aside class="left-column">
         <!-- inlined: UserCard.vue -->
         <div class="user-card">
-          <div class="avatar" :style="{ backgroundImage: userAvatar ? `url(${userAvatar})` : 'none' }"></div>
+          <div class="avatar">
+            <img v-if="userAvatar" :src="userAvatar" :alt="userName" />
+          </div>
           <div class="info">
             <div class="name">{{ userName || '未登录' }}</div>
             <div class="stats">
@@ -51,7 +53,9 @@
           <div v-else-if="feedList.length === 0" class="empty">暂无动态</div>
           <article v-for="item in feedList" :key="item.id" class="feed-card" @click="goToVideo(item.videoId)">
             <header class="meta">
-              <div class="avatar" :style="{ backgroundImage: item.uploaderAvatar ? `url(${item.uploaderAvatar})` : 'none' }"></div>
+              <div class="avatar">
+                <img v-if="item.uploaderAvatar" :src="item.uploaderAvatar" :alt="item.uploaderName" />
+              </div>
               <div class="who">
                 <div class="name">{{ item.uploaderName || '未知UP主' }}</div>
                 <div class="sub">{{ formatTime(item.publishTime || item.createTime) }} · 投稿了视频</div>
@@ -112,17 +116,36 @@ import { useRouter } from 'vue-router'
 import TopHeader from '@/components/TopHeader.vue'
 import { useUserStore } from '@/stores/user'
 import { fetchVideos } from '@/api/video'
+import { fetchMyProfile } from '@/api/userProfile'
 
 const router = useRouter()
 const userStore = useUserStore()
 
-// 用户信息
+// 规范化头像 URL
+const normalizeAvatarUrl = (url) => {
+  if (!url) return ''
+  // 如果已经是完整 URL（http/https），直接返回
+  if (url.startsWith('http://') || url.startsWith('https://')) {
+    return url
+  }
+  // 如果是相对路径（以 / 开头），直接返回
+  if (url.startsWith('/')) {
+    return url
+  }
+  // 其他情况，当作相对路径处理
+  return '/' + url
+}
+
+// 用户信息（与 UserDropdown.vue 保持一致）
+const user = computed(() => userStore.user || {})
 const userName = computed(() => {
-  return userStore.user?.username || userStore.user?.nickname || '未登录'
+  return user.value.username || user.value.nickname || '未登录'
 })
 
 const userAvatar = computed(() => {
-  return userStore.user?.avatar || userStore.user?.avatarUrl || ''
+  const avatar = user.value.avatar || user.value.avatarUrl || ''
+  if (!avatar) return ''
+  return normalizeAvatarUrl(avatar)
 })
 
 const userStats = ref({
@@ -198,7 +221,7 @@ const loadFeed = async (reset = false) => {
       coverUrl: item.coverUrl || '/assets/home.png',
       duration: item.duration || 0,
       uploaderName: item.uploaderName || item.uploader || '未知UP主',
-      uploaderAvatar: item.uploaderAvatar || '',
+      uploaderAvatar: item.uploaderAvatar ? normalizeAvatarUrl(item.uploaderAvatar) : '',
       publishTime: item.publishTime || item.createTime || new Date().toISOString(),
       likeCount: item.likeCount || item.likes || 0,
       commentCount: item.commentCount || item.comments || 0,
@@ -289,13 +312,65 @@ watch(
   }
 )
 
+// 加载用户资料
+const loadUserProfile = async () => {
+  try {
+    const response = await fetchMyProfile()
+    if (response.data && response.data.success) {
+      const profileData = response.data
+      const normalizedAvatar = normalizeAvatarUrl(profileData.avatar)
+      // 更新用户资料到 store
+      const currentUser = user.value || {}
+      userStore.setUser({
+        ...currentUser,
+        id: profileData.id || currentUser.id,
+        userId: profileData.id || currentUser.userId || currentUser.id,
+        username: profileData.username || currentUser.username,
+        loginAccount: currentUser.loginAccount || profileData.account,
+        avatar: normalizedAvatar,
+        bio: profileData.bio || currentUser.bio
+      })
+    }
+  } catch (error) {
+    // 静默失败，不影响页面正常使用
+    console.warn('加载用户资料失败:', error)
+  }
+}
+
 onMounted(() => {
   loadFeed(true)
   // 等待 DOM 渲染完成
   nextTick(() => {
     setupIntersectionObserver()
   })
+  
+  // 如果用户已登录但没有头像，自动加载用户资料
+  if (userStore.isAuthenticated) {
+    const currentUser = user.value || {}
+    if (!currentUser.avatar && !currentUser.avatarUrl) {
+      loadUserProfile()
+    }
+  }
 })
+
+// 监听用户状态变化，确保头像正确更新
+watch(() => userStore.isAuthenticated, (isAuth) => {
+  if (isAuth) {
+    const currentUser = user.value || {}
+    if (!currentUser.avatar && !currentUser.avatarUrl) {
+      loadUserProfile()
+    }
+  }
+})
+
+// 监听用户信息变化，确保头像正确更新
+watch(() => user.value, (newUser) => {
+  if (newUser && userStore.isAuthenticated) {
+    if (!newUser.avatar && !newUser.avatarUrl) {
+      loadUserProfile()
+    }
+  }
+}, { deep: true })
 
 onUnmounted(() => {
   if (observer) {
@@ -478,9 +553,20 @@ $right-column-width: 300px;
   
   .avatar {
     @include avatar-style(56px);
-    background-size: cover;
-    background-position: center;
-    background-repeat: no-repeat;
+    overflow: hidden;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+    z-index: 99999;
+    
+    img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      position: relative;
+      z-index: 99999;
+    }
   }
   
   .info {
@@ -589,9 +675,20 @@ $right-column-width: 300px;
       
       .avatar {
         @include avatar-style(36px);
-        background-size: cover;
-        background-position: center;
-        background-repeat: no-repeat;
+        overflow: hidden;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        position: relative;
+        z-index: 99999;
+        
+        img {
+          width: 100%;
+          height: 100%;
+          object-fit: cover;
+          position: relative;
+          z-index: 99999;
+        }
       }
       
       .who {

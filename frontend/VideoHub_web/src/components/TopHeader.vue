@@ -40,7 +40,9 @@
         @mouseleave="handleUserAreaLeave"
         v-if="isAuthenticated"
       >
-        <div class="avatar" />
+        <div class="avatar">
+          <img v-if="userAvatar" :src="userAvatar" :alt="displayName" />
+        </div>
         <span class="user-name">{{ displayName }}</span>
         <UserDropdown 
           v-model:visible="showUserDropdown"
@@ -86,6 +88,7 @@ import { useRouter } from 'vue-router'
 import Login from '@/components/Login.vue'
 import UserDropdown from '@/components/UserDropdown.vue'
 import { useUserStore } from '@/stores/user'
+import { fetchMyProfile } from '@/api/userProfile'
 
 // Props
 interface Props {
@@ -111,10 +114,59 @@ let isFixed = ref(false)
 let scrollTop = ref(0)
 
 const isAuthenticated = computed(() => userStore.isAuthenticated)
+
+// 规范化头像 URL
+const normalizeAvatarUrl = (url: string) => {
+  if (!url) return ''
+  // 如果已经是完整 URL（http/https），直接返回
+  if (url.startsWith('http://') || url.startsWith('https://')) {
+    return url
+  }
+  // 如果是相对路径（以 / 开头），直接返回
+  if (url.startsWith('/')) {
+    return url
+  }
+  // 其他情况，当作相对路径处理
+  return '/' + url
+}
+
+// 用户信息（与 UserDropdown.vue 保持一致）
+const user = computed(() => userStore.user || {})
 const displayName = computed(() => {
-  const user = (userStore as any).user || {}
-  return user.username || user.loginAccount || '未登录'
+  return user.value.username || user.value.loginAccount || '未登录'
 })
+
+const userAvatar = computed(() => {
+  const avatar = user.value.avatar || user.value.avatarUrl || ''
+  if (!avatar) return ''
+  return normalizeAvatarUrl(avatar)
+})
+
+// 加载用户资料
+const loadUserProfile = async () => {
+  try {
+    const response = await fetchMyProfile()
+    if (response.data) {
+      const profileData = response.data.success ? response.data : response.data
+      if (profileData.avatar || profileData.id) {
+        const normalizedAvatar = profileData.avatar ? normalizeAvatarUrl(profileData.avatar) : ''
+        const currentUser = user.value || {}
+        userStore.setUser({
+          ...currentUser,
+          id: profileData.id || currentUser.id,
+          userId: profileData.id || currentUser.userId || currentUser.id,
+          username: profileData.username || currentUser.username,
+          loginAccount: currentUser.loginAccount || profileData.account,
+          avatar: normalizedAvatar,
+          bio: profileData.bio || currentUser.bio
+        })
+      }
+    }
+  } catch (error) {
+    // 静默失败，不影响页面正常使用
+    console.warn('加载用户资料失败:', error)
+  }
+}
 
 const handleScroll = () => {
   // 如果不需要固定悬浮，设置固定状态并返回
@@ -202,6 +254,14 @@ onMounted(() => {
       window.addEventListener('scroll', handleScroll, { passive: true })
     }
   }
+  
+  // 如果用户已登录但没有头像，自动加载用户资料
+  if (userStore.isAuthenticated) {
+    const currentUser = user.value || {}
+    if (!currentUser.avatar && !currentUser.avatarUrl) {
+      loadUserProfile()
+    }
+  }
 })
 
 onUnmounted(() => {
@@ -249,6 +309,25 @@ watch(showUserDropdown, (val) => {
     dropdownTimer = null
   }
 })
+
+// 监听用户状态变化，确保头像正确更新
+watch(() => userStore.isAuthenticated, (isAuth) => {
+  if (isAuth) {
+    const currentUser = user.value || {}
+    if (!currentUser.avatar && !currentUser.avatarUrl) {
+      loadUserProfile()
+    }
+  }
+})
+
+// 监听用户信息变化，确保头像正确更新
+watch(() => user.value, (newUser) => {
+  if (newUser && userStore.isAuthenticated) {
+    if (!newUser.avatar && !newUser.avatarUrl) {
+      loadUserProfile()
+    }
+  }
+}, { deep: true })
 
 const goTo = (path: string) => { 
   router.push(path) 
@@ -419,14 +498,6 @@ const navigateToCreatorCenter = () => {
   transition: background 0.2s;
 }
 
-.user-area:hover {
-  // background: rgba(255, 255, 255, 0.1);
-}
-
-.top-header.scrolled .user-area:hover {
-  // background: rgba(0, 0, 0, 0.05);
-}
-
 .avatar {
   width: 32px;
   height: 32px;
@@ -434,6 +505,20 @@ const navigateToCreatorCenter = () => {
   background: #d8d8d8;
   border: 2px solid rgba(255, 255, 255, .8);
   flex-shrink: 0;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  z-index: 99999;
+  
+  img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    position: relative;
+    z-index: 99999;
+  }
 }
 
 .top-header.scrolled .avatar {
