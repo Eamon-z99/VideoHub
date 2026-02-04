@@ -593,9 +593,14 @@ const clearAll = async () => {
   }
 }
 
-// 跳转到视频播放页
+// 在新标签页打开视频播放页
 const goToVideo = (videoId) => {
-  router.push(`/video/${encodeURIComponent(videoId)}`)
+  if (!videoId) return
+  const base = window.__MICRO_APP_BASE_ROUTE__ || ''
+  const normalizedBase = base.replace(/\/$/, '')
+  const path = `/video/${encodeURIComponent(videoId)}`
+  const url = `${normalizedBase}${path}`
+  window.open(url, '_blank')
 }
 
 // 使用 Intersection Observer 检测底部元素，实现无限滚动

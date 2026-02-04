@@ -38,9 +38,12 @@ registerApplication({
   }
 })
 
-// 路由就绪后跳到子应用首页并启动 single-spa
+// 路由就绪后，仅在根路径时跳到子应用首页，并启动 single-spa
 router.isReady().then(() => {
-  router.replace('/videohub')
+  const currentPath = router.currentRoute.value.path
+  if (currentPath === '/' || currentPath === '') {
+    router.replace('/videohub')
+  }
   start()
 })
 

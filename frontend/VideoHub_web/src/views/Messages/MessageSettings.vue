@@ -115,7 +115,13 @@ const atNotify = ref('follow')
 const likeNotify = ref(true)
 const strangerToFilter = ref(false)
 
-function go(path) { router.push(path) }
+function go(path) {
+  const base = window.__MICRO_APP_BASE_ROUTE__ || ''
+  const normalizedBase = base.replace(/\/$/, '')
+  const normalizedPath = path.startsWith('/') ? path : `/${path}`
+  const url = `${normalizedBase}${normalizedPath || '/'}`
+  window.open(url, '_blank')
+}
 function addWord() {
   const text = window.prompt('输入屏蔽词')
   if (text && !words.value.includes(text)) words.value.push(text)

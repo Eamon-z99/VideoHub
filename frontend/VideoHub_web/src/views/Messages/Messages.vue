@@ -100,7 +100,13 @@ function send() {
   draft.value = ''
 }
 
-function go(path) { router.push(path) }
+function go(path) {
+  const base = window.__MICRO_APP_BASE_ROUTE__ || ''
+  const normalizedBase = base.replace(/\/$/, '')
+  const normalizedPath = path.startsWith('/') ? path : `/${path}`
+  const url = `${normalizedBase}${normalizedPath || '/'}`
+  window.open(url, '_blank')
+}
 </script>
 
 <style scoped lang="scss">

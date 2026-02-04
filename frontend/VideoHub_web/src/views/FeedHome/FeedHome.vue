@@ -74,7 +74,7 @@
         <div class="feed-list">
           <div v-if="loading && feedList.length === 0" class="loading">加载中...</div>
           <div v-else-if="feedList.length === 0" class="empty">暂无动态</div>
-          <article v-for="item in feedList" :key="item.id" class="feed-card" @click="goToVideo(item.videoId)">
+          <article v-for="item in feedList" :key="item.id" class="feed-card" @click="openVideoInNewTab(item.videoId)">
             <header class="meta">
               <div class="avatar">
                 <img v-if="item.uploaderAvatar" :src="item.uploaderAvatar" :alt="item.uploaderName" />
@@ -286,11 +286,14 @@ const loadFeed = async (reset = false, options = { keepListOnReset: false }) => 
   }
 }
 
-// 跳转到视频播放页
-const goToVideo = (videoId) => {
-  if (videoId) {
-    router.push(`/video/${encodeURIComponent(videoId)}`)
-  }
+// 在新标签页打开视频播放页
+const openVideoInNewTab = (videoId) => {
+  if (!videoId) return
+  const base = window.__MICRO_APP_BASE_ROUTE__ || ''
+  const normalizedBase = base.replace(/\/$/, '')
+  const path = `/video/${encodeURIComponent(videoId)}`
+  const url = `${normalizedBase}${path}`
+  window.open(url, '_blank')
 }
 
 const selectAllDynamics = () => {

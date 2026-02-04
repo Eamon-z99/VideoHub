@@ -237,13 +237,13 @@
                     @click.stop
                   />
                 </div>
-                <div class="thumb" @click="isBatchMode ? null : $router.push(`/video/${v.id}`)">
+                <div class="thumb" @click="isBatchMode ? null : openVideoInNewTab(v.id)">
                   <img v-if="v.cover" :src="v.cover" alt="" @error="onImageError" />
                 <div v-else class="thumb-ph" />
                 <span class="duration">{{ v.duration }}</span>
               </div>
                 <div class="v-title-row">
-                  <div class="v-title" :title="v.title" @click="$router.push(`/video/${v.id}`)">{{ v.title }}</div>
+                  <div class="v-title" :title="v.title" @click="openVideoInNewTab(v.id)">{{ v.title }}</div>
                   <div
                     class="video-more"
                     @click.stop
@@ -531,6 +531,14 @@ export default {
     })
   },
   methods: {
+    openVideoInNewTab (videoId) {
+      if (!videoId) return
+      const base = window.__MICRO_APP_BASE_ROUTE__ || ''
+      const normalizedBase = base.replace(/\/$/, '')
+      const path = `/video/${encodeURIComponent(videoId)}`
+      const url = `${normalizedBase}${path}`
+      window.open(url, '_blank')
+    },
     syncProfileFromStore () {
       try {
         const store = this.userStore || useUserStore()

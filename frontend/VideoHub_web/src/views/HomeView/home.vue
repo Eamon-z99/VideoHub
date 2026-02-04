@@ -440,22 +440,32 @@ onUnmounted(() => {
   }
 })
 
-const playTopVideo = (video: any) => {
-  if (!video || !video.id) return
-  router.push(`/video/${encodeURIComponent(video.id)}`)
+const openInNewTab = (path: string) => {
+  const base = (window as any).__MICRO_APP_BASE_ROUTE__ || ''
+  const normalizedBase = base.replace(/\/$/, '')
+  const normalizedPath = path.startsWith('/') ? path : `/${path}`
+  const url = `${normalizedBase}${normalizedPath || '/'}`
+  window.open(url, '_blank')
 }
 
-// 导航到创作中心
-const goTo = (path: string) => { router.push(path) }
+const playTopVideo = (video: any) => {
+  if (!video || !video.id) return
+  openInNewTab(`/video/${encodeURIComponent(video.id)}`)
+}
+
+// 导航到其他页面
+const goTo = (path: string) => { 
+  openInNewTab(path) 
+}
 
 const navigateToCreatorCenter = () => {
-  router.push('/submitHome?view=contentManagement')
+  openInNewTab('/submitHome?view=contentManagement')
 }
 
 // 播放视频（列表区域）
 const playVideo = (video: any) => {
   if (!video || !video.id) return
-  router.push(`/video/${encodeURIComponent(video.id)}`)
+  openInNewTab(`/video/${encodeURIComponent(video.id)}`)
 }
 </script>
 

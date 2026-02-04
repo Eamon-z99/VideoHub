@@ -291,14 +291,22 @@ const handleMouseLeave = (e) => {
   }, 100) // 减少延迟时间，让关闭更及时
 }
 
+const openInNewTab = (path) => {
+  const base = window.__MICRO_APP_BASE_ROUTE__ || ''
+  const normalizedBase = base.replace(/\/$/, '')
+  const normalizedPath = path.startsWith('/') ? path : `/${path}`
+  const url = `${normalizedBase}${normalizedPath || '/'}`
+  window.open(url, '_blank')
+}
+
 const goToProfile = () => {
-  router.push('/profile')
+  openInNewTab('/profile')
   emit('close')
   emit('update:visible', false)
 }
 
 const goToSubmit = () => {
-  router.push('/submitHome')
+  openInNewTab('/submitHome')
   emit('close')
   emit('update:visible', false)
 }
@@ -310,7 +318,7 @@ const goToRecommend = () => {
 }
 
 const goToVip = () => {
-  router.push('/vip')
+  openInNewTab('/vip')
   emit('close')
   emit('update:visible', false)
 }

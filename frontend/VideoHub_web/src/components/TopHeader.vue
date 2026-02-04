@@ -329,12 +329,20 @@ watch(() => user.value, (newUser) => {
   }
 }, { deep: true })
 
+const openInNewTab = (path: string) => {
+  const base = (window as any).__MICRO_APP_BASE_ROUTE__ || ''
+  const normalizedBase = base.replace(/\/$/, '')
+  const normalizedPath = path.startsWith('/') ? path : `/${path}`
+  const url = `${normalizedBase}${normalizedPath || '/'}`
+  window.open(url, '_blank')
+}
+
 const goTo = (path: string) => { 
-  router.push(path) 
+  openInNewTab(path)
 }
 
 const navigateToCreatorCenter = () => {
-  router.push('/submitHome?view=contentManagement')
+  openInNewTab('/submitHome?view=contentManagement')
 }
 </script>
 
