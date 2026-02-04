@@ -193,9 +193,9 @@ CREATE TABLE IF NOT EXISTS `comment_likes` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='评论点赞表';
 
 -- ============================================
--- 9. 关注表
+-- 9. 关注表（已重命名为 fans）
 -- ============================================
-CREATE TABLE IF NOT EXISTS `follows` (
+CREATE TABLE IF NOT EXISTS `fans` (
     `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '关注ID',
     `follower_id` BIGINT UNSIGNED NOT NULL COMMENT '关注者ID',
     `following_id` BIGINT UNSIGNED NOT NULL COMMENT '被关注者ID',

@@ -24,9 +24,23 @@ public class LocalVideoController {
 
     @GetMapping
     public Map<String, Object> list(@RequestParam(defaultValue = "1") int page,
-                                    @RequestParam(defaultValue = "20") int pageSize) {
-        List<VideoItem> items = localVideoService.listPage(page, pageSize);
-        long total = localVideoService.count();
+                                    @RequestParam(defaultValue = "20") int pageSize,
+                                    @RequestParam(required = false) Long userId,
+                                    @RequestParam(required = false) Boolean followingOnly,
+                                    @RequestParam(required = false) Long followingId) {
+        List<VideoItem> items;
+        long total;
+        
+        if (followingOnly != null && followingOnly && userId != null) {
+            // 只返回关注用户的视频
+            items = localVideoService.listPageByFollowing(userId, followingId, page, pageSize);
+            total = localVideoService.countByFollowing(userId, followingId);
+        } else {
+            // 默认返回所有视频
+            items = localVideoService.listPage(page, pageSize);
+            total = localVideoService.count();
+        }
+        
         return Map.of(
                 "list", items,
                 "page", page,

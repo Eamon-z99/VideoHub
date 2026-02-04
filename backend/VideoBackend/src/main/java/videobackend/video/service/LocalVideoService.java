@@ -67,6 +67,8 @@ public class LocalVideoService {
                        v.view_count,
                        v.file_size,
                        u.username AS uploader_name,
+                       u.avatar AS uploader_avatar,
+                       u.id AS uploader_id,
                        v.create_time
                 FROM videos v
                 LEFT JOIN users u ON v.user_id = u.id
@@ -92,6 +94,8 @@ public class LocalVideoService {
                        v.view_count,
                        v.file_size,
                        u.username AS uploader_name,
+                       u.avatar AS uploader_avatar,
+                       u.id AS uploader_id,
                        v.create_time
                 FROM videos v
                 LEFT JOIN users u ON v.user_id = u.id
@@ -103,6 +107,54 @@ public class LocalVideoService {
 
     public long count() {
         Long total = jdbcTemplate.queryForObject("SELECT COUNT(*) FROM videos", Long.class);
+        return total == null ? 0 : total;
+    }
+
+    /**
+     * 获取关注用户的视频列表（分页）
+     */
+    public List<VideoItem> listPageByFollowing(Long userId, Long followingId, int page, int pageSize) {
+        int safeSize = Math.max(1, Math.min(pageSize, 100));
+        int safePage = Math.max(1, page);
+        int offset = (safePage - 1) * safeSize;
+        
+        String sql = """
+                SELECT v.video_id,
+                       v.title,
+                       v.description,
+                       v.duration,
+                       v.cover_url,
+                       v.storage_path,
+                       v.source_file,
+                       v.view_count,
+                       v.file_size,
+                       u.username AS uploader_name,
+                       u.avatar AS uploader_avatar,
+                       u.id AS uploader_id,
+                       v.create_time
+                FROM videos v
+                INNER JOIN fans f ON v.user_id = f.following_id
+                LEFT JOIN users u ON v.user_id = u.id
+                WHERE f.follower_id = ?
+                  AND (? IS NULL OR f.following_id = ?)
+                ORDER BY v.create_time DESC
+                LIMIT ? OFFSET ?
+                """;
+        return jdbcTemplate.query(sql, (rs, i) -> mapToVideo(rs), userId, followingId, followingId, safeSize, offset);
+    }
+
+    /**
+     * 获取关注用户的视频总数
+     */
+    public long countByFollowing(Long userId, Long followingId) {
+        String sql = """
+                SELECT COUNT(*)
+                FROM videos v
+                INNER JOIN fans f ON v.user_id = f.following_id
+                WHERE f.follower_id = ?
+                  AND (? IS NULL OR f.following_id = ?)
+                """;
+        Long total = jdbcTemplate.queryForObject(sql, Long.class, userId, followingId, followingId);
         return total == null ? 0 : total;
     }
 
@@ -118,6 +170,8 @@ public class LocalVideoService {
                        v.view_count,
                        v.file_size,
                        u.username AS uploader_name,
+                       u.avatar AS uploader_avatar,
+                       u.id AS uploader_id,
                        v.create_time
                 FROM videos v
                 LEFT JOIN users u ON v.user_id = u.id
@@ -135,6 +189,19 @@ public class LocalVideoService {
         // 优先使用数据库中的用户名，其次用目录名推导
         String uploaderFromDb = rs.getString("uploader_name");
         String uploaderName = firstNonBlank(uploaderFromDb, buildUploaderName(sourceFile));
+        
+        // 获取作者头像和ID
+        String uploaderAvatar = null;
+        Long uploaderId = null;
+        try {
+            uploaderAvatar = rs.getString("uploader_avatar");
+            Object uploaderIdObj = rs.getObject("uploader_id");
+            if (uploaderIdObj instanceof Number) {
+                uploaderId = ((Number) uploaderIdObj).longValue();
+            }
+        } catch (SQLException e) {
+            // 如果字段不存在（旧查询），忽略
+        }
 
         // 上传日期：优先用视频表 create_time，格式 MM-dd
         String uploadDate = null;
@@ -158,7 +225,9 @@ public class LocalVideoService {
                 rs.getObject("view_count") == null ? null : rs.getLong("view_count"),
                 rs.getObject("file_size") == null ? null : rs.getLong("file_size"),
                 uploaderName,
-                uploadDate
+                uploadDate,
+                uploaderAvatar,
+                uploaderId
         );
     }
 

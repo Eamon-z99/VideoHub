@@ -12,7 +12,9 @@ public record VideoItem(
         Long viewCount,
         Long fileSize,
         String uploaderName,
-        String uploadDate
+        String uploadDate,
+        String uploaderAvatar,
+        Long uploaderId
 ) {
 }
 

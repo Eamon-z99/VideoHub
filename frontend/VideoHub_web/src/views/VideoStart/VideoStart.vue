@@ -88,12 +88,22 @@
     <!-- 右侧推荐区 -->
     <aside class="sidebar">
       <div class="uploader-card">
-        <img class="u-avatar" :src="uploader.avatar" />
+        <img v-if="uploader.avatar" class="u-avatar" :src="uploader.avatar" :alt="uploader.name || '作者'" />
+        <div v-else class="u-avatar-placeholder"></div>
         <div class="u-info">
-          <div class="u-name">{{ uploader.name }}</div>
+          <div class="u-name">{{ uploader.name || '用户上传' }}</div>
           <div class="u-stats">视频 {{ uploader.videoCount }} · 粉丝 {{ uploader.fans }}</div>
         </div>
-        <el-button type="primary" size="small" round>+ 关注</el-button>
+        <el-button 
+          type="primary" 
+          size="small" 
+          round
+          :loading="followLoading"
+          :disabled="!uploader.id || !userStore.isAuthenticated"
+          @click="toggleFollow"
+        >
+          {{ isFollowing ? '已关注' : '+ 关注' }}
+        </el-button>
       </div>
 
       <div class="recommend-title">相关推荐</div>
@@ -121,6 +131,7 @@ import { Pointer, Star, Share } from '@element-plus/icons-vue'
 import { fetchVideoDetail } from '@/api/video'
 import { recordHistory } from '@/api/history'
 import { addFavorite, removeFavorite, checkFavorite } from '@/api/favorite'
+import { followUser, unfollowUser, checkFollow, getUserStats } from '@/api/follow'
 import { useUserStore } from '@/stores/user'
 import { ElMessage } from 'element-plus'
 
@@ -176,9 +187,35 @@ const loadVideo = async () => {
       data.storagePath || '',
     ].filter(Boolean)
     
-    // 检查收藏状态
+    // 更新右侧边栏作者信息
+    uploader.value = {
+      id: data.uploaderId || null,
+      name: data.uploaderName || '用户上传',
+      avatar: data.uploaderAvatar ? normalizeAvatarUrl(data.uploaderAvatar) : '',
+      videoCount: 0, // 后续可以从API获取
+      fans: '0' // 后续可以从API获取
+    }
+    
+    // 如果有关注者ID，获取统计信息
+    if (uploader.value.id) {
+      try {
+        const statsResponse = await getUserStats(uploader.value.id)
+        if (statsResponse.data && statsResponse.data.success) {
+          const stats = statsResponse.data.stats
+          uploader.value.videoCount = stats.videoCount || 0
+          uploader.value.fans = formatCount(stats.followerCount || 0)
+        }
+      } catch (error) {
+        console.warn('获取用户统计信息失败:', error)
+      }
+    }
+    
+    // 检查收藏状态和关注状态
     if (userStore.isAuthenticated) {
       await checkFavoriteStatus(videoId)
+      if (uploader.value.id) {
+        await checkFollowStatus(uploader.value.id)
+      }
     }
   } catch (e) {
     title.value = '未找到视频'
@@ -272,12 +309,102 @@ const comments = ref([
   { id: 2, name: '玩家乙', time: '2小时前', text: '实战里感觉有点吃队友配置。', likes: 56, avatar: 'https://placehold.co/40x40' },
 ])
 
+// 右侧边栏作者信息
 const uploader = ref({
+  id: null,
   name: '用户上传',
-  videoCount: 1,
-  fans: '1.2万',
-  avatar: 'https://placehold.co/48x48'
+  videoCount: 0,
+  fans: '0',
+  avatar: ''
 })
+
+// 关注状态
+const isFollowing = ref(false)
+const followLoading = ref(false)
+
+// 规范化头像 URL
+const normalizeAvatarUrl = (url) => {
+  if (!url) return ''
+  if (url.startsWith('http://') || url.startsWith('https://')) {
+    return url
+  }
+  if (url.startsWith('/')) {
+    return url
+  }
+  return '/' + url
+}
+
+// 格式化数字
+const formatCount = (count) => {
+  if (!count || count === 0) return '0'
+  if (count >= 10000) {
+    return (count / 10000).toFixed(1) + '万'
+  }
+  return count.toString()
+}
+
+// 检查关注状态
+const checkFollowStatus = async (followingId) => {
+  if (!userStore.isAuthenticated || !followingId) return
+  
+  try {
+    const { data } = await checkFollow(followingId)
+    if (data && data.success) {
+      isFollowing.value = data.isFollowing || false
+    }
+  } catch (error) {
+    console.warn('检查关注状态失败:', error)
+  }
+}
+
+// 切换关注状态
+const toggleFollow = async () => {
+  if (!userStore.isAuthenticated) {
+    ElMessage.warning('请先登录')
+    return
+  }
+  
+  if (!uploader.value.id) {
+    ElMessage.warning('无法获取作者信息')
+    return
+  }
+  
+  followLoading.value = true
+  try {
+    if (isFollowing.value) {
+      // 取消关注
+      const { data } = await unfollowUser(uploader.value.id)
+      if (data && data.success) {
+        isFollowing.value = false
+        ElMessage.success('已取消关注')
+        // 更新粉丝数
+        if (uploader.value.fans !== '0') {
+          const currentFans = parseFloat(uploader.value.fans) || 0
+          uploader.value.fans = formatCount(Math.max(0, currentFans - 1))
+        }
+      } else {
+        ElMessage.error(data?.message || '取消关注失败')
+      }
+    } else {
+      // 关注
+      const { data } = await followUser(uploader.value.id)
+      if (data && data.success) {
+        isFollowing.value = true
+        ElMessage.success('关注成功')
+        // 更新粉丝数
+        const currentFans = parseFloat(uploader.value.fans) || 0
+        uploader.value.fans = formatCount(currentFans + 1)
+      } else {
+        ElMessage.warning(data?.message || '关注失败')
+      }
+    }
+  } catch (error) {
+    console.error('关注操作失败:', error)
+    ElMessage.error('操作失败，请稍后重试')
+  } finally {
+    followLoading.value = false
+  }
+}
 
 const recommends = ref([
   { id: 1, title: '梦奇新皮肤技能演示', plays: '130.0万', duration: '04:12', cover: 'https://placehold.co/160x90' },
@@ -513,12 +640,38 @@ onUnmounted(() => {
         width: 48px; 
         height: 48px; 
         border-radius: 50%; 
+        object-fit: cover;
         position: relative;
         z-index: 99999;
       }
+      
+      .u-avatar-placeholder {
+        width: 48px;
+        height: 48px;
+        border-radius: 50%;
+        background: #d8d8d8;
+        flex-shrink: 0;
+      }
+      
       .u-info {
-        .u-name { font-weight: 600; }
-        .u-stats { color: #8a8a8a; font-size: 12px; margin-top: 2px; }
+        min-width: 0;
+        
+        .u-name { 
+          font-weight: 600; 
+          color: #18191c;
+          font-size: 14px;
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+        }
+        .u-stats { 
+          color: #61666d; 
+          font-size: 12px; 
+          margin-top: 4px;
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+        }
       }
     }
 

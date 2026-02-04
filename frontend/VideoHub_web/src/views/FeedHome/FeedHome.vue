@@ -41,9 +41,29 @@
 
         <!-- inlined: StoriesStrip.vue -->
         <div class="stories">
-          <div v-for="n in 10" :key="n" class="story">
-            <div class="bubble"></div>
-            <div class="label">好友{{ n }}</div>
+          <div
+            class="story"
+            :class="{ active: selectedFollowingId === null }"
+            @click="selectAllDynamics"
+          >
+            <div class="bubble all">
+              <span class="all-text">全</span>
+            </div>
+            <div class="label">全部动态</div>
+          </div>
+
+          <div v-if="followingUsers.length === 0" class="empty-friends">暂无关注的好友</div>
+          <div
+            v-for="user in followingUsers"
+            :key="user.id"
+            class="story"
+            :class="{ active: selectedFollowingId === user.id }"
+            @click="selectFollowingUser(user.id)"
+          >
+            <div class="bubble">
+              <img v-if="user.avatar" :src="normalizeAvatarUrl(user.avatar)" :alt="user.username" />
+            </div>
+            <div class="label">{{ user.username || '用户' }}</div>
           </div>
         </div>
 
@@ -117,6 +137,7 @@ import TopHeader from '@/components/TopHeader.vue'
 import { useUserStore } from '@/stores/user'
 import { fetchVideos } from '@/api/video'
 import { fetchMyProfile } from '@/api/userProfile'
+import { getFollowingUsers } from '@/api/follow'
 
 const router = useRouter()
 const userStore = useUserStore()
@@ -153,6 +174,11 @@ const userStats = ref({
   fans: 0,
   posts: 0
 })
+
+// 关注的好友列表
+const followingUsers = ref([])
+// 当前选中的关注用户（null 代表“全部动态”）
+const selectedFollowingId = ref(null)
 
 // 动态列表
 const feedList = ref([])
@@ -191,14 +217,16 @@ const formatDuration = (seconds) => {
   return `${m}:${s.toString().padStart(2, '0')}`
 }
 
-// 加载动态数据
-const loadFeed = async (reset = false) => {
+// 加载动态数据（只显示关注用户的动态）
+const loadFeed = async (reset = false, options = { keepListOnReset: false }) => {
   if (loading.value || loadingMore.value) return
 
   if (reset) {
     page.value = 1
     finished.value = false
-    feedList.value = []
+    if (!options.keepListOnReset) {
+      feedList.value = []
+    }
   }
 
   const isFirstPage = page.value === 1
@@ -209,7 +237,9 @@ const loadFeed = async (reset = false) => {
   }
 
   try {
-    const response = await fetchVideos(page.value, pageSize)
+    // 只获取关注用户的视频
+    const currentUserId = userStore.user?.userId || userStore.user?.id
+    const response = await fetchVideos(page.value, pageSize, currentUserId, true, selectedFollowingId.value)
     const data = response.data || {}
     const list = Array.isArray(data.list) ? data.list : []
     
@@ -222,13 +252,18 @@ const loadFeed = async (reset = false) => {
       duration: item.duration || 0,
       uploaderName: item.uploaderName || item.uploader || '未知UP主',
       uploaderAvatar: item.uploaderAvatar ? normalizeAvatarUrl(item.uploaderAvatar) : '',
+      uploaderId: item.uploaderId || null,
       publishTime: item.publishTime || item.createTime || new Date().toISOString(),
       likeCount: item.likeCount || item.likes || 0,
       commentCount: item.commentCount || item.comments || 0,
       shareCount: item.shareCount || item.shares || 0
     }))
 
-    feedList.value = [...feedList.value, ...mappedList]
+    if (reset) {
+      feedList.value = mappedList
+    } else {
+      feedList.value = [...feedList.value, ...mappedList]
+    }
 
     // 判断是否已加载全部
     const total = typeof data.total === 'number' ? data.total : undefined
@@ -254,6 +289,38 @@ const goToVideo = (videoId) => {
     router.push(`/video/${encodeURIComponent(videoId)}`)
   }
 }
+
+const selectAllDynamics = () => {
+  selectedFollowingId.value = null
+}
+
+const selectFollowingUser = (followingId) => {
+  selectedFollowingId.value = followingId
+}
+
+// 加载关注的好友列表
+const loadFollowingUsers = async () => {
+  if (!userStore.isAuthenticated) {
+    followingUsers.value = []
+    return
+  }
+  
+  try {
+    const { data } = await getFollowingUsers()
+    if (data && data.success && Array.isArray(data.users)) {
+      followingUsers.value = data.users
+    } else {
+      followingUsers.value = []
+    }
+  } catch (error) {
+    console.error('加载关注好友列表失败:', error)
+    followingUsers.value = []
+  }
+}
+
+watch(() => selectedFollowingId.value, () => {
+  loadFeed(true, { keepListOnReset: true })
+})
 
 
 // 使用 Intersection Observer 检测底部元素，实现无限滚动
@@ -339,6 +406,7 @@ const loadUserProfile = async () => {
 
 onMounted(() => {
   loadFeed(true)
+  loadFollowingUsers()
   // 等待 DOM 渲染完成
   nextTick(() => {
     setupIntersectionObserver()
@@ -646,18 +714,71 @@ $right-column-width: 300px;
     @include flex-column;
     align-items: center;
     gap: $spacing-xs;
+    cursor: pointer;
+    flex-shrink: 0;
+    transition: color 0.2s ease, border-color 0.2s ease;
     
     .bubble {
       width: 48px;
       height: 48px;
       border-radius: 50%;
       background: #e3e9ee;
+      overflow: hidden;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border: 1px solid #fff;
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+      position: relative;
+      z-index: 99999;
+      
+      img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        z-index: 99999;
+      }
+
+      &.all {
+        background: rgba(0, 174, 236, 0.08);
+        border-color: rgba(0, 174, 236, 0.25);
+      }
+
+      .all-text {
+        font-size: 16px;
+        font-weight: 700;
+        color: #00AEEC;
+        line-height: 1;
+      }
     }
     
     .label {
       font-size: 12px;
       color: $text-secondary;
+      max-width: 60px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      text-align: center;
     }
+  }
+
+  .story.active {
+    .bubble {
+      border-color: #00AEEC;
+      box-shadow: 0 0 0 1px rgba(0, 174, 236, 0.12);
+    }
+
+    .label {
+      color: #00AEEC;
+    }
+  }
+  
+  .empty-friends {
+    padding: $spacing-md;
+    text-align: center;
+    color: $text-muted;
+    font-size: 14px;
   }
 }
 
