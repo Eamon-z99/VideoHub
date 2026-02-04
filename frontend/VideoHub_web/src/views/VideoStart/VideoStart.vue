@@ -28,7 +28,16 @@
             <span>{{ danmakuCount }}</span>
           </div>
           <div class="actions">
-            <el-button size="small" round plain :icon="Pointer">点赞</el-button>
+            <el-button
+              size="small"
+              round
+              :type="isLiked ? 'primary' : 'default'"
+              :icon="Pointer"
+              :loading="likeLoading"
+              @click="toggleLike"
+            >
+              {{ isLiked ? '已点赞' : '点赞' }} · {{ likeCount }}
+            </el-button>
             <el-button 
               size="small" 
               round 
@@ -132,6 +141,7 @@ import { fetchVideoDetail } from '@/api/video'
 import { recordHistory } from '@/api/history'
 import { addFavorite, removeFavorite, checkFavorite } from '@/api/favorite'
 import { followUser, unfollowUser, checkFollow, getUserStats } from '@/api/follow'
+import { likeVideo, unlikeVideo, checkLike, getLikeCount } from '@/api/like'
 import { useUserStore } from '@/stores/user'
 import { ElMessage } from 'element-plus'
 
@@ -152,12 +162,17 @@ const videoData = ref({
 const title = ref('本地视频')
 const playCount = ref('本地文件')
 const danmakuCount = ref('0')
+const likeCount = ref(0)
 const tags = ref(['本地视频', '离线播放'])
 const description = ref('播放来自 E:\\Videos 目录的本地视频。')
 const videoSrc = ref('')
 const posterUrl = ref('')
 const loading = ref(false)
 const fallbackCover = '/images/banner-1.jpg'
+
+// 点赞相关
+const isLiked = ref(false)
+const likeLoading = ref(false)
 
 // 收藏相关
 const isFavorited = ref(false)
@@ -210,9 +225,20 @@ const loadVideo = async () => {
       }
     }
     
-    // 检查收藏状态和关注状态
+    // 点赞数
+    try {
+      const likeResp = await getLikeCount(videoId)
+      if (likeResp.data && likeResp.data.success) {
+        likeCount.value = likeResp.data.likeCount || 0
+      }
+    } catch (error) {
+      console.warn('获取点赞数失败:', error)
+    }
+
+    // 检查收藏 / 点赞 / 关注状态
     if (userStore.isAuthenticated) {
       await checkFavoriteStatus(videoId)
+      await checkLikeStatus(videoId)
       if (uploader.value.id) {
         await checkFollowStatus(uploader.value.id)
       }
@@ -354,6 +380,63 @@ const checkFollowStatus = async (followingId) => {
     }
   } catch (error) {
     console.warn('检查关注状态失败:', error)
+  }
+}
+
+// 检查点赞状态
+const checkLikeStatus = async (videoId) => {
+  if (!userStore.isAuthenticated || !videoId) return
+
+  try {
+    const { data } = await checkLike(videoId)
+    if (data && data.success) {
+      isLiked.value = data.isLiked || false
+      if (typeof data.likeCount === 'number') {
+        likeCount.value = data.likeCount
+      }
+    }
+  } catch (error) {
+    console.warn('检查点赞状态失败:', error)
+  }
+}
+
+// 切换点赞
+const toggleLike = async () => {
+  if (!userStore.isAuthenticated) {
+    ElMessage.warning('请先登录')
+    return
+  }
+
+  const videoId = videoData.value.videoId || route.params.id
+  if (!videoId) return
+
+  likeLoading.value = true
+  try {
+    if (isLiked.value) {
+      const { data } = await unlikeVideo(videoId)
+      if (data && data.success) {
+        isLiked.value = false
+        if (typeof data.likeCount === 'number') likeCount.value = data.likeCount
+        ElMessage.success('已取消点赞')
+      } else {
+        ElMessage.warning(data?.message || '取消点赞失败')
+      }
+    } else {
+      const { data } = await likeVideo(videoId)
+      if (data && data.success) {
+        isLiked.value = true
+        if (typeof data.likeCount === 'number') likeCount.value = data.likeCount
+        ElMessage.success('点赞成功')
+      } else {
+        if (typeof data.likeCount === 'number') likeCount.value = data.likeCount
+        ElMessage.warning(data?.message || '已点赞过该视频')
+      }
+    }
+  } catch (error) {
+    console.error('点赞操作失败:', error)
+    ElMessage.error('操作失败，请稍后重试')
+  } finally {
+    likeLoading.value = false
   }
 }
 
