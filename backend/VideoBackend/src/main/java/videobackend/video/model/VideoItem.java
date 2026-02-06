@@ -14,7 +14,8 @@ public record VideoItem(
         String uploaderName,
         String uploadDate,
         String uploaderAvatar,
-        Long uploaderId
+        Long uploaderId,
+        String createTime
 ) {
 }
 

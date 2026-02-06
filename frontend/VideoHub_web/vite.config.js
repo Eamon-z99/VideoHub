@@ -38,6 +38,12 @@ export default defineConfig({
         changeOrigin: true,
         secure: false,
         // 不重写路径，直接转发 /avatars/... 到后端
+      },
+      '/feed-images': {
+        target: 'http://localhost:8080', // 后端服务器地址
+        changeOrigin: true,
+        secure: false,
+        // 不重写路径，直接转发 /feed-images/... 到后端
       }
     }
   },

@@ -32,10 +32,121 @@
 
       <main class="center-column">
         <!-- inlined: Composer.vue -->
-        <div class="composer">
-          <input class="input" placeholder="好的标题更容易获得支持，选题20字" />
-          <div class="actions">
-            <button class="btn">发布</button>
+        <div 
+          class="composer"
+          @mouseenter="onComposerMouseEnter"
+          @mouseleave="onComposerMouseLeave"
+        >
+          <!-- hidden file input (shared by add-tile + bottom bar) -->
+          <input
+            ref="fileInputRef"
+            type="file"
+            accept="image/*"
+            multiple
+            @change="handleImageSelect"
+            :disabled="publishing"
+            style="display: none;"
+          />
+
+          <div class="composer-hint">
+            <input
+              v-model="feedTitle"
+              class="title-input"
+              type="text"
+              :maxlength="20"
+              placeholder="好的标题更容易获得支持，选填20字"
+              :disabled="publishing"
+            />
+          </div>
+
+          <div class="composer-body">
+            <textarea 
+              v-model="feedContent" 
+              class="input" 
+              placeholder="有什么想和大家分享的？" 
+              rows="3"
+              :disabled="publishing"
+            ></textarea>
+          </div>
+
+          <!-- 图片区域（点击底部图片按钮后出现） -->
+          <div v-if="showImagePanel || selectedImages.length > 0" class="image-preview-container">
+            <button
+              v-if="selectedImages.length < 9"
+              class="image-add-tile"
+              type="button"
+              :disabled="publishing"
+              @click="triggerFileSelect"
+              title="添加图片"
+            >
+              <span class="plus">+</span>
+            </button>
+            <div
+              v-for="(img, idx) in selectedImages"
+              :key="idx"
+              class="image-preview-item"
+              :class="{ uploading: img.uploading }"
+            >
+              <img :src="img.url || img" :alt="`图片${idx + 1}`" />
+              <div v-if="img.uploading" class="uploading-mask">上传中...</div>
+              <button class="remove-image" @click="removeImage(idx)" :disabled="publishing">×</button>
+            </div>
+          </div>
+
+          <!-- 底部操作栏 -->
+          <div class="composer-bottom">
+            <div class="bottom-left">
+              <button
+                class="icon-btn"
+                type="button"
+                :disabled="publishing"
+                @click="showEmojiPicker = !showEmojiPicker"
+                title="表情"
+              >
+                😊
+              </button>
+              <button
+                class="icon-btn"
+                type="button"
+                :disabled="publishing || selectedImages.length >= 9"
+                @click="openImagePanel"
+                title="图片"
+              >
+                🖼️
+              </button>
+              <button class="icon-btn" type="button" disabled title="@（暂未实现）">@</button>
+              <button class="icon-btn" type="button" disabled title="直播（暂未实现）">📡</button>
+            </div>
+
+            <div class="bottom-right">
+              <span class="count">{{ feedContent.trim().length }}</span>
+              <span class="divider">|</span>
+              <button class="icon-btn" type="button" disabled title="设置（暂未实现）">⚙</button>
+              <button 
+                class="publish-btn" 
+                :disabled="publishing || (!feedContent.trim() && selectedImages.length === 0)"
+                @click="publishFeed"
+              >
+                {{ publishing ? '发布中...' : '发布' }}
+              </button>
+            </div>
+          </div>
+          
+          <!-- 表情包选择器（悬浮窗） -->
+          <div 
+            v-if="showEmojiPicker" 
+            class="emoji-picker"
+          >
+            <div class="emoji-grid">
+              <span 
+                v-for="emoji in commonEmojis" 
+                :key="emoji"
+                class="emoji-item"
+                @click="insertEmoji(emoji)"
+              >
+                {{ emoji }}
+              </span>
+            </div>
           </div>
         </div>
 
@@ -74,21 +185,44 @@
         <div class="feed-list">
           <div v-if="loading && feedList.length === 0" class="loading">加载中...</div>
           <div v-else-if="feedList.length === 0" class="empty">暂无动态</div>
-          <article v-for="item in feedList" :key="item.id" class="feed-card" @click="openVideoInNewTab(item.videoId)">
+          <article 
+            v-for="item in feedList" 
+            :key="`${item.type}-${item.id}`" 
+            class="feed-card"
+            :class="{ 'feed-text-card': item.type === 'feed' }"
+            @click="item.type === 'video' ? openVideoInNewTab(item.videoId) : null"
+          >
             <header class="meta">
               <div class="avatar">
                 <img v-if="item.uploaderAvatar" :src="item.uploaderAvatar" :alt="item.uploaderName" />
               </div>
               <div class="who">
-                <div class="name">{{ item.uploaderName || '未知UP主' }}</div>
-                <div class="sub">{{ formatTime(item.publishTime || item.createTime) }} · 投稿了视频</div>
+                <div class="name">{{ item.uploaderName || (item.type === 'video' ? '未知UP主' : '未知用户') }}</div>
+                <div class="sub">{{ formatTime(item.publishTime) }} · {{ item.type === 'video' ? '投稿了视频' : '发布了动态' }}</div>
               </div>
             </header>
             <div class="content">
+              <!-- 视频内容 -->
+              <template v-if="item.type === 'video'">
               <div class="thumb" :style="{ backgroundImage: item.coverUrl ? `url(${item.coverUrl})` : 'none' }">
                 <span v-if="item.duration" class="duration">{{ formatDuration(item.duration) }}</span>
               </div>
               <div class="title">{{ item.title || '无标题' }}</div>
+              </template>
+              <!-- 动态内容 -->
+              <template v-else>
+                <div v-if="item.title" class="feed-title-text">{{ item.title }}</div>
+                <div class="feed-content-text">{{ item.content }}</div>
+                <div v-if="item.images && item.images.length > 0" class="feed-images">
+                  <img 
+                    v-for="(img, idx) in item.images" 
+                    :key="idx" 
+                    :src="normalizeAvatarUrl(img)" 
+                    :alt="`图片${idx + 1}`"
+                    class="feed-image"
+                  />
+                </div>
+              </template>
             </div>
             <footer class="actions" @click.stop>
               <span>赞 {{ item.likeCount || 0 }}</span>
@@ -139,11 +273,29 @@ import { useRouter } from 'vue-router'
 import TopHeader from '@/components/TopHeader.vue'
 import { useUserStore } from '@/stores/user'
 import { fetchVideos } from '@/api/video'
+import { fetchFeeds, createFeed, uploadImage } from '@/api/feed'
 import { fetchMyProfile } from '@/api/userProfile'
 import { getFollowingUsers } from '@/api/follow'
+import { ElMessage } from 'element-plus'
 
 const router = useRouter()
 const userStore = useUserStore()
+
+const fileInputRef = ref(null)
+const showImagePanel = ref(false)
+const triggerFileSelect = () => {
+  if (publishing.value) return
+  if (selectedImages.value.length >= 9) {
+    ElMessage.warning('最多只能上传9张图片')
+    return
+  }
+  fileInputRef.value?.click?.()
+}
+const openImagePanel = () => {
+  if (publishing.value) return
+  showImagePanel.value = true
+  triggerFileSelect()
+}
 
 // 规范化头像 URL
 const normalizeAvatarUrl = (url) => {
@@ -191,6 +343,29 @@ const finished = ref(false)
 const page = ref(1)
 const pageSize = 20
 
+// 发布动态相关
+const feedTitle = ref('')
+const feedContent = ref('')
+const publishing = ref(false)
+const selectedImages = ref([]) // 选中的图片列表 [{ url: '...', uploading: false }]
+const showEmojiPicker = ref(false)
+let emojiCloseTimer = null
+
+// 常用表情包
+const commonEmojis = [
+  '😀', '😃', '😄', '😁', '😆', '😅', '😂', '🤣', '😊', '😇',
+  '🙂', '🙃', '😉', '😌', '😍', '🥰', '😘', '😗', '😙', '😚',
+  '😋', '😛', '😝', '😜', '🤪', '🤨', '🧐', '🤓', '😎', '🤩',
+  '🥳', '😏', '😒', '😞', '😔', '😟', '😕', '🙁', '😣', '😖',
+  '😫', '😩', '🥺', '😢', '😭', '😤', '😠', '😡', '🤬', '🤯',
+  '😳', '🥵', '🥶', '😱', '😨', '😰', '😥', '😓', '🤗', '🤔',
+  '🤭', '🤫', '🤥', '😶', '😐', '😑', '😬', '🙄', '😯', '😦',
+  '😧', '😮', '😲', '🥱', '😴', '🤤', '😪', '😵', '🤐', '🥴',
+  '🤢', '🤮', '🤧', '😷', '🤒', '🤕', '🤑', '🤠', '😈', '👿',
+  '👹', '👺', '🤡', '💩', '👻', '💀', '☠️', '👽', '👾', '🤖',
+  '🎃', '😺', '😸', '😹', '😻', '😼', '😽', '🙀', '😿', '😾'
+]
+
 // 格式化时间
 const formatTime = (timeStr) => {
   if (!timeStr) return '刚刚'
@@ -220,7 +395,7 @@ const formatDuration = (seconds) => {
   return `${m}:${s.toString().padStart(2, '0')}`
 }
 
-// 加载动态数据（只显示关注用户的动态）
+// 加载动态数据（同时获取关注用户的视频和动态，按时间排序）
 const loadFeed = async (reset = false, options = { keepListOnReset: false }) => {
   if (loading.value || loadingMore.value) return
 
@@ -228,7 +403,7 @@ const loadFeed = async (reset = false, options = { keepListOnReset: false }) => 
     page.value = 1
     finished.value = false
     if (!options.keepListOnReset) {
-      feedList.value = []
+    feedList.value = []
     }
   }
 
@@ -240,14 +415,42 @@ const loadFeed = async (reset = false, options = { keepListOnReset: false }) => 
   }
 
   try {
-    // 只获取关注用户的视频
     const currentUserId = userStore.user?.userId || userStore.user?.id
-    const response = await fetchVideos(page.value, pageSize, currentUserId, true, selectedFollowingId.value)
-    const data = response.data || {}
-    const list = Array.isArray(data.list) ? data.list : []
+    if (!currentUserId) {
+      feedList.value = []
+      return
+    }
+
+    // 并行获取视频和动态
+    const [videosResponse, feedsResponse] = await Promise.all([
+      fetchVideos(page.value, pageSize, currentUserId, true, selectedFollowingId.value),
+      fetchFeeds(page.value, pageSize, currentUserId, true, selectedFollowingId.value)
+    ])
+
+    const videosData = videosResponse.data || {}
+    const feedsData = feedsResponse.data || {}
+    const videosList = Array.isArray(videosData.list) ? videosData.list : []
+    const feedsList = Array.isArray(feedsData.list) ? feedsData.list : []
     
-    // 转换数据格式
-    const mappedList = list.map(item => ({
+    // 转换视频数据格式
+    const mappedVideos = videosList.map(item => {
+      // 处理时间：优先使用 createTime，如果没有则使用当前时间
+      let publishTime = new Date().toISOString()
+      if (item.createTime) {
+        // 如果是字符串，直接使用；如果是时间戳，转换
+        if (typeof item.createTime === 'string') {
+          publishTime = item.createTime
+        } else if (item.createTime instanceof Date) {
+          publishTime = item.createTime.toISOString()
+        } else if (typeof item.createTime === 'number') {
+          publishTime = new Date(item.createTime).toISOString()
+        }
+      } else if (item.publishTime) {
+        publishTime = item.publishTime
+      }
+      
+      return {
+        type: 'video',
       id: item.id || item.videoId,
       videoId: item.videoId || item.id,
       title: item.title || '无标题',
@@ -255,22 +458,51 @@ const loadFeed = async (reset = false, options = { keepListOnReset: false }) => 
       duration: item.duration || 0,
       uploaderName: item.uploaderName || item.uploader || '未知UP主',
       uploaderAvatar: item.uploaderAvatar ? normalizeAvatarUrl(item.uploaderAvatar) : '',
-      uploaderId: item.uploaderId || null,
-      publishTime: item.publishTime || item.createTime || new Date().toISOString(),
+        uploaderId: item.uploaderId || null,
+        publishTime: publishTime,
       likeCount: item.likeCount || item.likes || 0,
       commentCount: item.commentCount || item.comments || 0,
       shareCount: item.shareCount || item.shares || 0
+      }
+    })
+
+    // 转换动态数据格式
+    const mappedFeeds = feedsList.map(item => ({
+      type: 'feed',
+      id: item.id,
+      feedId: item.id,
+      title: item.title || '',
+      content: item.content || '',
+      images: item.images || [],
+      uploaderName: item.uploaderName || '未知用户',
+      uploaderAvatar: item.uploaderAvatar ? normalizeAvatarUrl(item.uploaderAvatar) : '',
+      uploaderId: item.uploaderId || null,
+      publishTime: item.createTime || new Date().toISOString(),
+      likeCount: item.likeCount || 0,
+      commentCount: item.commentCount || 0,
+      shareCount: item.shareCount || 0
     }))
 
+    // 合并并按时间排序（最新的在前）
+    const mergedList = [...mappedVideos, ...mappedFeeds].sort((a, b) => {
+      const timeA = new Date(a.publishTime).getTime()
+      const timeB = new Date(b.publishTime).getTime()
+      return timeB - timeA
+    })
+
     if (reset) {
-      feedList.value = mappedList
+      feedList.value = mergedList
     } else {
-      feedList.value = [...feedList.value, ...mappedList]
+      feedList.value = [...feedList.value, ...mergedList]
     }
 
-    // 判断是否已加载全部
-    const total = typeof data.total === 'number' ? data.total : undefined
-    if ((total && feedList.value.length >= total) || mappedList.length < pageSize) {
+    // 判断是否已加载全部（如果视频和动态都少于pageSize，说明已加载完）
+    const videosTotal = typeof videosData.total === 'number' ? videosData.total : 0
+    const feedsTotal = typeof feedsData.total === 'number' ? feedsData.total : 0
+    const hasMoreVideos = mappedVideos.length === pageSize
+    const hasMoreFeeds = mappedFeeds.length === pageSize
+    
+    if (!hasMoreVideos && !hasMoreFeeds) {
       finished.value = true
     } else {
       page.value += 1
@@ -294,6 +526,172 @@ const openVideoInNewTab = (videoId) => {
   const path = `/video/${encodeURIComponent(videoId)}`
   const url = `${normalizedBase}${path}`
   window.open(url, '_blank')
+}
+
+// 处理图片选择
+const handleImageSelect = async (event) => {
+  const files = Array.from(event.target.files || [])
+  if (files.length === 0) return
+  
+  // 限制最多9张图片
+  const remainingSlots = 9 - selectedImages.value.length
+  if (remainingSlots <= 0) {
+    ElMessage.warning('最多只能上传9张图片')
+    return
+  }
+  
+  const filesToUpload = files.slice(0, remainingSlots)
+  
+  for (const file of filesToUpload) {
+    // 验证文件类型
+    if (!file.type.startsWith('image/')) {
+      ElMessage.warning(`${file.name} 不是图片文件`)
+      continue
+    }
+    
+    // 验证文件大小（5MB）
+    if (file.size > 5 * 1024 * 1024) {
+      ElMessage.warning(`${file.name} 大小超过5MB`)
+      continue
+    }
+    
+    // 创建预览
+    const previewUrl = URL.createObjectURL(file)
+    const imageItem = {
+      file: file,
+      url: previewUrl,
+      uploading: true,
+      uploadedUrl: null
+    }
+    selectedImages.value.push(imageItem)
+    
+    // 上传图片
+    try {
+      const response = await uploadImage(file)
+      if (response.data && response.data.success) {
+        imageItem.uploadedUrl = response.data.url
+        imageItem.uploading = false
+        // 注意：不要在这里 revokeObjectURL(previewUrl)。
+        // Vue 可能仍在使用 blob: 预览地址渲染 <img>，过早 revoke 会导致预览“裂图/变灰”。
+        // 预览继续使用 imageItem.url（blob:）；真正保存/展示使用 uploadedUrl。
+      } else {
+        throw new Error(response.data?.message || '上传失败')
+      }
+    } catch (error) {
+      console.error('图片上传失败:', error)
+      ElMessage.error(`${file.name} 上传失败: ${error.response?.data?.message || error.message}`)
+      // 移除失败的图片
+      const index = selectedImages.value.indexOf(imageItem)
+      if (index > -1) {
+        URL.revokeObjectURL(previewUrl)
+        selectedImages.value.splice(index, 1)
+      }
+    }
+  }
+  
+  // 清空文件选择
+  event.target.value = ''
+}
+
+// 移除图片
+const removeImage = (index) => {
+  const imageItem = selectedImages.value[index]
+  if (imageItem && imageItem.url && imageItem.url.startsWith('blob:')) {
+    URL.revokeObjectURL(imageItem.url)
+  }
+  selectedImages.value.splice(index, 1)
+}
+
+// 插入表情包
+const insertEmoji = (emoji) => {
+  const textarea = document.querySelector('.composer .input')
+  if (textarea) {
+    const start = textarea.selectionStart
+    const end = textarea.selectionEnd
+    const text = feedContent.value
+    feedContent.value = text.substring(0, start) + emoji + text.substring(end)
+    // 设置光标位置
+    nextTick(() => {
+      textarea.focus()
+      textarea.setSelectionRange(start + emoji.length, start + emoji.length)
+    })
+  } else {
+    feedContent.value += emoji
+  }
+  showEmojiPicker.value = false
+}
+
+// 发布动态
+const publishFeed = async () => {
+  const title = feedTitle.value.trim()
+  const content = feedContent.value.trim()
+  const imageUrls = selectedImages.value
+    .map(img => img.uploadedUrl || img.url)
+    .filter(url => url && !url.startsWith('blob:')) // 只使用已上传的图片
+  
+  if (!content && imageUrls.length === 0) {
+    ElMessage.warning('请输入动态内容或上传图片')
+    return
+  }
+
+  if (!userStore.isAuthenticated) {
+    ElMessage.warning('请先登录')
+    return
+  }
+  
+  // 检查是否有图片还在上传中
+  const uploadingImages = selectedImages.value.filter(img => img.uploading)
+  if (uploadingImages.length > 0) {
+    ElMessage.warning('请等待图片上传完成')
+    return
+  }
+
+  publishing.value = true
+  try {
+    const response = await createFeed(title, content, imageUrls)
+    if (response.data && response.data.success) {
+      ElMessage.success('发布成功')
+      feedTitle.value = ''
+      feedContent.value = ''
+      selectedImages.value = []
+      showEmojiPicker.value = false
+      
+      // 获取当前用户信息
+      const currentUser = user.value || {}
+      const currentUserId = userStore.user?.userId || userStore.user?.id
+      
+      // 直接将新发布的动态添加到列表顶部
+      const newFeed = {
+        type: 'feed',
+        id: response.data.data?.id,
+        feedId: response.data.data?.id,
+        content: content,
+        images: response.data.data?.images || imageUrls,
+        uploaderName: currentUser.username || currentUser.loginAccount || '我',
+        uploaderAvatar: userAvatar.value || '',
+        uploaderId: currentUserId,
+        publishTime: new Date().toISOString(),
+        likeCount: 0,
+        commentCount: 0,
+        shareCount: 0
+      }
+      
+      // 添加到列表顶部
+      feedList.value = [newFeed, ...feedList.value]
+      
+      // 延迟刷新以确保数据同步（可选）
+      setTimeout(() => {
+        loadFeed(true)
+      }, 500)
+    } else {
+      ElMessage.error(response.data?.message || '发布失败')
+    }
+  } catch (error) {
+    console.error('发布动态失败:', error)
+    ElMessage.error(error.response?.data?.message || '发布失败，请稍后重试')
+  } finally {
+    publishing.value = false
+  }
 }
 
 const selectAllDynamics = () => {
@@ -322,6 +720,26 @@ const loadFollowingUsers = async () => {
     console.error('加载关注好友列表失败:', error)
     followingUsers.value = []
   }
+}
+
+// 处理发布框鼠标进入/离开，用于控制表情悬浮窗关闭时机
+const onComposerMouseEnter = () => {
+  if (emojiCloseTimer) {
+    clearTimeout(emojiCloseTimer)
+    emojiCloseTimer = null
+  }
+}
+
+const onComposerMouseLeave = () => {
+  if (!showEmojiPicker.value) return
+  if (emojiCloseTimer) {
+    clearTimeout(emojiCloseTimer)
+  }
+  // 稍微延迟关闭，避免快速移动时误触
+  emojiCloseTimer = setTimeout(() => {
+    showEmojiPicker.value = false
+    emojiCloseTimer = null
+  }, 150)
 }
 
 watch(() => selectedFollowingId.value, () => {
@@ -455,6 +873,7 @@ onUnmounted(() => {
 </script>
 
 <style lang="scss" scoped>
+@use "sass:color";
 // SCSS Variables
 $primary-color: #00aeec;
 $background-color: #e7f3f5;
@@ -632,14 +1051,14 @@ $right-column-width: 300px;
     align-items: center;
     justify-content: center;
     position: relative;
-    z-index: 99999;
+    z-index: 1;
     
     img {
       width: 100%;
       height: 100%;
       object-fit: cover;
       position: relative;
-      z-index: 99999;
+      z-index: 1;
     }
   }
   
@@ -670,36 +1089,333 @@ $right-column-width: 300px;
 }
 
 // Composer Component
-.composer {
+  .composer {
   @include card-style;
-  overflow: hidden; // 防止内容溢出
+  // 允许内部悬浮窗（表情面板）溢出显示
+  overflow: visible;
   box-sizing: border-box;
-  
+  padding: 0; // 使用内部块的 padding，更接近图2布局
+  position: relative;
+  z-index: 20;
+
+  .composer-hint {
+    padding: 8px $spacing-md 0;
+
+    .title-input {
+      width: 100%;
+      border: none;
+      outline: none;
+      background: transparent;
+      padding: 0;
+      font-size: 16px;
+      line-height: 1.4;
+      color: #18191c;
+
+      &::placeholder {
+        color: #777;
+      }
+
+      &:disabled {
+        color: #999;
+        cursor: not-allowed;
+      }
+    }
+  }
+
+  .composer-body {
+    padding: 10px $spacing-md 0;
+  }
+
   .input {
     width: 100%;
     border: none;
     outline: none;
-    background: #f7f8fa;
-    padding: 10px $spacing-md;
-    border-radius: $border-radius-sm;
-    box-sizing: border-box; // 确保 padding 包含在宽度内
+    background: transparent;
+    padding: 0;
+    box-sizing: border-box;
+    font-family: inherit;
+    font-size: 16px;
+    line-height: 1.65;
+    resize: none; // 不允许上下拉伸
+    min-height: 140px;
+    color: #18191c;
+    font-weight: 400;
+
+    &::placeholder {
+      color: #9aa0a6;
+      opacity: 1;
+    }
+
+    &:disabled {
+      color: #999;
+      cursor: not-allowed;
+    }
+
+    // 自定义滚动条样式（长文时更好看）
+    &::-webkit-scrollbar {
+      width: 6px;
+    }
+
+    &::-webkit-scrollbar-track {
+      background: transparent;
+    }
+
+    &::-webkit-scrollbar-thumb {
+      background: rgba(0, 0, 0, 0.12);
+      border-radius: 3px;
+    }
+
+    &::-webkit-scrollbar-thumb:hover {
+      background: rgba(0, 0, 0, 0.18);
+    }
   }
   
-  .actions {
+  // 图片预览容器
+  .image-preview-container {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(96px, 1fr));
+    gap: $spacing-xs;
+    margin-top: 10px;
+    padding: 0 $spacing-md 4px;
+
+    .image-add-tile {
+      width: 96px;
+      height: 96px;
+      border: 2px dashed #d5dbe3;
+      border-radius: 10px;
+      background: #fafbfc;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      transition: border-color 0.2s, background 0.2s, color 0.2s;
+
+      .plus {
+        font-size: 30px;
+        color: #c3c8d0;
+        line-height: 1;
+      }
+
+      &:hover:not(:disabled) {
+        border-color: rgba(0, 174, 236, 0.65);
+        background: rgba(0, 174, 236, 0.04);
+      }
+
+      &:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+      }
+    }
+
+    .image-preview-item {
+      position: relative;
+      width: 100%;
+      padding-top: 100%; // 1:1 比例
+      background: #f0f0f0;
+      border-radius: $border-radius-sm;
+      overflow: hidden;
+
+      &.uploading {
+        opacity: 0.9;
+      }
+      
+      img {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+      }
+
+      .uploading-mask {
+        position: absolute;
+        inset: 0;
+        background: rgba(0, 0, 0, 0.35);
+        color: #fff;
+        font-size: 12px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+      
+      .remove-image {
+        position: absolute;
+        top: 4px;
+        right: 4px;
+        width: 20px;
+        height: 20px;
+        border-radius: 50%;
+        background: rgba(0, 0, 0, 0.6);
+        color: #fff;
+        border: none;
+        cursor: pointer;
+        font-size: 16px;
+        line-height: 1;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: background 0.2s;
+        
+        &:hover:not(:disabled) {
+          background: rgba(0, 0, 0, 0.8);
+        }
+        
+        &:disabled {
+          opacity: 0.5;
+          cursor: not-allowed;
+        }
+      }
+    }
+  }
+  
+  // 底部栏
+  .composer-bottom {
     display: flex;
-    justify-content: flex-end;
-    margin-top: $spacing-sm;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 12px;
+    padding: 10px $spacing-md 6px;
+    border-top: 1px solid #eef0f2;
+
+    .bottom-left {
+      display: flex;
+      gap: 12px;
+    }
+
+    .bottom-right {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+
+      .count {
+        color: #8a8a8a;
+        font-size: 12px;
+        min-width: 18px;
+        text-align: right;
+      }
+
+      .divider {
+        color: #d2d6db;
+        font-size: 12px;
+      }
+    }
+
+    .icon-btn {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 6px 8px;
+      border: none;
+      background: transparent;
+      color: $text-secondary;
+      cursor: pointer;
+      font-size: 16px;
+      border-radius: $border-radius-sm;
+      transition: background 0.2s, color 0.2s, opacity 0.2s;
+
+      &:hover:not(:disabled) {
+        background: #f0f0f0;
+        color: $text-primary;
+      }
+
+      &:disabled {
+        opacity: 0.45;
+        cursor: not-allowed;
+      }
+    }
+
+    .publish-btn {
+      height: 34px;
+      padding: 0 18px;
+      border-radius: 8px;
+      border: none;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      background: rgba(0, 174, 236, 0.25);
+      color: #fff;
+      transition: background 0.2s, opacity 0.2s;
+
+      &:not(:disabled) {
+        background: $primary-color;
+      }
+
+      &:hover:not(:disabled) {
+        background: color.adjust($primary-color, $lightness: -5%);
+      }
+
+      &:disabled {
+        cursor: not-allowed;
+        opacity: 0.7;
+      }
+    }
   }
-  
-  .btn {
-    background: $primary-color;
-    color: $white;
-    border: none;
-    padding: $spacing-xs 14px;
-    border-radius: $border-radius-sm;
-    cursor: pointer;
-    @include hover-effect;
+
+  // 表情包选择器
+  .emoji-picker {
+    position: absolute;
+    left: $spacing-md;
+    top: 100%; // 在发布框底部下方展开
+    margin-top: 8px;
+    padding: $spacing-md;
+    background: #fff;
+    border-radius: 10px;
+    border: 1px solid #e5e7eb;
+    box-shadow: 0 8px 24px rgba(15, 23, 42, 0.18);
+    z-index: 30;
+
+    .emoji-grid {
+      display: grid;
+      grid-template-columns: repeat(10, 1fr);
+      gap: 4px;
+      max-height: 200px;
+      overflow-y: auto;
+      // 自定义滚动条样式，让表情面板滚动条更好看
+      scrollbar-width: thin; // Firefox
+      scrollbar-color: rgba(0, 0, 0, 0.16) transparent;
+
+      &::-webkit-scrollbar {
+        width: 6px;
+      }
+
+      &::-webkit-scrollbar-track {
+        background: transparent;
+      }
+
+      &::-webkit-scrollbar-thumb {
+        background: rgba(0, 0, 0, 0.16);
+        border-radius: 3px;
+      }
+
+      &::-webkit-scrollbar-thumb:hover {
+        background: rgba(0, 0, 0, 0.22);
+      }
+
+      .emoji-item {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 8px;
+        font-size: 20px;
+        cursor: pointer;
+        border-radius: $border-radius-sm;
+        transition: background 0.2s;
+        
+        &:hover {
+          background: #e5e7eb;
+        }
+      }
+    }
   }
+}
+
+// 动态标题展示
+.feed-title-text {
+  font-size: 16px;
+  font-weight: 600;
+  color: #18191c;
+  margin-bottom: 6px;
 }
 
 // Stories Component
@@ -736,13 +1452,13 @@ $right-column-width: 300px;
       border: 1px solid #fff;
       box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
       position: relative;
-      z-index: 99999;
+      z-index: 1;
       
       img {
         width: 100%;
         height: 100%;
         object-fit: cover;
-        z-index: 99999;
+        z-index: 1;
       }
 
       &.all {
@@ -806,14 +1522,14 @@ $right-column-width: 300px;
         align-items: center;
         justify-content: center;
         position: relative;
-        z-index: 99999;
+        z-index: 1;
         
         img {
           width: 100%;
           height: 100%;
           object-fit: cover;
           position: relative;
-          z-index: 99999;
+          z-index: 1;
         }
       }
       
@@ -860,6 +1576,43 @@ $right-column-width: 300px;
       .title {
         font-size: 14px;
         line-height: 1.6;
+      }
+      
+      // 文字动态样式
+      .feed-content-text {
+        font-size: 14px;
+        line-height: 1.8;
+        color: $text-primary;
+        white-space: pre-wrap;
+        word-break: break-word;
+        margin-bottom: $spacing-md;
+      }
+      
+      .feed-images {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+        gap: $spacing-sm;
+        margin-top: $spacing-md;
+        
+        .feed-image {
+          width: 100%;
+          height: auto;
+          border-radius: $border-radius-sm;
+          object-fit: cover;
+          cursor: pointer;
+          transition: transform 0.2s;
+          
+          &:hover {
+            transform: scale(1.02);
+          }
+        }
+      }
+    }
+    
+    // 文字动态卡片特殊样式
+    &.feed-text-card {
+      .content {
+        flex-direction: column;
       }
     }
     

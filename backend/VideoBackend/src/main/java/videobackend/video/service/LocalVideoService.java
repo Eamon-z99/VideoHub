@@ -205,12 +205,17 @@ public class LocalVideoService {
 
         // 上传日期：优先用视频表 create_time，格式 MM-dd
         String uploadDate = null;
+        String createTimeStr = null;
         Timestamp createTime = rs.getTimestamp("create_time");
         if (createTime != null) {
             LocalDate date = createTime.toInstant()
                     .atZone(ZoneId.systemDefault())
                     .toLocalDate();
             uploadDate = UPLOAD_DATE_FORMATTER.format(date);
+            // 转换为 ISO 8601 格式字符串（包含时区）
+            createTimeStr = createTime.toInstant()
+                    .atZone(ZoneId.systemDefault())
+                    .format(DateTimeFormatter.ISO_OFFSET_DATE_TIME);
         }
 
         return new VideoItem(
@@ -227,7 +232,8 @@ public class LocalVideoService {
                 uploaderName,
                 uploadDate,
                 uploaderAvatar,
-                uploaderId
+                uploaderId,
+                createTimeStr
         );
     }
 
