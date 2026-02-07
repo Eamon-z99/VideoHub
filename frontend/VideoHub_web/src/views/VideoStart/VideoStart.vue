@@ -1,5 +1,9 @@
 <template>
-  <div class="video-page">
+  <div class="video-page-wrapper">
+    <div class="header-wrapper">
+      <TopHeader :fixed-on-scroll="false" :transparent-at-top="false" />
+    </div>
+    <div class="video-page">
     <!-- 主视频区域 -->
     <section class="player-area">
       <div class="player">
@@ -129,6 +133,7 @@
         </div>
       </div>
     </aside>
+    </div>
   </div>
 </template>
 
@@ -139,6 +144,7 @@ import { View, ChatDotRound, Timer } from '@element-plus/icons-vue'
 import { Pointer, Star, Share } from '@element-plus/icons-vue'
 import { fetchVideoDetail } from '@/api/video'
 import { recordHistory } from '@/api/history'
+import TopHeader from '@/components/TopHeader.vue'
 import { addFavorite, removeFavorite, checkFavorite } from '@/api/favorite'
 import { followUser, unfollowUser, checkFollow, getUserStats } from '@/api/follow'
 import { likeVideo, unlikeVideo, checkLike, getLikeCount } from '@/api/like'
@@ -579,13 +585,22 @@ onUnmounted(() => {
 </script>
 
 <style lang="scss" scoped>
+.video-page-wrapper {
+  background: #f4f5f7;
+}
+
+.header-wrapper {
+  position: relative;
+  height: 64px;
+}
+
 .video-page {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 360px;
   gap: 16px;
   max-width: 1200px;
   margin: 0 auto;
-  padding: 16px;
+  padding: 80px 16px 16px;
 
   .player-area {
     display: flex;
