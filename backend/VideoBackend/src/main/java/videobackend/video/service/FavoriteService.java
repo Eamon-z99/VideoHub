@@ -123,60 +123,70 @@ public class FavoriteService {
      * 获取用户的收藏列表（按收藏时间倒序）
      */
     public List<FavoriteItem> getUserFavorites(Long userId, Long folderId, Integer page, Integer pageSize) {
-        int offset = (page - 1) * pageSize;
+        try {
+            int offset = (page - 1) * pageSize;
 
-        Long defaultFolderId = favoriteFolderService.ensureDefaultFolder(userId);
-        Long targetFolderId = (folderId != null) ? folderId : defaultFolderId;
+            Long defaultFolderId = favoriteFolderService.ensureDefaultFolder(userId);
+            Long targetFolderId = (folderId != null) ? folderId : defaultFolderId;
 
-        String sql = """
-                SELECT f.id, f.video_id, f.create_time,
-                       v.title, v.cover_url, v.duration, v.storage_path, v.source_file
-                FROM favorites f
-                LEFT JOIN videos v ON f.video_id = v.video_id
-                WHERE f.user_id = ?
-                  AND (
-                        (? = ? AND (f.folder_id IS NULL OR f.folder_id = ?))
-                        OR (? <> ? AND f.folder_id = ?)
-                      )
-                ORDER BY f.create_time DESC
-                LIMIT ? OFFSET ?
-                """;
-        return jdbcTemplate.query(sql, (rs, i) -> mapToFavoriteItem(rs),
-                userId,
-                targetFolderId, defaultFolderId, defaultFolderId,
-                targetFolderId, defaultFolderId, targetFolderId,
-                pageSize, offset);
+            String sql = """
+                    SELECT f.id, f.video_id, f.create_time,
+                           v.title, v.cover_url, v.duration, v.storage_path, v.source_file
+                    FROM favorites f
+                    LEFT JOIN videos v ON f.video_id = v.video_id
+                    WHERE f.user_id = ?
+                      AND (
+                            (? = ? AND (f.folder_id IS NULL OR f.folder_id = ?))
+                            OR (? <> ? AND f.folder_id = ?)
+                          )
+                    ORDER BY f.create_time DESC
+                    LIMIT ? OFFSET ?
+                    """;
+            return jdbcTemplate.query(sql, (rs, i) -> mapToFavoriteItem(rs),
+                    userId,
+                    targetFolderId, defaultFolderId, defaultFolderId,
+                    targetFolderId, defaultFolderId, targetFolderId,
+                    pageSize, offset);
+        } catch (Exception e) {
+            e.printStackTrace();
+            throw new RuntimeException("获取收藏列表失败: " + e.getMessage(), e);
+        }
     }
 
     /**
      * 获取用户收藏总数
      */
     public Long getUserFavoriteCount(Long userId, Long folderId) {
-        Long defaultFolderId = favoriteFolderService.ensureDefaultFolder(userId);
-        Long targetFolderId = (folderId != null) ? folderId : defaultFolderId;
+        try {
+            Long defaultFolderId = favoriteFolderService.ensureDefaultFolder(userId);
+            Long targetFolderId = (folderId != null) ? folderId : defaultFolderId;
 
-        String sql = """
-                SELECT COUNT(*) FROM favorites
-                WHERE user_id = ?
-                  AND (
-                        (? = ? AND (folder_id IS NULL OR folder_id = ?))
-                        OR (? <> ? AND folder_id = ?)
-                      )
-                """;
-        Object countObj = jdbcTemplate.queryForObject(sql, Object.class,
-                userId,
-                targetFolderId, defaultFolderId, defaultFolderId,
-                targetFolderId, defaultFolderId, targetFolderId);
-        if (countObj == null) {
-            return 0L;
+            String sql = """
+                    SELECT COUNT(*) FROM favorites
+                    WHERE user_id = ?
+                      AND (
+                            (? = ? AND (folder_id IS NULL OR folder_id = ?))
+                            OR (? <> ? AND folder_id = ?)
+                          )
+                    """;
+            Object countObj = jdbcTemplate.queryForObject(sql, Object.class,
+                    userId,
+                    targetFolderId, defaultFolderId, defaultFolderId,
+                    targetFolderId, defaultFolderId, targetFolderId);
+            if (countObj == null) {
+                return 0L;
+            }
+            // 处理BigInteger到Long的转换
+            if (countObj instanceof java.math.BigInteger) {
+                return ((java.math.BigInteger) countObj).longValue();
+            } else if (countObj instanceof Number) {
+                return ((Number) countObj).longValue();
+            }
+            return Long.valueOf(countObj.toString());
+        } catch (Exception e) {
+            e.printStackTrace();
+            return 0L; // 出错时返回0，避免影响主流程
         }
-        // 处理BigInteger到Long的转换
-        if (countObj instanceof java.math.BigInteger) {
-            return ((java.math.BigInteger) countObj).longValue();
-        } else if (countObj instanceof Number) {
-            return ((Number) countObj).longValue();
-        }
-        return Long.valueOf(countObj.toString());
     }
 
     /**
@@ -269,19 +279,25 @@ public class FavoriteService {
         // 通过LocalVideoService获取视频信息以构建正确的URL
         String videoUrl = "";
         String coverUrlFinal = "";
-        try {
-            Optional<VideoItem> videoOpt = localVideoService.findByVideoId(videoId);
-            if (videoOpt.isPresent()) {
-                VideoItem video = videoOpt.get();
-                videoUrl = video.playUrl();
-                coverUrlFinal = video.coverUrl();
-            } else {
-                // 如果找不到视频，使用简化方式构建URL
+        if (videoId != null) {
+            try {
+                Optional<VideoItem> videoOpt = localVideoService.findByVideoId(videoId);
+                if (videoOpt.isPresent()) {
+                    VideoItem video = videoOpt.get();
+                    videoUrl = video.playUrl();
+                    coverUrlFinal = video.coverUrl();
+                } else {
+                    // 如果找不到视频，使用简化方式构建URL
+                    videoUrl = buildSimpleUrl(sourceFile, storagePath);
+                    coverUrlFinal = buildSimpleUrl(sourceFile, coverUrl);
+                }
+            } catch (Exception e) {
+                // 如果出错，使用简化方式构建URL
                 videoUrl = buildSimpleUrl(sourceFile, storagePath);
                 coverUrlFinal = buildSimpleUrl(sourceFile, coverUrl);
             }
-        } catch (Exception e) {
-            // 如果出错，使用简化方式构建URL
+        } else {
+            // videoId 为 null，使用简化方式构建URL
             videoUrl = buildSimpleUrl(sourceFile, storagePath);
             coverUrlFinal = buildSimpleUrl(sourceFile, coverUrl);
         }
@@ -301,12 +317,17 @@ public class FavoriteService {
             }
         }
 
+        String title = rs.getString("title");
+        if (title == null) {
+            title = "未知标题";
+        }
+        
         return new FavoriteItem(
             id,
-            videoId,
-            rs.getString("title"),
-            coverUrlFinal,
-            videoUrl,
+            videoId != null ? videoId : "",
+            title,
+            coverUrlFinal != null ? coverUrlFinal : "",
+            videoUrl != null ? videoUrl : "",
             formatDuration(durationSeconds),
             createTime != null ? createTime.toLocalDateTime().format(DATE_FORMATTER) : null
         );

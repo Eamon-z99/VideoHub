@@ -3,14 +3,22 @@ package videobackend.video.service;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import videobackend.video.model.VideoItem;
+
+import java.sql.Timestamp;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
 
 @Service
 public class VideoLikeService {
 
     private final JdbcTemplate jdbcTemplate;
+    private final LocalVideoService localVideoService;
 
-    public VideoLikeService(JdbcTemplate jdbcTemplate) {
+    public VideoLikeService(JdbcTemplate jdbcTemplate, LocalVideoService localVideoService) {
         this.jdbcTemplate = jdbcTemplate;
+        this.localVideoService = localVideoService;
     }
 
     /**
@@ -85,6 +93,104 @@ public class VideoLikeService {
         String sql = "SELECT like_count FROM videos WHERE video_id = ?";
         Long count = jdbcTemplate.queryForObject(sql, Long.class, videoId);
         return count != null ? count : 0L;
+    }
+
+    /**
+     * 获取用户点赞的视频列表（按点赞时间倒序）
+     */
+    public List<Map<String, Object>> getUserLikedVideos(Long userId, Integer page, Integer pageSize) {
+        int offset = (page - 1) * pageSize;
+        String sql = """
+                SELECT vl.id, vl.video_id, vl.create_time,
+                       v.title, v.cover_url, v.duration, v.storage_path, v.source_file,
+                       v.view_count, v.like_count,
+                       u.username AS uploader_name,
+                       u.avatar AS uploader_avatar,
+                       u.id AS uploader_id
+                FROM video_likes vl
+                LEFT JOIN videos v ON vl.video_id = v.video_id
+                LEFT JOIN users u ON v.user_id = u.id
+                WHERE vl.user_id = ?
+                ORDER BY vl.create_time DESC
+                LIMIT ? OFFSET ?
+                """;
+        return jdbcTemplate.query(sql, (rs, i) -> {
+            String videoId = rs.getString("video_id");
+            String storagePath = rs.getString("storage_path");
+            String sourceFile = rs.getString("source_file");
+            String coverUrl = rs.getString("cover_url");
+            
+            // 通过LocalVideoService获取视频信息以构建正确的URL
+            String coverUrlFinal = "";
+            try {
+                Optional<VideoItem> videoOpt = localVideoService.findByVideoId(videoId);
+                if (videoOpt.isPresent()) {
+                    VideoItem video = videoOpt.get();
+                    coverUrlFinal = video.coverUrl();
+                } else {
+                    // 如果找不到视频，使用简化方式构建URL
+                    coverUrlFinal = buildSimpleUrl(sourceFile, coverUrl);
+                }
+            } catch (Exception e) {
+                // 如果出错，使用简化方式构建URL
+                coverUrlFinal = buildSimpleUrl(sourceFile, coverUrl);
+            }
+            
+            Map<String, Object> item = new java.util.HashMap<>();
+            item.put("id", rs.getLong("id"));
+            item.put("videoId", videoId);
+            item.put("title", rs.getString("title"));
+            item.put("coverUrl", coverUrlFinal);
+            item.put("duration", formatDuration(rs.getInt("duration")));
+            item.put("storagePath", storagePath);
+            item.put("sourceFile", sourceFile);
+            item.put("viewCount", rs.getLong("view_count"));
+            item.put("likeCount", rs.getLong("like_count"));
+            item.put("uploaderName", rs.getString("uploader_name"));
+            item.put("uploaderAvatar", rs.getString("uploader_avatar"));
+            item.put("uploaderId", rs.getLong("uploader_id"));
+            Timestamp createTime = rs.getTimestamp("create_time");
+            item.put("createTime", createTime != null ? createTime.toString() : null);
+            return item;
+        }, userId, pageSize, offset);
+    }
+
+    /**
+     * 获取用户点赞总数
+     */
+    public Long getUserLikedCount(Long userId) {
+        String sql = "SELECT COUNT(*) FROM video_likes WHERE user_id = ?";
+        Object countObj = jdbcTemplate.queryForObject(sql, Object.class, userId);
+        if (countObj == null) {
+            return 0L;
+        }
+        if (countObj instanceof java.math.BigInteger) {
+            return ((java.math.BigInteger) countObj).longValue();
+        } else if (countObj instanceof Number) {
+            return ((Number) countObj).longValue();
+        }
+        return Long.valueOf(countObj.toString());
+    }
+
+    /**
+     * 格式化视频时长（秒 -> MM:SS 或 HH:MM:SS）
+     */
+    private String formatDuration(int seconds) {
+        if (seconds < 0) return "00:00";
+        int hours = seconds / 3600;
+        int minutes = (seconds % 3600) / 60;
+        int secs = seconds % 60;
+        if (hours > 0) {
+            return String.format("%d:%02d:%02d", hours, minutes, secs);
+        }
+        return String.format("%d:%02d", minutes, secs);
+    }
+
+    private String buildSimpleUrl(String sourceFile, String fileName) {
+        if (fileName != null) {
+            return "/local-videos/" + fileName.replace("\\", "/");
+        }
+        return "";
     }
 }
 

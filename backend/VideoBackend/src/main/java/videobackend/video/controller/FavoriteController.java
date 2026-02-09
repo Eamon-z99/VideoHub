@@ -98,17 +98,23 @@ public class FavoriteController {
         try {
             List<FavoriteItem> list = favoriteService.getUserFavorites(userId, folderId, page, pageSize);
             Long total = favoriteService.getUserFavoriteCount(userId, folderId);
-            return ResponseEntity.ok(Map.of(
-                "success", true,
-                "list", list,
-                "page", page,
-                "pageSize", pageSize,
-                "total", total,
-                "folderId", folderId
-            ));
+            
+            // 使用 HashMap 而不是 Map.of()，因为 folderId 可能为 null
+            Map<String, Object> response = new java.util.HashMap<>();
+            response.put("success", true);
+            response.put("list", list != null ? list : java.util.Collections.emptyList());
+            response.put("page", page);
+            response.put("pageSize", pageSize);
+            response.put("total", total != null ? total : 0L);
+            response.put("folderId", folderId);
+            
+            return ResponseEntity.ok(response);
         } catch (Exception e) {
-            return ResponseEntity.status(500)
-                .body(Map.of("success", false, "message", "获取失败: " + e.getMessage()));
+            e.printStackTrace(); // 打印堆栈跟踪以便调试
+            Map<String, Object> errorResponse = new java.util.HashMap<>();
+            errorResponse.put("success", false);
+            errorResponse.put("message", "获取失败: " + (e.getMessage() != null ? e.getMessage() : e.getClass().getSimpleName()));
+            return ResponseEntity.status(500).body(errorResponse);
         }
     }
 

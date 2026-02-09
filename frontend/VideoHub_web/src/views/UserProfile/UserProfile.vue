@@ -89,7 +89,7 @@
           </div>
         </div>
       </nav>
-      <div class="content-inner user-profile-container">
+      <div class="content-inner user-profile-container" :class="{ 'no-left-panel': activeTab !== 'collections' }">
         <aside class="left-panel" v-if="activeTab === 'collections'">
           <div class="panel-section">
             <div class="panel-title">我创建的收藏夹</div>
@@ -157,6 +157,19 @@
 
         <section class="right-panel">
           <div v-if="activeTab === 'collections'" class="fav-header">
+            <div class="fav-cover">
+              <img 
+                v-if="activeFolder?.coverUrl" 
+                :src="normalizeImageUrl(activeFolder.coverUrl)" 
+                alt="收藏夹封面" 
+                @error="onImageError"
+              />
+              <div v-else class="fav-cover-placeholder">
+                <svg width="32" height="32" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <path d="M4 16L8.586 11.414C9.367 10.633 10.633 10.633 11.414 11.414L16 16M14 14L15.586 12.414C16.367 11.633 17.633 11.633 18.414 12.414L20 14M14 8H14.01M6 20H18C19.105 20 20 19.105 20 18V6C20 4.895 19.105 4 18 4H6C4.895 4 4 4.895 4 6V18C4 19.105 4.895 20 6 20Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+              </div>
+            </div>
             <div class="fav-left">
               <div class="fav-title">{{ activeFolder?.name || '默认收藏夹' }}</div>
               <div class="fav-sub">公开 · 视频数：{{ activeFolder?.count ?? 0 }}</div>
@@ -407,7 +420,7 @@
             </div>
           </div>
 
-          <div v-else-if="activeTab === 'home'" class="empty">主页内容</div>
+          <ProfileHome v-else-if="activeTab === 'home'" @open-folder="handleOpenFolder" />
           <div v-else-if="activeTab === 'dynamics'" class="empty">动态内容</div>
           <div v-else-if="activeTab === 'submit'" class="empty">投稿内容</div>
         </section>
@@ -418,6 +431,7 @@
 
 <script>
 import TopHeader from '@/components/TopHeader.vue'
+import ProfileHome from './ProfileHome.vue'
 import { getFavoriteListByFolder } from '@/api/favorite'
 import { getFavoriteFolderList, createFavoriteFolder } from '@/api/favoriteFolder'
 import { fetchMyProfile, updateAvatar as apiUpdateAvatar, updateBio as apiUpdateBio } from '@/api/userProfile'
@@ -427,7 +441,7 @@ import zhCn from 'element-plus/dist/locale/zh-cn.mjs'
 
 export default {
   name: 'UserProfile',
-  components: { TopHeader },
+  components: { TopHeader, ProfileHome },
   data () {
     return {
       zhCn,
@@ -512,10 +526,18 @@ export default {
     )
   },
   mounted () {
+    // 检查URL参数，如果有tab参数，切换到对应tab
+    const urlParams = new URLSearchParams(window.location.search)
+    const tab = urlParams.get('tab')
+    
+    if (tab === 'collections') {
+      this.activeTab = 'collections'
+    }
+    
     // 先加载当前用户资料（头像 + 签名）
     this.loadProfile()
       .finally(() => {
-        // 如果初始就是收藏tab，则加载数据
+        // 如果初始就是收藏tab，则加载数据（initCollections 会处理 folder 参数）
         if (this.activeTab === 'collections' && this.currentUserId) {
           this.initCollections()
         }
@@ -560,6 +582,19 @@ export default {
     },
     normalizeAvatarUrl (url) {
       if (!url) return '/public/favicon.ico'
+      // 如果已经是完整 URL（http/https），直接返回
+      if (url.startsWith('http://') || url.startsWith('https://')) {
+        return url
+      }
+      // 如果是相对路径（以 / 开头），直接返回
+      if (url.startsWith('/')) {
+        return url
+      }
+      // 其他情况，当作相对路径处理
+      return '/' + url
+    },
+    normalizeImageUrl (url) {
+      if (!url) return ''
       // 如果已经是完整 URL（http/https），直接返回
       if (url.startsWith('http://') || url.startsWith('https://')) {
         return url
@@ -688,22 +723,46 @@ export default {
     },
     async initCollections () {
       await this.loadFolders()
-      // 默认选中第一个（通常是"默认收藏夹"）
-      if (!this.activeFolderId && this.folders.length > 0) {
-        this.activeFolderId = this.folders[0].id
+      // 检查URL参数，如果有folder参数，优先使用
+      const urlParams = new URLSearchParams(window.location.search)
+      const folderId = urlParams.get('folder')
+      let targetFolderId = null
+      
+      if (folderId) {
+        const folderIdNum = parseInt(folderId)
+        if (!isNaN(folderIdNum)) {
+          const folder = this.folders.find(f => f.id === folderIdNum)
+          if (folder) {
+            targetFolderId = folderIdNum
+          }
+        }
       }
-      if (this.activeFolderId) {
+      
+      // 如果没有指定folder，默认选中第一个（通常是"默认收藏夹"）
+      if (!targetFolderId && !this.activeFolderId && this.folders.length > 0) {
+        targetFolderId = this.folders[0].id
+      } else if (!targetFolderId) {
+        targetFolderId = this.activeFolderId
+      }
+      
+      if (targetFolderId) {
+        this.activeFolderId = targetFolderId
         // 检查缓存
-        const cached = this.videosCache[this.activeFolderId]
+        const cached = this.videosCache[targetFolderId]
         if (cached) {
           // 使用缓存数据
           this.videos = cached.videos
           this.total = cached.total
           this.page = cached.page || 1
           this.tabs.find(t => t.key === 'collections').count = cached.total
+          // 如果收藏夹没有封面，从缓存的视频列表中获取
+          const currentFolder = this.folders.find(f => f.id === targetFolderId)
+          if (currentFolder && !currentFolder.coverUrl && cached.videos.length > 0 && cached.videos[0].cover) {
+            currentFolder.coverUrl = cached.videos[0].cover
+          }
         } else {
           // 没有缓存，加载数据
-          await this.loadFavorites(this.currentUserId, this.activeFolderId, true)
+          await this.loadFavorites(this.currentUserId, targetFolderId, true)
         }
       }
     },
@@ -745,11 +804,46 @@ export default {
         this.page = cached.page || 1
         // 更新tab计数
         this.tabs.find(t => t.key === 'collections').count = cached.total
+        // 如果收藏夹没有封面，从缓存的视频列表中获取
+        if (!folder.coverUrl && cached.videos.length > 0 && cached.videos[0].cover) {
+          folder.coverUrl = cached.videos[0].cover
+        }
       } else {
         // 没有缓存，加载数据
         this.activeFolderId = folder.id
         this.loadFavorites(this.currentUserId, folder.id, true)
       }
+    },
+
+    // 处理从主页点击收藏夹的事件（不改变URL地址）
+    handleOpenFolder (folderId) {
+      if (!folderId) return
+      
+      // 切换到收藏tab
+      if (this.activeTab !== 'collections') {
+        this.onTabChange('collections')
+      }
+      
+      // 等待tab切换和收藏夹列表加载完成后再选择收藏夹
+      this.$nextTick(() => {
+        // 查找对应的收藏夹
+        const folder = this.folders.find(f => f.id === folderId)
+        if (folder) {
+          this.onFolderSelect(folder)
+        } else {
+          // 如果收藏夹列表还没加载完，等待加载完成
+          const checkFolder = () => {
+            const foundFolder = this.folders.find(f => f.id === folderId)
+            if (foundFolder) {
+              this.onFolderSelect(foundFolder)
+            } else if (this.folders.length > 0) {
+              // 如果列表已加载但找不到，可能是延迟加载，再等一次
+              setTimeout(checkFolder, 100)
+            }
+          }
+          checkFolder()
+        }
+      })
     },
 
     async onCreateFolder () {
@@ -802,9 +896,12 @@ export default {
           const currentFolder = this.folders.find(f => f.id === folderId)
           if (currentFolder) {
             currentFolder.count = total
-            // 更新封面（使用第一个视频的封面）
+            // 更新封面（使用第一个视频的封面，如果收藏夹没有封面或视频列表有更新）
             if (formattedVideos.length > 0 && formattedVideos[0].cover) {
-              currentFolder.coverUrl = formattedVideos[0].cover
+              // 如果收藏夹没有封面，或者第一个视频的封面与当前不同，则更新
+              if (!currentFolder.coverUrl || currentFolder.coverUrl !== formattedVideos[0].cover) {
+                currentFolder.coverUrl = formattedVideos[0].cover
+              }
             }
           }
           
@@ -1188,6 +1285,10 @@ export default {
         const { data } = await deleteFavoriteFolder(userId, folder.id)
         if (data.success) {
           ElMessage.success('已删除')
+          // 通知其他页面（如主页的收藏夹列表）同步更新
+          window.dispatchEvent(new CustomEvent('favorite-folders-updated'))
+          // 先本地更新左侧收藏夹列表，保证当前页面立即刷新
+          this.folders = this.folders.filter(f => f.id !== folder.id)
           this.folderMenuForId = null
           // 清除被删除收藏夹的缓存
           this.clearFolderCache(folder.id)
@@ -1524,6 +1625,11 @@ export default {
   grid-template-columns: 260px 1fr;
   gap: 18px;
   padding: 0; // padding 由 .user-profile-container 统一控制
+
+  // 当没有左侧面板时（如主页），右侧面板占满整个容器
+  &.no-left-panel {
+    grid-template-columns: 1fr;
+  }
 }
 
 .left-panel {
@@ -1707,9 +1813,35 @@ export default {
 .fav-header {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 16px;
   padding-bottom: 12px;
   border-bottom: 1px solid #eee;
+}
+
+.fav-cover {
+  width: 120px;
+  height: 80px;
+  border-radius: 8px;
+  overflow: hidden;
+  background: #f1f2f3;
+  flex-shrink: 0;
+
+  img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+  }
+
+  .fav-cover-placeholder {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #ccc;
+    background: #f5f7fa;
+  }
 }
 
 .batch-header {

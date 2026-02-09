@@ -4,6 +4,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import videobackend.video.model.FavoriteFolderItem;
+import videobackend.video.model.VideoItem;
 
 import java.sql.ResultSet;
 import java.sql.SQLException;
@@ -20,9 +21,11 @@ public class FavoriteFolderService {
     private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
 
     private final JdbcTemplate jdbcTemplate;
+    private final LocalVideoService localVideoService;
 
-    public FavoriteFolderService(JdbcTemplate jdbcTemplate) {
+    public FavoriteFolderService(JdbcTemplate jdbcTemplate, LocalVideoService localVideoService) {
         this.jdbcTemplate = jdbcTemplate;
+        this.localVideoService = localVideoService;
     }
 
     /**
@@ -79,12 +82,23 @@ public class FavoriteFolderService {
                            )
                          ORDER BY f.create_time ASC
                          LIMIT 1
-                       ) AS cover_url
+                       ) AS cover_url,
+                       (
+                         SELECT v.video_id FROM favorites f
+                         INNER JOIN videos v ON f.video_id = v.video_id
+                         WHERE f.user_id = ff.user_id
+                           AND (
+                             (ff.id = ? AND (f.folder_id IS NULL OR f.folder_id = ff.id))
+                             OR (ff.id <> ? AND f.folder_id = ff.id)
+                           )
+                         ORDER BY f.create_time ASC
+                         LIMIT 1
+                       ) AS video_id
                 FROM favorite_folders ff
                 WHERE ff.user_id = ?
                 ORDER BY (ff.id = ?) DESC, ff.create_time DESC
                 """;
-        return jdbcTemplate.query(sql, (rs, i) -> mapFolder(rs), defaultFolderId, defaultFolderId, defaultFolderId, defaultFolderId, userId, defaultFolderId);
+        return jdbcTemplate.query(sql, (rs, i) -> mapFolder(rs), defaultFolderId, defaultFolderId, defaultFolderId, defaultFolderId, defaultFolderId, defaultFolderId, userId, defaultFolderId);
     }
 
     /**
@@ -213,8 +227,34 @@ public class FavoriteFolderService {
 
         Integer isPublicInt = rs.getObject("is_public") != null ? rs.getInt("is_public") : 1;
         String description = rs.getString("description");
-        String coverUrl = rs.getString("cover_url");
+        String coverUrlRaw = rs.getString("cover_url");
+        String videoId = rs.getString("video_id");
         Timestamp createTime = rs.getTimestamp("create_time");
+        
+        // 通过 LocalVideoService 处理封面URL，确保返回正确的URL
+        String coverUrl = "";
+        if (coverUrlRaw != null && !coverUrlRaw.trim().isEmpty()) {
+            if (videoId != null && !videoId.trim().isEmpty()) {
+                // 尝试通过 LocalVideoService 获取视频信息
+                try {
+                    Optional<VideoItem> videoOpt = localVideoService.findByVideoId(videoId);
+                    if (videoOpt.isPresent()) {
+                        VideoItem video = videoOpt.get();
+                        coverUrl = video.coverUrl();
+                    } else {
+                        // 如果找不到视频，使用简化方式构建URL
+                        coverUrl = buildSimpleUrl(coverUrlRaw);
+                    }
+                } catch (Exception e) {
+                    // 如果出错，使用简化方式构建URL
+                    coverUrl = buildSimpleUrl(coverUrlRaw);
+                }
+            } else {
+                // 没有 video_id，使用简化方式
+                coverUrl = buildSimpleUrl(coverUrlRaw);
+            }
+        }
+        
         return new FavoriteFolderItem(
                 id,
                 userId,
@@ -225,6 +265,13 @@ public class FavoriteFolderService {
                 cnt,
                 createTime != null ? createTime.toLocalDateTime().format(DATE_FORMATTER) : null
         );
+    }
+    
+    private String buildSimpleUrl(String fileName) {
+        if (fileName != null && !fileName.trim().isEmpty()) {
+            return "/local-videos/" + fileName.replace("\\", "/");
+        }
+        return "";
     }
 }
 

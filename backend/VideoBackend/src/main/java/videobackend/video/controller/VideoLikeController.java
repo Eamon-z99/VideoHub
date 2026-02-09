@@ -99,6 +99,34 @@ public class VideoLikeController {
         }
     }
 
+    /**
+     * 获取用户点赞的视频列表
+     */
+    @GetMapping("/list")
+    public ResponseEntity<?> getUserLikedVideos(
+            HttpServletRequest request,
+            @RequestParam(defaultValue = "1") Integer page,
+            @RequestParam(defaultValue = "20") Integer pageSize) {
+        try {
+            Long userId = getUserIdFromRequest(request);
+            if (userId == null) {
+                return ResponseEntity.status(401).body(Map.of("success", false, "message", "未登录或登录已过期"));
+            }
+
+            var list = videoLikeService.getUserLikedVideos(userId, page, pageSize);
+            Long total = videoLikeService.getUserLikedCount(userId);
+            return ResponseEntity.ok(Map.of(
+                    "success", true,
+                    "list", list,
+                    "page", page,
+                    "pageSize", pageSize,
+                    "total", total
+            ));
+        } catch (Exception e) {
+            return ResponseEntity.status(500).body(Map.of("success", false, "message", "获取点赞列表失败: " + e.getMessage()));
+        }
+    }
+
     private Long getUserIdFromRequest(HttpServletRequest request) {
         String bearerToken = request.getHeader("Authorization");
         if (bearerToken != null && bearerToken.startsWith("Bearer ")) {
