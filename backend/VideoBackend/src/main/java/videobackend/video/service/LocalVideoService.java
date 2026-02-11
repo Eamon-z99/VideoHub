@@ -65,6 +65,8 @@ public class LocalVideoService {
                        v.storage_path,
                        v.source_file,
                        v.view_count,
+                       v.like_count,
+                       v.favorite_count,
                        v.file_size,
                        u.username AS uploader_name,
                        u.avatar AS uploader_avatar,
@@ -92,6 +94,8 @@ public class LocalVideoService {
                        v.storage_path,
                        v.source_file,
                        v.view_count,
+                       v.like_count,
+                       v.favorite_count,
                        v.file_size,
                        u.username AS uploader_name,
                        u.avatar AS uploader_avatar,
@@ -127,6 +131,8 @@ public class LocalVideoService {
                        v.storage_path,
                        v.source_file,
                        v.view_count,
+                       v.like_count,
+                       v.favorite_count,
                        v.file_size,
                        u.username AS uploader_name,
                        u.avatar AS uploader_avatar,
@@ -168,6 +174,8 @@ public class LocalVideoService {
                        v.storage_path,
                        v.source_file,
                        v.view_count,
+                       v.like_count,
+                       v.favorite_count,
                        v.file_size,
                        u.username AS uploader_name,
                        u.avatar AS uploader_avatar,
@@ -179,6 +187,38 @@ public class LocalVideoService {
                 """;
         List<VideoItem> list = jdbcTemplate.query(sql, (rs, i) -> mapToVideo(rs), videoId);
         return list.stream().findFirst();
+    }
+
+    /**
+     * 获取指定作者的其它视频（按时间倒序），可排除当前视频
+     */
+    public List<VideoItem> listByUploader(Long uploaderId, String excludeVideoId, int limit) {
+        int safeLimit = Math.max(1, Math.min(limit, 50));
+        String sql = """
+                SELECT v.video_id,
+                       v.title,
+                       v.description,
+                       v.duration,
+                       v.cover_url,
+                       v.storage_path,
+                       v.source_file,
+                       v.view_count,
+                       v.like_count,
+                       v.favorite_count,
+                       v.file_size,
+                       u.username AS uploader_name,
+                       u.avatar AS uploader_avatar,
+                       u.id AS uploader_id,
+                       v.create_time
+                FROM videos v
+                LEFT JOIN users u ON v.user_id = u.id
+                WHERE v.user_id = ?
+                  AND (? IS NULL OR v.video_id <> ?)
+                ORDER BY v.create_time DESC
+                LIMIT ?
+                """;
+        return jdbcTemplate.query(sql, (rs, i) -> mapToVideo(rs),
+                uploaderId, excludeVideoId, excludeVideoId, safeLimit);
     }
 
     private VideoItem mapToVideo(ResultSet rs) throws SQLException {
@@ -228,6 +268,8 @@ public class LocalVideoService {
                 storagePath,
                 sourceFile,
                 rs.getObject("view_count") == null ? null : rs.getLong("view_count"),
+                rs.getObject("like_count") == null ? null : rs.getLong("like_count"),
+                rs.getObject("favorite_count") == null ? null : rs.getLong("favorite_count"),
                 rs.getObject("file_size") == null ? null : rs.getLong("file_size"),
                 uploaderName,
                 uploadDate,

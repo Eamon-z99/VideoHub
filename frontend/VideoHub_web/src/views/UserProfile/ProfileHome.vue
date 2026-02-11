@@ -29,19 +29,10 @@
                 <path d="M4 16L8.586 11.414C9.367 10.633 10.633 10.633 11.414 11.414L16 16M14 14L15.586 12.414C16.367 11.633 17.633 11.633 18.414 12.414L20 14M14 8H14.01M6 20H18C19.105 20 20 19.105 20 18V6C20 4.895 19.105 4 18 4H6C4.895 4 4 4.895 4 6V18C4 19.105 4.895 20 6 20Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
               </svg>
             </div>
-            <!-- 底部阴影层 -->
-            <div class="folder-cover-overlay"></div>
-            <!-- 左下角：公开/个人标识 -->
-            <div class="folder-privacy">
-              {{ folder.isPublic ? '公开' : '个人' }}
-            </div>
-            <!-- 右下角：视频数量 -->
-            <div class="folder-count-overlay">
-              {{ folder.count }} 个视频
-            </div>
           </div>
           <div class="folder-info">
             <div class="folder-name" :title="folder.name">{{ folder.name }}</div>
+            <div class="folder-count">{{ folder.count }} 个视频</div>
           </div>
         </article>
       </div>
@@ -72,35 +63,24 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onBeforeUnmount } from 'vue'
+import { ref, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
 import { getFavoriteFolderList } from '@/api/favoriteFolder'
 import { getUserLikedVideos } from '@/api/like'
 import { useUserStore } from '@/stores/user'
 import VideoCard from '@/components/VideoCard.vue'
 
+const router = useRouter()
 const userStore = useUserStore()
-
-const emit = defineEmits(['open-folder'])
 
 const folders = ref([])
 const likedVideos = ref([])
 const loadingFolders = ref(false)
 const loadingLikes = ref(false)
 
-function handleFoldersUpdated () {
-  // 其他地方（例如“收藏”tab）更新了收藏夹后，重新拉取首页的收藏夹列表
-  loadFolders()
-}
-
 onMounted(() => {
   loadFolders()
   loadLikes()
-  // 监听来自 UserProfile 等页面的收藏夹更新事件
-  window.addEventListener('favorite-folders-updated', handleFoldersUpdated)
-})
-
-onBeforeUnmount(() => {
-  window.removeEventListener('favorite-folders-updated', handleFoldersUpdated)
 })
 
 async function loadFolders() {
@@ -221,8 +201,15 @@ function openVideo(videoId) {
 
 function openFolder(folderId) {
   if (!folderId) return
-  // 通过事件通知父组件切换tab并显示对应收藏夹，不改变URL地址
-  emit('open-folder', folderId)
+  // 跳转到收藏tab并展开对应收藏夹
+  // 通过路由参数传递收藏夹ID
+  router.push({
+    path: '/user/profile',
+    query: {
+      tab: 'collections',
+      folder: folderId
+    }
+  })
 }
 
 function formatVideoForCard(video) {
@@ -292,15 +279,7 @@ function formatTime(timeStr) {
     color: #222;
     margin: 0;
   }
-}
 
-.likes-section {
-  .section-title {
-    font-size: 13px;
-  }
-}
-
-.section {
   .loading,
   .empty {
     text-align: center;
@@ -312,9 +291,8 @@ function formatTime(timeStr) {
 
 .video-grid {
   display: grid;
-  grid-template-columns: repeat(5, 1fr);
-  gap: 20px;
-  width: 100%;
+  grid-template-columns: repeat(auto-fill, minmax(246px, 1fr));
+  gap: 14px;
 }
 
 .video-card-wrapper {
@@ -341,10 +319,15 @@ function formatTime(timeStr) {
 
 .folder-card {
   cursor: pointer;
+  transition: transform 0.2s;
   width: 100%;
   display: flex;
   flex-direction: column;
   gap: 8px;
+
+  &:hover {
+    transform: translateY(-2px);
+  }
 
   .folder-cover {
     position: relative;
@@ -373,40 +356,6 @@ function formatTime(timeStr) {
       background: #f5f7fa;
       z-index: 1;
     }
-
-    // 底部阴影层，用于确保白色文字可见
-    .folder-cover-overlay {
-      position: absolute;
-      bottom: 0;
-      left: 0;
-      right: 0;
-      height: 60px;
-      background: linear-gradient(to top, rgba(0, 0, 0, 0.6) 0%, rgba(0, 0, 0, 0.3) 50%, transparent 100%);
-      z-index: 2;
-      pointer-events: none;
-    }
-
-    // 左下角：公开/个人标识
-    .folder-privacy {
-      position: absolute;
-      bottom: 6px;
-      left: 6px;
-      font-size: 12px;
-      color: #fff;
-      z-index: 3;
-      pointer-events: none;
-    }
-
-    // 右下角：视频数量
-    .folder-count-overlay {
-      position: absolute;
-      bottom: 6px;
-      right: 6px;
-      font-size: 12px;
-      color: #fff;
-      z-index: 3;
-      pointer-events: none;
-    }
   }
 
   .folder-info {
@@ -415,18 +364,18 @@ function formatTime(timeStr) {
     gap: 4px;
 
     .folder-name {
-      font-size: 16px;
+      font-size: 13px;
       color: #222;
       font-weight: 500;
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
-      transition: color 0.2s;
     }
-  }
 
-  &:hover .folder-name {
-    color: #00a1d6;
+    .folder-count {
+      font-size: 12px;
+      color: #999;
+    }
   }
 }
 

@@ -22,3 +22,12 @@ export const fetchTopVideos = (limit = 6) => {
   return request.get('/api/db/videos/top', { params: { limit } })
 }
 
+// 获取指定UP的其它视频
+export const fetchVideosByUploader = (uploaderId, limit = 4, excludeVideoId = null) => {
+  const params = { uploaderId, limit }
+  if (excludeVideoId) {
+    params.excludeVideoId = excludeVideoId
+  }
+  return request.get('/api/db/videos/by-uploader', { params })
+}
+

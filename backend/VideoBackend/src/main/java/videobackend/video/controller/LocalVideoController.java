@@ -58,6 +58,17 @@ public class LocalVideoController {
         );
     }
 
+    @GetMapping("/by-uploader")
+    public Map<String, Object> listByUploader(@RequestParam Long uploaderId,
+                                              @RequestParam(defaultValue = "4") int limit,
+                                              @RequestParam(required = false) String excludeVideoId) {
+        List<VideoItem> items = localVideoService.listByUploader(uploaderId, excludeVideoId, limit);
+        return Map.of(
+                "list", items,
+                "total", items.size()
+        );
+    }
+
     @GetMapping("/{videoId}")
     public ResponseEntity<VideoItem> detail(@PathVariable String videoId) {
         return localVideoService.findByVideoId(videoId)

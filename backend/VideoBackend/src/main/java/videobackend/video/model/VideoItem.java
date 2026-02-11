@@ -10,6 +10,8 @@ public record VideoItem(
         String storagePath,
         String sourceFile,
         Long viewCount,
+        Long likeCount,
+        Long favoriteCount,
         Long fileSize,
         String uploaderName,
         String uploadDate,
