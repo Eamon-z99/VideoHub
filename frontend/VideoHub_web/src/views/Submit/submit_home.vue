@@ -306,6 +306,7 @@ const selectedVideoSize = ref('')
 const coverFile = ref(null)
 const coverName = ref('')
 const coverPreview = ref('')
+const videoDurationSeconds = ref(0)
 const videoTitle = ref('')
 const videoDescription = ref('')
 const uploading = ref(false)
@@ -347,6 +348,32 @@ const onVideoFileChange = (event) => {
     const dot = file.name.lastIndexOf('.')
     videoTitle.value = dot > 0 ? file.name.slice(0, dot) : file.name
   }
+
+  // 获取视频时长（秒）：在浏览器端用隐藏 video 元素读取 metadata
+  try {
+    const url = URL.createObjectURL(file)
+    const videoEl = document.createElement('video')
+    videoEl.preload = 'metadata'
+    videoEl.src = url
+    videoEl.onloadedmetadata = () => {
+      // 部分浏览器需要先暂停
+      videoEl.pause()
+      const dur = videoEl.duration
+      if (typeof dur === 'number' && !Number.isNaN(dur) && dur > 0) {
+        // 使用向下取整，避免 11.9 这类被四舍五入成 12 秒导致数据库多 1 秒
+        videoDurationSeconds.value = Math.floor(dur)
+      } else {
+        videoDurationSeconds.value = 0
+      }
+      URL.revokeObjectURL(url)
+    }
+    videoEl.onerror = () => {
+      videoDurationSeconds.value = 0
+      URL.revokeObjectURL(url)
+    }
+  } catch (e) {
+    videoDurationSeconds.value = 0
+  }
 }
 
 const onCoverFileChange = (event) => {
@@ -377,6 +404,9 @@ const submitVideo = async () => {
   formData.append('description', videoDescription.value.trim())
   if (coverFile.value) {
     formData.append('cover', coverFile.value)
+  }
+  if (videoDurationSeconds.value && videoDurationSeconds.value > 0) {
+    formData.append('duration', String(videoDurationSeconds.value))
   }
 
   uploading.value = true

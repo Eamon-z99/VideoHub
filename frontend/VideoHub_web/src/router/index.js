@@ -6,6 +6,7 @@ const Vip = () => import('@/views/Vip/Vip.vue')
 const MemberMall = () => import('@/views/Mall/MemberMall.vue')
 const Login = () => import('@/components/Login.vue')
 const History = () => import('@/views/History/History.vue')
+const SearchResult = () => import('@/views/Search/SearchResult.vue')
 const UserProfile = () => import('@/views/UserProfile/UserProfile.vue')
 const FeedHome = () => import('@/views/FeedHome/FeedHome.vue')
 const Column = () => import('@/views/column/Column.vue')
@@ -76,6 +77,11 @@ const routes = [
     name: 'history',
     component: History,
     //meta: {requiresAuth: true} //路由守卫
+  },
+  {
+    path: '/search', // 搜索结果页
+    name: 'search',
+    component: SearchResult
   },
   {
     path: '/column',//专栏

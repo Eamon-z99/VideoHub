@@ -66,14 +66,15 @@ public class LocalVideoController {
                                     @RequestPart("file") MultipartFile file,
                                     @RequestPart(value = "cover", required = false) MultipartFile cover,
                                     @RequestParam(required = false) String title,
-                                    @RequestParam(required = false) String description) {
+                                    @RequestParam(required = false) String description,
+                                    @RequestParam(required = false, name = "duration") Integer durationSeconds) {
         try {
             Long userId = getUserIdFromRequest(request);
             if (userId == null) {
                 return ResponseEntity.status(401).body(Map.of("success", false, "message", "未登录或登录已过期"));
             }
 
-            String videoId = videoUploadService.uploadVideo(userId, title, description, file, cover);
+            String videoId = videoUploadService.uploadVideo(userId, title, description, file, cover, durationSeconds);
             // 返回刚刚创建的视频详情，便于前端刷新
             VideoItem item = localVideoService.findByVideoId(videoId).orElse(null);
             return ResponseEntity.ok(Map.of(

@@ -32,13 +32,14 @@ public class VideoUploadService {
 
     /**
      * 保存视频文件并创建一条视频记录，返回生成的视频 ID。
-     * 可选上传封面图片 coverFile。
+     * 可选上传封面图片 coverFile，并写入前端传来的时长（秒）。
      */
     public String uploadVideo(Long userId,
                               String title,
                               String description,
                               MultipartFile file,
-                              MultipartFile coverFile) throws IOException {
+                              MultipartFile coverFile,
+                              Integer durationSeconds) throws IOException {
         if (userId == null) {
             throw new IllegalArgumentException("未登录或登录已过期");
         }
@@ -115,12 +116,14 @@ public class VideoUploadService {
                 VALUES (?, ?, ?, ?, ?, ?, ?, 0, 0, 0, ?, ?, NOW())
                 """;
 
-        // 目前没有转码，duration 先写为 0，后续可在转码完成后回填真实时长
+        int safeDuration = (durationSeconds != null && durationSeconds > 0) ? durationSeconds : 0;
+
+        // 目前没有转码，如果前端没有提供时长，则先写 0，后续可在转码完成后回填真实时长
         jdbcTemplate.update(sql,
                 videoId,
                 StringUtils.hasText(title) ? title : defaultTitleFromFilename(originalFilename),
                 description,
-                0,                      // duration：必填列，先写 0
+                safeDuration,           // duration：前端提供的秒数，或 0
                 coverRelativePath,      // cover_url：如果有上传封面，则为相对路径，否则为 NULL
                 relativePath,           // storage_path：包含相对子目录
                 relativePath,           // source_file：保持一致，便于 LocalVideoService 解析

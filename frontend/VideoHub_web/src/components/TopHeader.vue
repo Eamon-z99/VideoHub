@@ -356,12 +356,9 @@ const navigateToCreatorCenter = () => {
 const doSearch = () => {
   const kw = searchText.value.trim()
   if (!kw) return
-  // 通过全局事件把关键字传给首页，而不是放在 URL 里
-  if (typeof window !== 'undefined') {
-    window.dispatchEvent(new CustomEvent('global-search', { detail: { keyword: kw } }))
-  }
-  // 确保当前在首页（如果已经在，则不会影响搜索逻辑）
-  router.push({ name: 'home' })
+  // 在新标签页打开搜索结果，而不是当前页跳转
+  const query = `?keyword=${encodeURIComponent(kw)}`
+  openInNewTab(`/search${query}`)
 }
 </script>
 
