@@ -73,7 +73,8 @@
           >
             <div class="thumb-wrap">
               <img :src="s.cover" :alt="s.title" @error="onImgError" />
-              <span class="duration">{{ s.duration }}</span>
+              <!-- 轮播不再展示视频时长 -->
+              <!-- <span class="duration">{{ s.duration }}</span> -->
               <div class="play-overlay">
                 <div class="play-button">▶</div>
               </div>
@@ -639,7 +640,7 @@ const playVideo = (video: any) => {
   max-width: 1350px;
   width: 100%;
   margin: 20px auto 20px;
-  padding: 0 20px;
+  // padding: 0 20px;
   box-sizing: border-box;
   display: grid;
   grid-template-columns: repeat(5, 1fr);
@@ -666,11 +667,31 @@ const playVideo = (video: any) => {
       inset: 0;
       display: flex;
       transition: transform .45s ease;
+      z-index: 0; // 图片层
 
-      .slide {
+          .slide {
           min-width: 100%;
           position: relative;
           cursor: pointer;
+          overflow: hidden;
+
+          // 每一张幻灯片底部的渐变遮罩（在图片之上，标题之下）
+          &::after {
+            content: "";
+            position: absolute;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            height: 90px;
+            background: linear-gradient(
+              180deg,
+              rgba(0, 0, 0, 0) 0%,
+              rgba(0, 0, 0, 0.55) 60%,
+              rgba(0, 0, 0, 0.8) 100%
+            );
+            pointer-events: none;
+            z-index: 1;
+          }
 
           .thumb-wrap {
             position: relative;
@@ -733,50 +754,54 @@ const playVideo = (video: any) => {
           .slide-caption {
             position: absolute;
             left: 16px;
-            bottom: 12px;
-            background: rgba(0, 0, 0, .45);
+            bottom: 40px; // 提高一些，给圆点留出更大间距
+            // 标题：18px、单行、不换行、超出省略号
+            font-size: 18px;
+            font-weight: 600;
             color: #fff;
-            padding: 6px 10px;
-            font-size: 12px;
-            border-radius: 4px;
-            backdrop-filter: blur(2px);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            max-width: calc(100% - 160px); // 预留右下角箭头按钮区域
+            z-index: 2; // 在渐变之上（slide::after 为 1）
           }
         }
     }
 
     .arrow {
       position: absolute;
-      top: 50%;
-      transform: translateY(-50%);
-      width: 32px;
-      height: 32px;
-      border-radius: 50%;
+      bottom: 40px; // 与标题同行
+      transform: none;
+      width: 28px;
+      height: 28px;
+      border-radius: 4px;
       border: 0;
-      background: rgba(0, 0, 0, .35);
+      background: rgba(0, 0, 0, .55);
       color: #fff;
       cursor: pointer;
+      z-index: 3; // 高于渐变（1）和图片（0）
 
       &.left {
-        left: 8px;
+        right: 56px;
       }
 
       &.right {
-        right: 8px;
+        right: 16px;
       }
     }
 
     .indicators {
       position: absolute;
-      left: 0;
-      right: 0;
-      bottom: 10px;
+      left: 16px;
+      bottom: 24px; // 标题 bottom: 40px，与标题垂直间距约 16px，更宽松
       display: flex;
-      justify-content: center;
+      justify-content: flex-start;
       gap: 6px;
+      z-index: 3;
 
       .dot {
-        width: 6px;
-        height: 6px;
+        width: 8px;
+        height: 8px;
         border-radius: 50%;
         background: rgba(255, 255, 255, .5);
         cursor: pointer;
@@ -866,7 +891,7 @@ const playVideo = (video: any) => {
   max-width: 1350px;
   width: 100%;
   margin: 80px auto 40px;
-  padding: 0 20px;
+  // padding: 0 20px;
   box-sizing: border-box;
 
   .video-virtual-wrapper {
