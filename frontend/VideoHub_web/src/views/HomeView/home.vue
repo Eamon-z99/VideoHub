@@ -157,7 +157,7 @@ import { FixedSizeGrid as ElVirtualGrid } from 'element-plus/es/components/virtu
 import { useRouter } from 'vue-router'
 import TopHeader from '@/components/TopHeader.vue'
 import VideoCard from '@/components/VideoCard.vue'
-import { fetchVideos, fetchTopVideos } from '@/api/video'
+import { fetchVideos, fetchTopVideos, searchVideos } from '@/api/video'
 
 const router = useRouter()
 
@@ -181,6 +181,8 @@ const finished = ref(false)
 const page = ref(1)
 const pageSize = 20
 const totalCount = ref(0)
+// 搜索关键字
+const searchKeyword = ref<string>('')
 // 响应式窗口宽度
 const windowWidth = ref(typeof window !== 'undefined' ? window.innerWidth : 1350)
 // 视频容器ref，用于获取实际宽度
@@ -316,7 +318,20 @@ const fetchVideosData = async (reset = false) => {
   if (isFirstPage) loadingVideos.value = true
   else loadingMore.value = true
   try {
-    const { data } = await fetchVideos(page.value, pageSize)
+    let data
+    const keyword = searchKeyword.value?.trim()
+    if (keyword) {
+      // 使用 JSON 请求体进行搜索
+      const resp = await searchVideos({
+        page: page.value,
+        pageSize,
+        keyword
+      })
+      data = resp.data
+    } else {
+      const resp = await fetchVideos(page.value, pageSize)
+      data = resp.data
+    }
     const mapped = normalizeList(data)
     videos.value = [...videos.value, ...mapped]
     const total = typeof data?.total === 'number' ? data.total : undefined
@@ -429,6 +444,19 @@ onMounted(() => {
   window.addEventListener('resize', handleResize)
 })
 
+// 监听全局搜索事件（来自 TopHeader）
+const handleGlobalSearch = (evt: Event) => {
+  // 自定义事件携带 { keyword }
+  const anyEvent = evt as CustomEvent<{ keyword?: string }>
+  const kw = (anyEvent.detail?.keyword || '').trim()
+  searchKeyword.value = kw
+  fetchVideosData(true)
+}
+
+if (typeof window !== 'undefined') {
+  window.addEventListener('global-search', handleGlobalSearch as EventListener)
+}
+
 onUnmounted(() => {
   if (timer) clearInterval(timer)
   if (observer) {
@@ -438,6 +466,9 @@ onUnmounted(() => {
   if (handleResize) {
     window.removeEventListener('resize', handleResize)
     handleResize = null
+  }
+  if (typeof window !== 'undefined') {
+    window.removeEventListener('global-search', handleGlobalSearch as EventListener)
   }
 })
 

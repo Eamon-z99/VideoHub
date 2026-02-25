@@ -1,19 +1,25 @@
 <template>
   <div class="submit-layout">
-    <!-- 左侧侧边栏 -->
-    <el-aside width="220px" class="sidebar">
-      <div class="sidebar-header">
-        <span class="site-title">创作中心</span>
-      </div>
-      
-      <el-menu
+    <!-- 顶部标题栏（横跨整页） -->
+    <div class="sidebar-header">
+      <span class="site-title">创作中心</span>
+    </div>
+
+    <div class="submit-main">
+      <!-- 左侧侧边栏 -->
+      <el-aside width="220px" class="sidebar">
+        <el-menu
         :default-active="currentView"
         class="sidebar-menu"
         @select="handleMenuSelect"
       >
         <el-menu-item-group title="主要功能">
-          <el-menu-item index="submit">
-            <span>投稿</span>
+          <!-- 投稿：使用纯样式图标按钮，不再依赖图片资源 -->
+          <el-menu-item index="submit" class="submit-menu-item">
+            <div class="submit-entry">
+              <span class="submit-icon">⭱</span>
+              <span class="submit-text">投稿</span>
+            </div>
           </el-menu-item>
           <el-menu-item index="home">
             <span>首页</span>
@@ -21,47 +27,47 @@
         </el-menu-item-group>
         
         <el-menu-item-group title="内容管理">
-          <el-menu-item index="contentManagement">
+          <el-menu-item index="contentManagement" disabled class="todo-item">
             <span>内容管理</span>
           </el-menu-item>
-          <el-menu-item index="dataCenter">
+          <el-menu-item index="dataCenter" disabled class="todo-item">
             <span>数据中心</span>
           </el-menu-item>
         </el-menu-item-group>
         
         <el-menu-item-group title="创作成长">
-          <el-menu-item index="growth">
+          <el-menu-item index="growth" disabled class="todo-item">
             <span>创作成长</span>
           </el-menu-item>
-          <el-menu-item index="achievement">
+          <el-menu-item index="achievement" disabled class="todo-item">
             <span>任务成就</span>
             <el-tag size="small" type="danger" class="new-tag">NEW</el-tag>
           </el-menu-item>
-          <el-menu-item index="promotion">
+          <el-menu-item index="promotion" disabled class="todo-item">
             <span>必火推广</span>
             <el-tag size="small" type="danger" class="new-tag">NEW</el-tag>
           </el-menu-item>
-          <el-menu-item index="academy">
+          <el-menu-item index="academy" disabled class="todo-item">
             <span>创作学院</span>
           </el-menu-item>
         </el-menu-item-group>
         
         <el-menu-item-group title="设置与规范">
-          <el-menu-item index="rights">
+          <el-menu-item index="rights" disabled class="todo-item">
             <span>创作权益</span>
           </el-menu-item>
-          <el-menu-item index="convention">
+          <el-menu-item index="convention" disabled class="todo-item">
             <span>社区公约</span>
           </el-menu-item>
-          <el-menu-item index="settings">
+          <el-menu-item index="settings" disabled class="todo-item">
             <span>创作设置</span>
           </el-menu-item>
         </el-menu-item-group>
-      </el-menu>
-    </el-aside>
+        </el-menu>
+      </el-aside>
 
-    <!-- 右侧内容区域 -->
-    <el-main class="content-main">
+      <!-- 右侧内容区域 -->
+      <el-main class="content-main">
       <!-- 投稿页面内容 -->
       <div v-if="currentView === 'submit'" class="content-page">
         <!-- 顶部标签导航 -->
@@ -77,9 +83,69 @@
         <!-- 上传区域 -->
         <el-card class="upload-card" shadow="never">
           <div class="upload-area">
-            <p>拖拽到此处也可上传</p>
-            <el-button type="primary" @click="handleFileChange">上传视频</el-button>
-            <p>当前审核队列 <el-tag size="small" type="primary">快速</el-tag></p>
+            <input
+              ref="videoFileInput"
+              type="file"
+              accept="video/*"
+              style="display: none"
+              @change="onVideoFileChange"
+            />
+            <input
+              ref="coverFileInput"
+              type="file"
+              accept="image/*"
+              style="display: none"
+              @change="onCoverFileChange"
+            />
+            <p class="upload-title">选择要投稿的视频文件</p>
+            <el-button type="primary" @click="triggerSelectVideo" :loading="uploading">
+              {{ uploading ? '上传中...' : '选择视频并上传' }}
+            </el-button>
+            <p v-if="selectedVideoName" class="file-hint">
+              当前文件：{{ selectedVideoName }}（{{ selectedVideoSize }}）
+            </p>
+            <div class="cover-row">
+              <div class="cover-info">
+                <span class="cover-label">封面（可选）：</span>
+                <el-button size="small" @click="triggerSelectCover" :disabled="uploading">
+                  选择封面图片
+                </el-button>
+                <span v-if="coverName" class="cover-text">已选择：{{ coverName }}</span>
+              </div>
+              <div v-if="coverPreview" class="cover-preview">
+                <img :src="coverPreview" alt="封面预览" />
+              </div>
+            </div>
+            <el-form label-width="72px" class="upload-form">
+              <el-form-item label="标题">
+                <el-input
+                  v-model="videoTitle"
+                  maxlength="80"
+                  show-word-limit
+                  placeholder="请输入视频标题"
+                />
+              </el-form-item>
+              <el-form-item label="简介">
+                <el-input
+                  v-model="videoDescription"
+                  type="textarea"
+                  :rows="3"
+                  maxlength="200"
+                  show-word-limit
+                  placeholder="简单介绍一下你的视频内容"
+                />
+              </el-form-item>
+              <el-form-item>
+                <el-button
+                  type="primary"
+                  :disabled="!videoFile || uploading"
+                  :loading="uploading"
+                  @click="submitVideo"
+                >
+                  {{ uploading ? '正在投稿...' : '立即投稿' }}
+                </el-button>
+              </el-form-item>
+            </el-form>
           </div>
         </el-card>
 
@@ -179,7 +245,8 @@
         <h2>{{ getPageTitle(currentView) }}</h2>
         <p>这里将显示 {{ getPageTitle(currentView) }} 相关功能</p>
       </div>
-    </el-main>
+      </el-main>
+    </div>
   </div>
   
 </template>
@@ -197,6 +264,8 @@ import Academy from './academy.vue'
 import Rights from './rights.vue'
 import Convention from './convention.vue'
 import Settings from './settings.vue'
+import { uploadVideo } from '@/api/video'
+import { ElMessage } from 'element-plus'
 
 const route = useRoute()
 
@@ -228,8 +297,119 @@ const handleMenuSelect = (index) => {
   console.log('切换到:', index)
 }
 
-const handleFileChange = () => {
-  console.log('点击上传按钮')
+// 视频投稿表单状态
+const videoFileInput = ref(null)
+const coverFileInput = ref(null)
+const videoFile = ref(null)
+const selectedVideoName = ref('')
+const selectedVideoSize = ref('')
+const coverFile = ref(null)
+const coverName = ref('')
+const coverPreview = ref('')
+const videoTitle = ref('')
+const videoDescription = ref('')
+const uploading = ref(false)
+
+const triggerSelectVideo = () => {
+  videoFileInput.value?.click()
+}
+
+const triggerSelectCover = () => {
+  coverFileInput.value?.click()
+}
+
+const formatSize = (size) => {
+  if (!size && size !== 0) return ''
+  if (size >= 1024 * 1024 * 1024) {
+    return (size / (1024 * 1024 * 1024)).toFixed(2) + ' GB'
+  }
+  if (size >= 1024 * 1024) {
+    return (size / (1024 * 1024)).toFixed(2) + ' MB'
+  }
+  if (size >= 1024) {
+    return (size / 1024).toFixed(2) + ' KB'
+  }
+  return size + ' B'
+}
+
+const onVideoFileChange = (event) => {
+  const file = event.target.files?.[0]
+  if (!file) return
+  // 简单类型校验
+  if (!file.type.startsWith('video/')) {
+    ElMessage.warning('请选择视频文件')
+    return
+  }
+  videoFile.value = file
+  selectedVideoName.value = file.name
+  selectedVideoSize.value = formatSize(file.size)
+  if (!videoTitle.value) {
+    const dot = file.name.lastIndexOf('.')
+    videoTitle.value = dot > 0 ? file.name.slice(0, dot) : file.name
+  }
+}
+
+const onCoverFileChange = (event) => {
+  const file = event.target.files?.[0]
+  if (!file) return
+  if (!file.type.startsWith('image/')) {
+    ElMessage.warning('封面必须是图片文件')
+    return
+  }
+  coverFile.value = file
+  coverName.value = file.name
+  // 预览
+  coverPreview.value = URL.createObjectURL(file)
+}
+
+const submitVideo = async () => {
+  if (!videoFile.value) {
+    ElMessage.warning('请先选择要投稿的视频文件')
+    return
+  }
+  if (!videoTitle.value.trim()) {
+    ElMessage.warning('请填写视频标题')
+    return
+  }
+  const formData = new FormData()
+  formData.append('file', videoFile.value)
+  formData.append('title', videoTitle.value.trim())
+  formData.append('description', videoDescription.value.trim())
+  if (coverFile.value) {
+    formData.append('cover', coverFile.value)
+  }
+
+  uploading.value = true
+  try {
+    const { data } = await uploadVideo(formData)
+    if (data && data.success) {
+      ElMessage.success('投稿成功，稍后即可在首页看到新视频')
+      // 重置表单
+      videoFile.value = null
+      selectedVideoName.value = ''
+      selectedVideoSize.value = ''
+      videoTitle.value = ''
+      videoDescription.value = ''
+      if (videoFileInput.value) {
+        videoFileInput.value.value = ''
+      }
+      if (coverFileInput.value) {
+        coverFileInput.value.value = ''
+      }
+      if (coverPreview.value) {
+        URL.revokeObjectURL(coverPreview.value)
+      }
+      coverFile.value = null
+      coverName.value = ''
+      coverPreview.value = ''
+    } else {
+      ElMessage.error(data?.message || '投稿失败，请稍后重试')
+    }
+  } catch (e) {
+    ElMessage.error(e?.response?.data?.message || '投稿失败，请稍后重试')
+  } finally {
+    uploading.value = false
+  }
 }
 
 // 获取页面标题
@@ -254,6 +434,7 @@ const getPageTitle = (view) => {
 <style lang="scss" scoped>
 .submit-layout {
   display: flex;
+  flex-direction: column;
   min-height: 100vh;
   background: #f5f7fa;
 }
@@ -261,8 +442,12 @@ const getPageTitle = (view) => {
 .sidebar {
   background: #fff;
   border-right: 1px solid #e4e7ed;
-  height: 100vh;
   overflow-y: auto;
+}
+
+.submit-main {
+  display: flex;
+  flex: 1;
 }
 
 .sidebar-header {
@@ -271,6 +456,7 @@ const getPageTitle = (view) => {
   gap: 8px;
   padding: 16px;
   border-bottom: 1px solid #e4e7ed;
+  background: #ffffff;
   
   .site-logo {
     background: linear-gradient(135deg, #67d1ff, #00aeec);
@@ -287,10 +473,8 @@ const getPageTitle = (view) => {
   border-right: none;
   
   :deep(.el-menu-item-group__title) {
-    color: #909399;
-    font-size: 12px;
-    padding: 0 20px;
-    margin-top: 16px;
+    // 不显示分组标题（主要功能 / 内容管理 / 创作成长 / 设置与规范）
+    display: none;
   }
   
   :deep(.el-menu-item) {
@@ -304,8 +488,66 @@ const getPageTitle = (view) => {
   }
 }
 
+/* 左侧“投稿”按钮的图标样式，参考你提供的蓝色按钮效果 */
+:deep(.submit-menu-item) {
+  /* 清理默认高亮背景，交给内部按钮控制 */
+  &.is-active {
+    background-color: transparent;
+  }
+
+  .submit-entry {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    height: 40px;
+    margin: 4px 0;
+    border-radius: 4px;
+    background-color: #00a7e1;
+    color: #fff;
+    font-size: 15px;
+    cursor: pointer;
+    transition: background-color 0.2s ease;
+  }
+
+  .submit-icon {
+    width: 22px;
+    height: 22px;
+    border-radius: 4px;
+    border: 2px solid #ffffff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+    line-height: 1;
+  }
+
+  .submit-text {
+    letter-spacing: 2px;
+  }
+
+  &:hover .submit-entry {
+    background-color: #0092c6;
+  }
+}
+
 .new-tag {
   margin-left: auto;
+}
+
+/* 其他未开发菜单项：浅灰色、不可点击 */
+:deep(.el-menu-item.todo-item.is-disabled) {
+  color: #9ca3af !important; // 稍深一点的灰色，保证可读性
+  cursor: default;
+
+  &:hover {
+    background-color: transparent !important;
+  }
+
+  .el-tag {
+    opacity: 0.5;
+  }
 }
 
 .content-main {
@@ -333,11 +575,62 @@ const getPageTitle = (view) => {
 
 .upload-area {
   text-align: center;
-  padding: 40px;
+  padding: 24px 40px 32px;
   
-  p {
-    margin: 16px 0;
+  .upload-title {
+    margin: 8px 0 16px;
     color: #606266;
+    font-size: 14px;
+  }
+
+  .file-hint {
+    margin-top: 8px;
+    color: #909399;
+    font-size: 13px;
+  }
+
+  .cover-row {
+    margin-top: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+  }
+
+  .cover-info {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    color: #606266;
+  }
+
+  .cover-label {
+    font-weight: 500;
+  }
+
+  .cover-text {
+    color: #909399;
+  }
+
+  .cover-preview {
+    width: 120px;
+    height: 68px;
+    border-radius: 6px;
+    overflow: hidden;
+    border: 1px solid #e5e7eb;
+    flex-shrink: 0;
+
+    img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+  }
+
+  .upload-form {
+    margin-top: 24px;
+    text-align: left;
   }
 }
 

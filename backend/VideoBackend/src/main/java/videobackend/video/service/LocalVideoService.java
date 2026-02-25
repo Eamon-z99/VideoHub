@@ -115,6 +115,63 @@ public class LocalVideoService {
     }
 
     /**
+     * 按关键字搜索视频（标题 / 描述 / 作者昵称）
+     */
+    public List<VideoItem> listPageByKeyword(String keyword, int page, int pageSize) {
+        if (keyword == null || keyword.isBlank()) {
+            return listPage(page, pageSize);
+        }
+        int safeSize = Math.max(1, Math.min(pageSize, 100));
+        int safePage = Math.max(1, page);
+        int offset = (safePage - 1) * safeSize;
+        String like = "%" + keyword.trim() + "%";
+
+        String sql = """
+                SELECT v.video_id,
+                       v.title,
+                       v.description,
+                       v.duration,
+                       v.cover_url,
+                       v.storage_path,
+                       v.source_file,
+                       v.view_count,
+                       v.like_count,
+                       v.favorite_count,
+                       v.file_size,
+                       u.username AS uploader_name,
+                       u.avatar AS uploader_avatar,
+                       u.id AS uploader_id,
+                       v.create_time
+                FROM videos v
+                LEFT JOIN users u ON v.user_id = u.id
+                WHERE v.title LIKE ?
+                   OR v.description LIKE ?
+                   OR u.username LIKE ?
+                ORDER BY v.create_time DESC
+                LIMIT ? OFFSET ?
+                """;
+        return jdbcTemplate.query(sql, (rs, i) -> mapToVideo(rs),
+                like, like, like, safeSize, offset);
+    }
+
+    public long countByKeyword(String keyword) {
+        if (keyword == null || keyword.isBlank()) {
+            return count();
+        }
+        String like = "%" + keyword.trim() + "%";
+        String sql = """
+                SELECT COUNT(*)
+                FROM videos v
+                LEFT JOIN users u ON v.user_id = u.id
+                WHERE v.title LIKE ?
+                   OR v.description LIKE ?
+                   OR u.username LIKE ?
+                """;
+        Long total = jdbcTemplate.queryForObject(sql, Long.class, like, like, like);
+        return total == null ? 0 : total;
+    }
+
+    /**
      * 获取关注用户的视频列表（分页）
      */
     public List<VideoItem> listPageByFollowing(Long userId, Long followingId, int page, int pageSize) {

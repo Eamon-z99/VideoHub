@@ -1,6 +1,13 @@
 import request from '@/utils/request'
 
-export const fetchVideos = (page = 1, pageSize = 20, userId = null, followingOnly = false, followingId = null) => {
+// 普通视频列表（不带关键字，用于首页默认推荐）
+export const fetchVideos = (
+  page = 1,
+  pageSize = 20,
+  userId = null,
+  followingOnly = false,
+  followingId = null
+) => {
   const params = { page, pageSize }
   if (userId) {
     params.userId = userId
@@ -29,5 +36,19 @@ export const fetchVideosByUploader = (uploaderId, limit = 4, excludeVideoId = nu
     params.excludeVideoId = excludeVideoId
   }
   return request.get('/api/db/videos/by-uploader', { params })
+}
+
+// 按关键字搜索视频（JSON 请求体）
+export const searchVideos = (payload) => {
+  return request.post('/api/db/videos/search', payload)
+}
+
+// 上传视频（投稿）
+export const uploadVideo = (formData) => {
+  return request.post('/api/db/videos/upload', formData, {
+    headers: {
+      'Content-Type': 'multipart/form-data',
+    },
+  })
 }
 

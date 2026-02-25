@@ -26,8 +26,13 @@
       </li>
     </ul>
     <div class="search">
-      <input class="search-input" placeholder="搜索你感兴趣的内容" />
-      <button class="search-btn">
+      <input
+        class="search-input"
+        v-model="searchText"
+        placeholder="搜索你感兴趣的内容"
+        @keyup.enter="doSearch"
+      />
+      <button class="search-btn" @click="doSearch">
         <!-- 🔍 -->
         <img src="/assets/search-button.png" class="search-btn-img"/>
       </button>
@@ -114,6 +119,9 @@ let isFixed = ref(false)
 let scrollTop = ref(0)
 
 const isAuthenticated = computed(() => userStore.isAuthenticated)
+
+// 搜索关键字
+const searchText = ref('')
 
 // 规范化头像 URL
 const normalizeAvatarUrl = (url: string) => {
@@ -343,6 +351,17 @@ const goTo = (path: string) => {
 
 const navigateToCreatorCenter = () => {
   openInNewTab('/submitHome?view=contentManagement')
+}
+
+const doSearch = () => {
+  const kw = searchText.value.trim()
+  if (!kw) return
+  // 通过全局事件把关键字传给首页，而不是放在 URL 里
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent('global-search', { detail: { keyword: kw } }))
+  }
+  // 确保当前在首页（如果已经在，则不会影响搜索逻辑）
+  router.push({ name: 'home' })
 }
 </script>
 
