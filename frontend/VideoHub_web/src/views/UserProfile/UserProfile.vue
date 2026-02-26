@@ -776,9 +776,16 @@ export default {
             name: it.name,
             count: it.count ?? 0,
             description: it.description || '',
-            coverUrl: it.coverUrl || '',
+            // 初始不信任后端封面，统一前端按“最新收藏视频”原则计算
+            coverUrl: '',
             isPublic: it.isPublic !== false
           }))
+          // 异步为每个有视频的收藏夹计算“最新收藏视频封面”
+          this.folders.forEach(folder => {
+            if (folder.count > 0) {
+              this.updateFolderCover(folder.id)
+            }
+          })
           // 如果当前选中的收藏夹已不存在，重置
           if (this.activeFolderId && !this.folders.some(f => f.id === this.activeFolderId)) {
             this.activeFolderId = null
@@ -787,6 +794,39 @@ export default {
       } catch (e) {
         console.error('加载收藏夹失败:', e)
         this.folders = []
+      }
+    },
+
+    // 统一计算某个收藏夹的“封面”：该收藏夹最新收藏的视频封面
+    async updateFolderCover (folderId) {
+      if (!folderId || !this.currentUserId) return
+      try {
+        const { data } = await getFavoriteListByFolder(this.currentUserId, folderId, 1, 1)
+        if (data && data.success && data.list && data.list.length > 0) {
+          const firstVideo = data.list[0]
+          const newCoverUrl = firstVideo.coverUrl || ''
+          if (newCoverUrl && newCoverUrl.trim() !== '') {
+            // 更新当前页左侧列表中的封面
+            const folder = this.folders.find(f => f.id === folderId)
+            if (folder) {
+              folder.coverUrl = this.normalizeImageUrl(newCoverUrl)
+            }
+            // 如果当前激活的就是这个收藏夹，同步更新顶部展示封面
+            if (this.activeFolderId === folderId && this.activeFolder) {
+              this.activeFolder.coverUrl = this.normalizeImageUrl(newCoverUrl)
+            }
+            // 如果编辑弹窗正在编辑这个收藏夹，同步更新预览封面
+            if (this.editFolderDialog.visible && this.editFolderDialog.folder && this.editFolderDialog.folder.id === folderId) {
+              this.editFolderDialog.coverUrl = this.normalizeImageUrl(newCoverUrl)
+            }
+            // 通知其他页面（如主页 ProfileHome）同步更新该收藏夹封面
+            window.dispatchEvent(new CustomEvent('favorite-folder-cover-updated', {
+              detail: { folderId, coverUrl: this.normalizeImageUrl(newCoverUrl) }
+            }))
+          }
+        }
+      } catch (e) {
+        console.error('更新收藏夹封面失败:', e)
       }
     },
 
@@ -872,8 +912,15 @@ export default {
       try {
         const { data } = await getFavoriteListByFolder(userId, folderId, this.page, this.pageSize)
         if (data.success) {
-          const list = data.list || []
+          let list = data.list || []
           const total = data.total || 0
+          
+          // 按收藏时间倒序排序（最新收藏的排在最前）
+          list = list.slice().sort((a, b) => {
+            const ta = a.createTime ? new Date(a.createTime).getTime() : 0
+            const tb = b.createTime ? new Date(b.createTime).getTime() : 0
+            return tb - ta
+          })
           
           // 格式化视频数据
           const formattedVideos = list.map(item => ({
@@ -896,13 +943,6 @@ export default {
           const currentFolder = this.folders.find(f => f.id === folderId)
           if (currentFolder) {
             currentFolder.count = total
-            // 更新封面（使用第一个视频的封面，如果收藏夹没有封面或视频列表有更新）
-            if (formattedVideos.length > 0 && formattedVideos[0].cover) {
-              // 如果收藏夹没有封面，或者第一个视频的封面与当前不同，则更新
-              if (!currentFolder.coverUrl || currentFolder.coverUrl !== formattedVideos[0].cover) {
-                currentFolder.coverUrl = formattedVideos[0].cover
-              }
-            }
           }
           
           // 缓存数据
@@ -1183,31 +1223,8 @@ export default {
       }
       this.folderMenuForId = null
       
-      // 无论封面是否已有，都调用API获取第一个视频的封面（确保是最新的）
-      try {
-        const { data } = await getFavoriteListByFolder(this.currentUserId, folder.id, 1, 1)
-        if (data && data.success && data.list && data.list.length > 0) {
-          const firstVideo = data.list[0]
-          // API返回的原始数据中字段是 coverUrl
-          const newCoverUrl = firstVideo.coverUrl || ''
-          
-          // 如果获取到了封面，更新所有相关数据
-          if (newCoverUrl && newCoverUrl.trim() !== '') {
-            coverUrl = newCoverUrl
-            // 更新 folder 对象（Vue 3 直接赋值即可）
-            folder.coverUrl = coverUrl
-            // 同时更新 folders 数组中对应的收藏夹
-            const folderInList = this.folders.find(f => f.id === folder.id)
-            if (folderInList) {
-              folderInList.coverUrl = coverUrl
-            }
-            // 更新对话框中的封面（Vue 3 直接赋值即可）
-            this.editFolderDialog.coverUrl = coverUrl
-          }
-        }
-      } catch (e) {
-        console.error('加载封面失败:', e)
-      }
+      // 无论封面是否已有，都通过统一方法按“最新收藏视频”规则刷新封面
+      this.updateFolderCover(folder.id)
     },
     
     closeEditFolderDialog () {

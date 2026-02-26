@@ -63,14 +63,13 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
-import { useRouter } from 'vue-router'
+import { ref, onMounted, onBeforeUnmount } from 'vue'
 import { getFavoriteFolderList } from '@/api/favoriteFolder'
 import { getUserLikedVideos } from '@/api/like'
 import { useUserStore } from '@/stores/user'
 import VideoCard from '@/components/VideoCard.vue'
 
-const router = useRouter()
+const emit = defineEmits(['open-folder'])
 const userStore = useUserStore()
 
 const folders = ref([])
@@ -81,6 +80,12 @@ const loadingLikes = ref(false)
 onMounted(() => {
   loadFolders()
   loadLikes()
+  // 监听来自 UserProfile 的封面更新事件，保持主页与收藏页封面同步
+  window.addEventListener('favorite-folder-cover-updated', handleFolderCoverUpdated)
+})
+
+onBeforeUnmount(() => {
+  window.removeEventListener('favorite-folder-cover-updated', handleFolderCoverUpdated)
 })
 
 async function loadFolders() {
@@ -94,36 +99,20 @@ async function loadFolders() {
     }
     const { data } = await getFavoriteFolderList(userId)
     if (data && data.success && Array.isArray(data.list)) {
+      // 忽略后端返回的封面，前端统一按“最新收藏视频封面”规则计算
       folders.value = data.list.map(item => ({
         id: item.id,
         name: item.name || '未命名收藏夹',
         count: item.count ?? 0,
-        coverUrl: item.coverUrl || '',
+        coverUrl: '',
         description: item.description || '',
         isPublic: item.isPublic !== false
       }))
       
-      // 如果收藏夹没有封面，尝试从第一个视频获取（异步加载，不阻塞UI）
-      folders.value.forEach((folder, index) => {
-        if ((!folder.coverUrl || folder.coverUrl === '') && folder.count > 0) {
-          // 异步获取封面，不阻塞主流程
-          import('@/api/favorite').then(({ getFavoriteListByFolder }) => {
-            return getFavoriteListByFolder(userId, folder.id, 1, 1)
-          }).then(({ data: videoData }) => {
-            if (videoData && videoData.success && videoData.list && videoData.list.length > 0) {
-              const firstVideo = videoData.list[0]
-              if (firstVideo.coverUrl) {
-                // 使用 Vue 3 的响应式更新方式
-                const folderToUpdate = folders.value[index]
-                if (folderToUpdate) {
-                  folderToUpdate.coverUrl = normalizeImageUrl(firstVideo.coverUrl)
-                }
-              }
-            }
-          }).catch((e) => {
-            // 忽略错误
-            console.warn(`获取收藏夹 ${folder.id} 封面失败:`, e)
-          })
+      // 为每个有视频的收藏夹异步拉取“最新收藏视频”封面
+      folders.value.forEach(folder => {
+        if (folder.count > 0) {
+          updateFolderCoverForHome(userId, folder.id)
         }
       })
     } else {
@@ -134,6 +123,35 @@ async function loadFolders() {
     folders.value = []
   } finally {
     loadingFolders.value = false
+  }
+}
+
+function handleFolderCoverUpdated(event) {
+  const detail = event?.detail || {}
+  const folderId = detail.folderId
+  const coverUrl = detail.coverUrl
+  if (!folderId || !coverUrl) return
+  const target = folders.value.find(f => f.id === folderId)
+  if (target) {
+    target.coverUrl = normalizeImageUrl(coverUrl)
+  }
+}
+
+async function updateFolderCoverForHome(userId, folderId) {
+  try {
+    const { getFavoriteListByFolder } = await import('@/api/favorite')
+    const { data } = await getFavoriteListByFolder(userId, folderId, 1, 1)
+    if (data && data.success && data.list && data.list.length > 0) {
+      const firstVideo = data.list[0]
+      if (firstVideo.coverUrl) {
+        const folder = folders.value.find(f => f.id === folderId)
+        if (folder) {
+          folder.coverUrl = normalizeImageUrl(firstVideo.coverUrl)
+        }
+      }
+    }
+  } catch (e) {
+    console.warn(`主页获取收藏夹 ${folderId} 封面失败:`, e)
   }
 }
 
@@ -201,15 +219,8 @@ function openVideo(videoId) {
 
 function openFolder(folderId) {
   if (!folderId) return
-  // 跳转到收藏tab并展开对应收藏夹
-  // 通过路由参数传递收藏夹ID
-  router.push({
-    path: '/user/profile',
-    query: {
-      tab: 'collections',
-      folder: folderId
-    }
-  })
+  // 通知父组件切换到收藏tab并展开对应收藏夹
+  emit('open-folder', folderId)
 }
 
 function formatVideoForCard(video) {

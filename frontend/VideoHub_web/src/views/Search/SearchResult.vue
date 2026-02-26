@@ -101,6 +101,8 @@ const total = ref(0)
 
 const loadMoreTrigger = ref(null)
 let observer = null
+// 避免刚进入页面时触发一次 IntersectionObserver 导致立即请求第二页
+const hasFirstIntersect = ref(false)
 
 const formatDuration = (seconds) => {
   if (!seconds || seconds <= 0) return ''
@@ -188,7 +190,15 @@ const setupIntersectionObserver = () => {
   observer = new IntersectionObserver(
     (entries) => {
       const entry = entries[0]
-      if (entry.isIntersecting && !loading.value && !loadingMore.value && !finished.value) {
+      if (!entry.isIntersecting) return
+
+      // 第一次进入视口时只标记一下，不触发加载，防止进页面就请求两页
+      if (!hasFirstIntersect.value) {
+        hasFirstIntersect.value = true
+        return
+      }
+
+      if (!loading.value && !loadingMore.value && !finished.value) {
         loadResults()
       }
     },
@@ -223,6 +233,7 @@ onMounted(() => {
   const kw = typeof kwParam === 'string' ? kwParam : ''
   keyword.value = kw
   localKeyword.value = kw
+  hasFirstIntersect.value = false
   loadResults(true)
   nextTick(() => {
     setupIntersectionObserver()
@@ -237,6 +248,7 @@ watch(
     if (kw === keyword.value) return
     keyword.value = kw
     localKeyword.value = kw
+    hasFirstIntersect.value = false
     loadResults(true)
   },
 )
