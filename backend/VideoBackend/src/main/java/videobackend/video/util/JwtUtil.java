@@ -3,6 +3,7 @@ package videobackend.video.util;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.Keys;
+import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
@@ -77,6 +78,19 @@ public class JwtUtil {
         } catch (Exception e) {
             return false;
         }
+    }
+
+    /**
+     * 从 HttpServletRequest 的 Authorization 头中解析 userId，方便在各个 Controller 中复用
+     */
+    public Long getUserIdFromRequest(HttpServletRequest request) {
+        if (request == null) return null;
+        String bearerToken = request.getHeader("Authorization");
+        if (bearerToken != null && bearerToken.startsWith("Bearer ")) {
+            String token = bearerToken.substring(7);
+            return getUserIdFromToken(token);
+        }
+        return null;
     }
 }
 

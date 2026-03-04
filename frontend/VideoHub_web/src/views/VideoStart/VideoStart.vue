@@ -37,6 +37,89 @@
           @timeupdate="onTimeUpdate"
           @loadedmetadata="onVideoLoaded"
         />
+
+        <!-- 弹幕展示层 -->
+        <div class="danmaku-layer" v-if="danmakuEnabled">
+          <div
+            v-for="item in danmakuItems"
+            :key="item.id"
+            class="danmaku-item"
+            :style="{
+              top: (item.track * 26 + 20) + 'px',
+              animationDuration: item.duration + 's',
+              color: item.color || '#ffffff'
+            }"
+          >
+            {{ item.content }}
+          </div>
+        </div>
+      </div>
+
+      <!-- 弹幕输入栏 -->
+      <div class="danmaku-bar">
+        <div class="danmaku-info">
+          <span class="danmaku-stats">
+            <span class="watching-count">
+              <span class="count-number">{{ watchingCount }}</span>
+              人正在看
+            </span>
+            <span class="danmaku-count">
+              已装填
+              <span class="count-number">{{ loadedDanmakuCount }}</span>
+              条弹幕
+            </span>
+          </span>
+          <div class="danmaku-controls">
+            <button 
+              class="danmaku-toggle-btn" 
+              :class="{ 'is-active': danmakuEnabled }"
+              @click="toggleDanmaku"
+              title="弹幕开关"
+            >
+              <!-- 关闭：带 X 角标（SVG 内部实现，不叠加 span） -->
+              <svg v-if="!danmakuEnabled" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+                <path fill-rule="evenodd" d="M11.989 4.828c-.47 0-.975.004-1.515.012l-1.71-2.566a1.008 1.008 0 0 0-1.678 1.118l.999 1.5c-.681.018-1.403.04-2.164.068a4.013 4.013 0 0 0-3.83 3.44c-.165 1.15-.245 2.545-.245 4.185 0 1.965.115 3.67.35 5.116a4.012 4.012 0 0 0 3.763 3.363l.906.046c1.205.063 1.808.095 3.607.095a.988.988 0 0 0 0-1.975c-1.758 0-2.339-.03-3.501-.092l-.915-.047a2.037 2.037 0 0 1-1.91-1.708c-.216-1.324-.325-2.924-.325-4.798 0-1.563.076-2.864.225-3.904.14-.977.96-1.713 1.945-1.747 2.444-.087 4.465-.13 6.063-.131 1.598 0 3.62.044 6.064.13.96.034 1.71.81 1.855 1.814.075.524.113 1.962.141 3.065v.002c.01.342.017.65.025.88a.987.987 0 1 0 1.974-.068c-.008-.226-.016-.523-.025-.856v-.027c-.03-1.118-.073-2.663-.16-3.276-.273-1.906-1.783-3.438-3.74-3.507-.9-.032-1.743-.058-2.531-.078l1.05-1.46a1.008 1.008 0 0 0-1.638-1.177l-1.862 2.59c-.38-.004-.744-.007-1.088-.007h-.13Zm.521 4.775h-1.32v4.631h2.222v.847h-2.618v1.078h2.618l.003.678c.36.026.714.163 1.01.407h.11v-1.085h2.694v-1.078h-2.695v-.847H16.8v-4.63h-1.276a8.59 8.59 0 0 0 .748-1.42L15.183 7.8a14.232 14.232 0 0 1-.814 1.804h-1.518l.693-.308a8.862 8.862 0 0 0-.814-1.408l-1.045.352c.297.396.572.847.825 1.364Zm-4.18 3.564.154-1.485h1.98V8.294h-3.2v.98H9.33v1.43H7.472l-.308 3.453h2.277c0 1.166-.044 1.925-.12 2.277-.078.352-.386.528-.936.528-.308 0-.616-.022-.902-.055l.297 1.067.062.005c.285.02.551.04.818.04 1.001-.067 1.562-.419 1.694-1.057.11-.638.176-1.903.176-3.795h-2.2Zm7.458.11v-.858h-1.254v.858h1.254Zm-2.376-.858v.858h-1.199v-.858h1.2Zm-1.199-.946h1.2v-.902h-1.2v.902Zm2.321 0v-.902h1.254v.902h-1.254Z" clip-rule="evenodd"></path>
+                <!-- 角标：加大并右下对齐，更醒目 -->
+                <circle cx="19" cy="19" r="4.25" fill="currentColor"></circle>
+                <path d="M17.6 17.6L20.4 20.4M20.4 17.6L17.6 20.4" stroke="#fff" stroke-width="2" stroke-linecap="round"></path>
+              </svg>
+              <!-- 开启：带 ✓ 角标（SVG 内部实现，不叠加 span） -->
+              <svg v-else xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+                <path fill-rule="evenodd" d="M11.989 4.828c-.47 0-.975.004-1.515.012l-1.71-2.566a1.008 1.008 0 0 0-1.678 1.118l.999 1.5c-.681.018-1.403.04-2.164.068a4.013 4.013 0 0 0-3.83 3.44c-.165 1.15-.245 2.545-.245 4.185 0 1.965.115 3.67.35 5.116a4.012 4.012 0 0 0 3.763 3.363l.906.046c1.205.063 1.808.095 3.607.095a.988.988 0 0 0 0-1.975c-1.758 0-2.339-.03-3.501-.092l-.915-.047a2.037 2.037 0 0 1-1.91-1.708c-.216-1.324-.325-2.924-.325-4.798 0-1.563.076-2.864.225-3.904.14-.977.96-1.713 1.945-1.747 2.444-.087 4.465-.13 6.063-.131 1.598 0 3.62.044 6.064.13.96.034 1.71.81 1.855 1.814.075.524.113 1.962.141 3.065v.002c.01.342.017.65.025.88a.987.987 0 1 0 1.974-.068c-.008-.226-.016-.523-.025-.856v-.027c-.03-1.118-.073-2.663-.16-3.276-.273-1.906-1.783-3.438-3.74-3.507-.9-.032-1.743-.058-2.531-.078l1.05-1.46a1.008 1.008 0 0 0-1.638-1.177l-1.862 2.59c-.38-.004-.744-.007-1.088-.007h-.13Zm.521 4.775h-1.32v4.631h2.222v.847h-2.618v1.078h2.618l.003.678c.36.026.714.163 1.01.407h.11v-1.085h2.694v-1.078h-2.695v-.847H16.8v-4.63h-1.276a8.59 8.59 0 0 0 .748-1.42L15.183 7.8a14.232 14.232 0 0 1-.814 1.804h-1.518l.693-.308a8.862 8.862 0 0 0-.814-1.408l-1.045.352c.297.396.572.847.825 1.364Zm-4.18 3.564.154-1.485h1.98V8.294h-3.2v.98H9.33v1.43H7.472l-.308 3.453h2.277c0 1.166-.044 1.925-.12 2.277-.078.352-.386.528-.936.528-.308 0-.616-.022-.902-.055l.297 1.067.062.005c.285.02.551.04.818.04 1.001-.067 1.562-.419 1.694-1.057.11-.638.176-1.903.176-3.795h-2.2Zm7.458.11v-.858h-1.254v.858h1.254Zm-2.376-.858v.858h-1.199v-.858h1.2Zm-1.199-.946h1.2v-.902h-1.2v.902Zm2.321 0v-.902h1.254v.902h-1.254Z" clip-rule="evenodd"></path>
+                <!-- 角标：加大并右下对齐，更醒目 -->
+                <circle cx="19" cy="19" r="4.25" fill="currentColor"></circle>
+                <path d="M16.9 19.0L18.4 20.5L21.1 17.8" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path>
+              </svg>
+            </button>
+            <button 
+              class="danmaku-settings-btn" 
+              :disabled="!danmakuEnabled"
+              :class="{ 'is-disabled': !danmakuEnabled }"
+              @click="danmakuEnabled && (showDanmakuSettings = true)"
+              title="弹幕设置"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+                <path fill-rule="evenodd" d="m15.645 4.881 1.06-1.473a.998.998 0 1 0-1.622-1.166L13.22 4.835a110.67 110.67 0 0 0-1.1-.007h-.131c-.47 0-.975.004-1.515.012L8.783 2.3A.998.998 0 0 0 7.12 3.408l.988 1.484c-.688.019-1.418.042-2.188.069a4.013 4.013 0 0 0-3.83 3.44c-.165 1.15-.245 2.545-.245 4.185 0 1.965.115 3.67.35 5.116a4.012 4.012 0 0 0 3.763 3.363c1.903.094 3.317.141 5.513.141a.988.988 0 0 0 0-1.975 97.58 97.58 0 0 1-5.416-.139 2.037 2.037 0 0 1-1.91-1.708c-.216-1.324-.325-2.924-.325-4.798 0-1.563.076-2.864.225-3.904.14-.977.96-1.713 1.945-1.747 2.444-.087 4.465-.13 6.063-.131 1.598 0 3.62.044 6.064.13.96.034 1.71.81 1.855 1.814.075.524.113 1.962.141 3.065v.002c.005.183.01.07.014-.038.004-.096.008-.189.011-.081a.987.987 0 1 0 1.974-.069c-.004-.105-.007-.009-.011.09-.002.056-.004.112-.007.135l-.002.01a.574.574 0 0 1-.005-.091v-.027c-.03-1.118-.073-2.663-.16-3.276-.273-1.906-1.783-3.438-3.74-3.507-.905-.032-1.752-.058-2.543-.079Zm-3.113 4.703h-1.307v4.643h2.2v.04l.651-1.234c.113-.215.281-.389.482-.509v-.11h.235c.137-.049.283-.074.433-.074h1.553V9.584h-1.264a8.5 8.5 0 0 0 .741-1.405l-1.078-.381c-.24.631-.501 1.23-.806 1.786h-1.503l.686-.305c-.228-.501-.5-.959-.806-1.394l-1.034.348c.294.392.566.839.817 1.35Zm-1.7 5.502h2.16l-.564 1.068h-1.595v-1.068Zm-2.498-1.863.152-1.561h1.96V8.289H7.277v.969h2.048v1.435h-1.84l-.306 3.51h2.254c0 1.155-.043 1.906-.12 2.255-.076.348-.38.523-.925.523-.305 0-.61-.022-.893-.055l.294 1.056.061.005c.282.02.546.039.81.039.991-.065 1.547-.414 1.677-1.046.11-.631.175-1.883.175-3.757H8.334Zm5.09-.8v.85h-1.188v-.85h1.187Zm-1.188-.955h1.187v-.893h-1.187v.893Zm2.322.007v-.893h1.241v.893h-1.241Zm.528 2.757a1.26 1.26 0 0 1 1.087-.627l4.003-.009a1.26 1.26 0 0 1 1.094.63l1.721 2.982c.226.39.225.872-.001 1.263l-1.743 3a1.26 1.26 0 0 1-1.086.628l-4.003.009a1.26 1.26 0 0 1-1.094-.63l-1.722-2.982a1.26 1.26 0 0 1 .002-1.263l1.742-3Zm1.967.858a1.26 1.26 0 0 0-1.08.614l-.903 1.513a1.26 1.26 0 0 0-.002 1.289l.885 1.492c.227.384.64.62 1.086.618l2.192-.005a1.26 1.26 0 0 0 1.08-.615l.904-1.518a1.26 1.26 0 0 0 .001-1.288l-.884-1.489a1.26 1.26 0 0 0-1.086-.616l-2.193.005Zm2.517 2.76a1.4 1.4 0 1 1-2.8 0 1.4 1.4 0 0 1 2.8 0Z" clip-rule="evenodd"></path>
+              </svg>
+            </button>
+          </div>
+        </div>
+        <div class="danmaku-input-wrapper">
+          <input
+            v-model="danmakuInput"
+            class="danmaku-input"
+            type="text"
+            :disabled="!danmakuEnabled"
+            :placeholder="danmakuEnabled ? '发个友善的弹幕见证当下' : '已关闭弹幕'"
+            @keyup.enter="handleSendDanmaku"
+          />
+          <button class="danmaku-etiquette-btn" @click="ElMessage.info('请遵守弹幕礼仪，文明发言')">
+            弹幕礼仪 >
+          </button>
+          <button class="danmaku-send-btn" :disabled="!danmakuEnabled" @click="handleSendDanmaku">
+            发送
+          </button>
+        </div>
       </div>
 
                <!-- 操作栏：点赞/收藏/分享（参考B站样式，位于播放器下方） -->
@@ -314,6 +397,7 @@ import { likeVideo, unlikeVideo, checkLike, getLikeCount } from '@/api/like'
 import { useUserStore } from '@/stores/user'
 import { ElMessage } from 'element-plus'
 import { getComments, addComment, likeComment, unlikeComment, getCommentReplies } from '@/api/comment'
+import { fetchDanmaku, sendDanmaku, getDanmakuCount } from '@/api/danmaku'
 
 const route = useRoute()
 const router = useRouter()
@@ -360,6 +444,31 @@ let lastRecordTimestamp = 0 // 上次记录的时间戳（毫秒）
 let lastRecordPlayTime = 0 // 上次记录的播放时间（秒）
 const RECORD_INTERVAL = 10000 // 每10秒记录一次
 const MIN_PLAY_TIME_DIFF = 5 // 播放时间变化超过5秒才记录
+
+// 弹幕相关
+const danmakuInput = ref('')
+const danmakuItems = ref([]) // 当前在屏幕上飞行的弹幕
+const DANMAKU_TRACK_COUNT = 8
+const DANMAKU_ANIM_DURATION = 8 // 秒
+let danmakuIdCounter = 0
+let lastDanmakuFetchTimestamp = 0
+const DANMAKU_FETCH_INTERVAL = 5000 // 每5秒拉取一次
+const DANMAKU_LOOKAHEAD_SEC = 20 // 每次拉取未来 20 秒的弹幕，降低"看不到"的概率
+const loadedDanmakuKeys = new Set() // 用于"本次播放过程"去重
+const pendingDanmakuQueue = ref([]) // 已拉取但未到展示时间的弹幕（按 time 升序）
+let lastVideoTimeSec = 0
+const danmakuEnabled = ref(true) // 弹幕开关状态
+const watchingCount = ref(1) // 观看人数（暂时固定，后续可从后端获取）
+const loadedDanmakuCount = ref(0) // 已装填弹幕数
+const showDanmakuSettings = ref(false) // 弹幕设置弹窗
+
+const resetDanmakuRuntime = () => {
+  danmakuItems.value = []
+  pendingDanmakuQueue.value = []
+  loadedDanmakuKeys.clear()
+  lastDanmakuFetchTimestamp = 0
+  lastVideoTimeSec = 0
+}
 
 const loadVideo = async () => {
   const videoId = route.params.id
@@ -416,6 +525,16 @@ const loadVideo = async () => {
       console.warn('获取点赞数失败:', error)
     }
 
+    // 加载弹幕总数
+    try {
+      const countResp = await getDanmakuCount(videoId)
+      if (countResp.data && countResp.data.success) {
+        loadedDanmakuCount.value = countResp.data.count || 0
+      }
+    } catch (error) {
+      console.warn('获取弹幕总数失败:', error)
+    }
+
     // 检查收藏 / 点赞 / 关注状态
     if (userStore.isAuthenticated) {
       await checkFavoriteStatus(videoId)
@@ -430,6 +549,9 @@ const loadVideo = async () => {
 
     // 加载相关推荐（同UP其他视频）
     await loadRecommends()
+
+    // 切视频时重置弹幕运行态，避免“上一条视频的去重集合/队列”影响当前视频
+    resetDanmakuRuntime()
   } catch (e) {
     title.value = '未找到视频'
     videoSrc.value = ''
@@ -1042,16 +1164,171 @@ const submitReply = async (parentComment) => {
   }
 }
 
+// 将一条弹幕加入本地展示层，并在动画结束后移除
+const addDanmakuToLayer = (content, time, color = '#ffffff', mode = 'scroll') => {
+  const id = danmakuIdCounter++
+  const track = id % DANMAKU_TRACK_COUNT
+  const item = {
+    id,
+    content,
+    time,
+    track,
+    duration: DANMAKU_ANIM_DURATION,
+    color,
+    mode
+  }
+  danmakuItems.value.push(item)
+
+  // 动画结束后移除，避免数组无限增长
+  setTimeout(() => {
+    const index = danmakuItems.value.findIndex(d => d.id === id)
+    if (index !== -1) {
+      danmakuItems.value.splice(index, 1)
+    }
+  }, DANMAKU_ANIM_DURATION * 1000 + 500)
+}
+
+// 将后端返回的弹幕放入“待展示队列”，到点再显示
+const enqueueDanmakuList = (list) => {
+  if (!Array.isArray(list) || list.length === 0) return
+
+  const queue = pendingDanmakuQueue.value
+  list.forEach(item => {
+    const t = typeof item.time === 'number' ? item.time : (parseFloat(item.time) || 0)
+    const content = (item.content || '').toString()
+    if (!content.trim()) return
+
+    // 更稳妥的去重 key（避免同一秒多条内容一样时互相覆盖）
+    const key = `${t}-${content}-${item.userId ?? ''}-${item.color ?? ''}-${item.mode ?? ''}`
+    if (loadedDanmakuKeys.has(key)) return
+    loadedDanmakuKeys.add(key)
+
+    queue.push({
+      time: t,
+      content,
+      color: item.color || '#ffffff',
+      mode: item.mode || 'scroll',
+      userId: item.userId
+    })
+  })
+
+  // 按时间排序，方便 flush
+  queue.sort((a, b) => (a.time || 0) - (b.time || 0))
+}
+
+// 将“已到时间”的弹幕从队列吐到屏幕上
+const flushDueDanmaku = (currentTimeSec) => {
+  const queue = pendingDanmakuQueue.value
+  if (!Array.isArray(queue) || queue.length === 0) return
+
+  // 提前 250ms 展示，体感更接近“同步”
+  const dueTime = currentTimeSec + 0.25
+  while (queue.length > 0) {
+    const next = queue[0]
+    if (!next || typeof next.time !== 'number') {
+      queue.shift()
+      continue
+    }
+    if (next.time > dueTime) break
+    queue.shift()
+    addDanmakuToLayer(next.content, next.time, next.color, next.mode)
+  }
+}
+
+// 从后端按时间段拉取弹幕
+const fetchDanmakuSegment = async (from, to) => {
+  const videoId = videoData.value.videoId || route.params.id
+  if (!videoId) return
+
+  try {
+    const { data } = await fetchDanmaku(videoId, from, to)
+    if (!data || !data.success || !Array.isArray(data.list)) return
+
+    // 注意：不要立刻 add 到 layer，否则会出现“时机不对/看起来没显示”的情况
+    enqueueDanmakuList(data.list)
+  } catch (e) {
+    console.warn('拉取弹幕失败:', e)
+  }
+}
+
+// 发送弹幕
+const handleSendDanmaku = async () => {
+  const text = danmakuInput.value.trim()
+  if (!text) return
+
+  if (!userStore.isAuthenticated) {
+    ElMessage.warning('请先登录再发送弹幕')
+    return
+  }
+
+  const videoId = videoData.value.videoId || route.params.id
+  if (!videoId || !videoPlayer.value) return
+
+  const currentTime = videoPlayer.value.currentTime || 0
+
+  try {
+    await sendDanmaku(videoId, {
+      time: currentTime,
+      content: text,
+      color: '#ffffff',
+      mode: 'scroll'
+    })
+    // 本地立即显示一条（更有反馈感）
+    addDanmakuToLayer(text, currentTime, '#ffffff', 'scroll')
+    danmakuInput.value = ''
+    // 更新弹幕总数
+    loadedDanmakuCount.value += 1
+  } catch (e) {
+    console.error('发送弹幕失败:', e)
+    ElMessage.error('发送弹幕失败，请稍后重试')
+  }
+}
+
+// 切换弹幕开关
+const toggleDanmaku = () => {
+  danmakuEnabled.value = !danmakuEnabled.value
+  if (!danmakuEnabled.value) {
+    // 关闭弹幕时清空屏幕上的弹幕
+    danmakuItems.value = []
+  }
+}
+
 // 视频时间更新事件
 const onTimeUpdate = () => {
-  if (!videoPlayer.value || !userStore.isAuthenticated) return
-  
-  const currentTime = Math.floor(videoPlayer.value.currentTime)
+  if (!videoPlayer.value) return
+
+  const currentTime = videoPlayer.value.currentTime || 0
   const now = Date.now()
-  
+
+  // seek 检测：拖动进度条/跳播时，重置队列与去重集合，保证弹幕能在新时间轴重新出现
+  if (Math.abs(currentTime - lastVideoTimeSec) > 2.5) {
+    // 只清理运行态，不影响后端数据
+    danmakuItems.value = []
+    pendingDanmakuQueue.value = []
+    loadedDanmakuKeys.clear()
+    lastDanmakuFetchTimestamp = 0
+  }
+  lastVideoTimeSec = currentTime
+
+  // 所有人都可以拉取弹幕（仅在弹幕开启时）
+  if (danmakuEnabled.value && now - lastDanmakuFetchTimestamp >= DANMAKU_FETCH_INTERVAL) {
+    const from = Math.max(0, currentTime - 1)
+    const to = currentTime + DANMAKU_LOOKAHEAD_SEC
+    fetchDanmakuSegment(from, to)
+    lastDanmakuFetchTimestamp = now
+  }
+
+  // 将到点的弹幕吐到屏幕上（仅在弹幕开启时）
+  if (danmakuEnabled.value) {
+    flushDueDanmaku(currentTime)
+  }
+
+  // 未登录则不记录播放历史
+  if (!userStore.isAuthenticated) return
+
   // 每10秒记录一次，或者播放时间变化超过5秒
-  if (now - lastRecordTimestamp >= RECORD_INTERVAL || 
-      Math.abs(currentTime - lastRecordPlayTime) >= MIN_PLAY_TIME_DIFF) {
+  if (now - lastRecordTimestamp >= RECORD_INTERVAL ||
+    Math.abs(currentTime - lastRecordPlayTime) >= MIN_PLAY_TIME_DIFF) {
     recordPlayHistory(currentTime)
     lastRecordTimestamp = now
     lastRecordPlayTime = currentTime
@@ -1076,6 +1353,10 @@ const onVideoLoaded = () => {
     lastRecordTimestamp = Date.now()
     lastRecordPlayTime = currentTime
   }
+
+  // 预拉一段弹幕（首屏更稳定）
+  const t = videoPlayer.value.currentTime || 0
+  fetchDanmakuSegment(Math.max(0, t - 1), t + DANMAKU_LOOKAHEAD_SEC)
 }
 
 // 记录播放历史
@@ -1152,6 +1433,229 @@ onUnmounted(() => {
                height: 100%;
         display: block;
         background: #000;
+      }
+
+      .danmaku-layer {
+        position: absolute;
+        left: 0;
+        top: 0;
+        width: 100%;
+        height: 100%;
+        z-index: 2;
+        pointer-events: none;
+        overflow: hidden;
+      }
+
+      .danmaku-item {
+        position: absolute;
+        left: 100%;
+        white-space: nowrap;
+        color: #ffffff;
+        font-size: 16px;
+        text-shadow: 0 0 2px #000, 0 0 4px #000;
+        animation-name: danmaku-move;
+        animation-timing-function: linear;
+        animation-fill-mode: forwards;
+      }
+
+      @keyframes danmaku-move {
+        from {
+          transform: translateX(0);
+        }
+        to {
+          /* 确保能横穿整个播放器（% 是相对弹幕自身宽度，容易不够） */
+          transform: translateX(-120vw);
+        }
+      }
+    }
+
+    .danmaku-bar {
+      background: #fff;
+      border-radius: 0;
+      padding: 0 16px;
+      margin-top: 0;
+      height: 46px;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      margin-top: -12px;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+      // border: 1px solid #e3e5e7;
+
+      .danmaku-info {
+        display: flex;
+        align-items: center;
+        justify-content: flex-start;
+        gap: 12px;
+        white-space: nowrap;
+
+        .danmaku-stats {
+          display: flex;
+          align-items: center;
+          gap: 16px;
+          font-size: 13px;
+          color: #61666d;
+
+          .watching-count,
+          .danmaku-count {
+            color: #61666d;
+            font-weight: 500;
+          }
+
+          .count-number {
+            font-weight: 600;
+          }
+        }
+
+        .danmaku-controls {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+
+          .danmaku-toggle-btn,
+          .danmaku-settings-btn {
+            width: 32px;
+            height: 32px;
+            border-radius: 6px;
+            border: none;
+            background: transparent;
+            color: #61666d;
+            font-weight: 500;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+            transition: all 0.2s;
+
+            // 保持图标风格，与 B 站一致：去掉 hover 背景，只改变前景色
+            &:hover {
+              background: transparent;
+              color: #00aeec;
+            }
+
+            &.is-active {
+              color: #00aeec;
+
+              .checkmark {
+                position: absolute;
+                bottom: 2px;
+                right: 2px;
+                width: 12px;
+                height: 12px;
+                background: #00a1d6;
+                border-radius: 50%;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                color: #fff;
+                font-size: 8px;
+                font-weight: bold;
+              }
+            }
+
+            svg {
+              width: 20px;
+              height: 20px;
+              fill: currentColor;
+            }
+
+            svg path {
+              fill: currentColor;
+            }
+          }
+
+          .danmaku-settings-btn.is-disabled {
+            color: #c9ccd0;
+            cursor: not-allowed;
+            pointer-events: none;
+          }
+
+          .danmaku-settings-btn.is-disabled:hover {
+            background: transparent;
+            color: #c9ccd0;
+          }
+        }
+      }
+
+      .danmaku-input-wrapper {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        flex: 1;
+
+        .danmaku-input {
+          flex: 1;
+          height: 32px;
+          padding: 0 12px;
+          border-radius: 4px;
+          border: 1px solid #e3e5e7;
+          background: #f6f7f8;
+          outline: none;
+          font-size: 14px;
+          color: #18191c;
+          transition: all 0.2s;
+
+          &::placeholder {
+            color: #9499a0;
+          }
+
+          &:focus {
+            background: #fff;
+            border-color: #00a1d6;
+            box-shadow: 0 0 0 2px rgba(0, 161, 214, 0.1);
+          }
+
+          &:disabled {
+            cursor: not-allowed;
+            color: #9499a0;
+          }
+        }
+
+        .danmaku-etiquette-btn {
+          height: 32px;
+          padding: 0 12px;
+          border-radius: 4px;
+          border: 1px solid #e3e5e7;
+          background: #fff;
+          color: #61666d;
+          cursor: pointer;
+          font-size: 13px;
+          white-space: nowrap;
+          transition: all 0.2s;
+
+          &:hover {
+            border-color: #00a1d6;
+            color: #00a1d6;
+          }
+        }
+
+        .danmaku-send-btn {
+          flex-shrink: 0;
+          height: 32px;
+          padding: 0 20px;
+          border-radius: 4px;
+          border: none;
+          background: #00a1d6;
+          color: #fff;
+          cursor: pointer;
+          font-size: 14px;
+          font-weight: 500;
+          transition: all 0.2s;
+
+          &:hover {
+            background: #00b5e6;
+          }
+
+          &:active {
+            background: #008fb8;
+          }
+
+          &:disabled {
+            opacity: 0.45;
+            cursor: not-allowed;
+          }
+        }
       }
     }
 

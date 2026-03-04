@@ -27,10 +27,29 @@ public class PlayHistoryController {
         try {
             Long userId = Long.valueOf(request.get("userId").toString());
             String videoId = request.get("videoId").toString();
-            Integer playTime = request.get("playTime") != null 
-                ? Integer.valueOf(request.get("playTime").toString()) : 0;
-            Integer duration = request.get("duration") != null 
-                ? Integer.valueOf(request.get("duration").toString()) : null;
+            // playTime / duration 前端可能传小数，这里统一按秒向下取整，避免 NumberFormatException
+            Integer playTime = 0;
+            if (request.get("playTime") != null) {
+                String pt = request.get("playTime").toString();
+                try {
+                    double ptDouble = Double.parseDouble(pt);
+                    playTime = (int) Math.floor(ptDouble);
+                } catch (NumberFormatException ex) {
+                    // 如果解析失败，退回 0，避免直接抛 500
+                    playTime = 0;
+                }
+            }
+
+            Integer duration = null;
+            if (request.get("duration") != null) {
+                String du = request.get("duration").toString();
+                try {
+                    double duDouble = Double.parseDouble(du);
+                    duration = (int) Math.floor(duDouble);
+                } catch (NumberFormatException ex) {
+                    duration = null;
+                }
+            }
 
             playHistoryService.recordPlayHistory(userId, videoId, playTime, duration);
             return ResponseEntity.ok(Map.of("success", true, "message", "记录成功"));
