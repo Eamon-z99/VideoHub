@@ -18,6 +18,9 @@ import java.util.stream.Collectors;
 @Service
 public class RecommendationService {
 
+    // 为了兼顾效果与性能，只选取最相似的前 K 个邻居参与打分
+    private static final int TOP_K_NEIGHBORS = 50;
+
     private final JdbcTemplate jdbcTemplate;
     private final UserBehaviorRepository behaviorRepository;
     private final LocalVideoService videoService;
@@ -46,26 +49,58 @@ public class RecommendationService {
         Map<String, Double> userRatings = userVideoMatrix.get(userId);
         Map<Long, Double> userSimilarities = calculateUserSimilarities(userId, userRatings, userVideoMatrix);
 
-        // 计算视频推荐分数
-        Map<String, Double> videoScores = new HashMap<>();
-        
-        for (Map.Entry<Long, Double> entry : userSimilarities.entrySet()) {
+        // 只保留 Top-K 相似用户，并过滤掉相似度 <= 0 的用户
+        List<Map.Entry<Long, Double>> topNeighbors = userSimilarities.entrySet().stream()
+                .filter(e -> e.getValue() > 0)
+                .sorted(Map.Entry.<Long, Double>comparingByValue().reversed())
+                .limit(TOP_K_NEIGHBORS)
+                .collect(Collectors.toList());
+
+        if (topNeighbors.isEmpty()) {
+            // 没有任何有效邻居，回退到热门视频
+            return videoService.listTopByViewCount(limit);
+        }
+
+        // 计算视频推荐分数（加权平均：sum(sim * score) / sum(sim)）
+        Map<String, Double> scoreSums = new HashMap<>();
+        Map<String, Double> weightSums = new HashMap<>();
+
+        for (Map.Entry<Long, Double> entry : topNeighbors) {
             Long similarUserId = entry.getKey();
             Double similarity = entry.getValue();
-            
-            if (similarity <= 0) continue;
-            
+
             Map<String, Double> similarUserRatings = userVideoMatrix.get(similarUserId);
+            if (similarUserRatings == null || similarUserRatings.isEmpty()) {
+                continue;
+            }
+
             for (Map.Entry<String, Double> rating : similarUserRatings.entrySet()) {
                 String videoId = rating.getKey();
                 Double score = rating.getValue();
-                
+
                 // 跳过用户已观看的视频
                 if (userRatings.containsKey(videoId)) continue;
-                
-                videoScores.put(videoId, 
-                    videoScores.getOrDefault(videoId, 0.0) + similarity * score);
+
+                scoreSums.put(videoId,
+                        scoreSums.getOrDefault(videoId, 0.0) + similarity * score);
+                weightSums.put(videoId,
+                        weightSums.getOrDefault(videoId, 0.0) + Math.abs(similarity));
             }
+        }
+
+        // 归一化得到最终打分
+        Map<String, Double> videoScores = new HashMap<>();
+        for (Map.Entry<String, Double> entry : scoreSums.entrySet()) {
+            String videoId = entry.getKey();
+            double sumSim = weightSums.getOrDefault(videoId, 0.0);
+            if (sumSim > 0) {
+                videoScores.put(videoId, entry.getValue() / sumSim);
+            }
+        }
+
+        if (videoScores.isEmpty()) {
+            // 理论上不太会发生，但为了稳妥再兜底一次
+            return videoService.listTopByViewCount(limit);
         }
 
         // 按分数排序并返回Top-K
@@ -157,8 +192,149 @@ public class RecommendationService {
             }
         }
 
+        if (videoScores.isEmpty()) {
+            // 没有找到任何相似视频，回退到热门
+            return videoService.listTopByViewCount(limit);
+        }
+
         // 按分数排序
         List<String> recommendedVideoIds = videoScores.entrySet().stream()
+                .sorted(Map.Entry.<String, Double>comparingByValue().reversed())
+                .limit(limit)
+                .map(Map.Entry::getKey)
+                .collect(Collectors.toList());
+
+        return recommendedVideoIds.stream()
+                .map(videoId -> videoService.findByVideoId(videoId))
+                .filter(Optional::isPresent)
+                .map(Optional::get)
+                .collect(Collectors.toList());
+    }
+
+    /**
+     * 基于矩阵分解的推荐（简化版 MF：在内存中对当前行为矩阵做小规模训练）
+     *
+     * 说明：
+     * - 仅用于教学 / Demo 场景，适合本项目这种中小规模数据。
+     * - 对所有已有用户行为做一次小规模 SGD 训练，得到用户 / 视频的潜在因子向量。
+     * - 在线请求时根据 userId 的向量与视频向量做内积打分。
+     */
+    public List<VideoItem> recommendByMatrixFactorization(Long userId, int limit) {
+        Map<Long, Map<String, Double>> userVideoMatrix = behaviorRepository.getUserVideoMatrix();
+        if (userVideoMatrix.isEmpty() || !userVideoMatrix.containsKey(userId)) {
+            // 没有行为数据，直接回退热门
+            return videoService.listTopByViewCount(limit);
+        }
+
+        // 为用户和视频建立索引映射
+        List<Long> userIds = new ArrayList<>(userVideoMatrix.keySet());
+        Map<Long, Integer> userIndex = new HashMap<>();
+        for (int i = 0; i < userIds.size(); i++) {
+            userIndex.put(userIds.get(i), i);
+        }
+
+        // 收集所有视频 ID
+        Set<String> videoIdSet = new HashSet<>();
+        for (Map<String, Double> ratings : userVideoMatrix.values()) {
+            videoIdSet.addAll(ratings.keySet());
+        }
+        List<String> videoIds = new ArrayList<>(videoIdSet);
+        Map<String, Integer> videoIndex = new HashMap<>();
+        for (int j = 0; j < videoIds.size(); j++) {
+            videoIndex.put(videoIds.get(j), j);
+        }
+
+        int numUsers = userIds.size();
+        int numItems = videoIds.size();
+        if (numUsers == 0 || numItems == 0 || !userIndex.containsKey(userId)) {
+            return videoService.listTopByViewCount(limit);
+        }
+
+        // 超参数：潜在因子维度 / 学习率 / 正则 / 迭代轮数
+        int factors = 10;
+        double learningRate = 0.01;
+        double reg = 0.05;
+        int epochs = 20;
+
+        // 初始化潜在因子矩阵 P(user x k), Q(item x k)
+        double[][] P = new double[numUsers][factors];
+        double[][] Q = new double[numItems][factors];
+        Random random = new Random(42);
+        for (int u = 0; u < numUsers; u++) {
+            for (int f = 0; f < factors; f++) {
+                P[u][f] = (random.nextDouble() - 0.5) * 0.1;
+            }
+        }
+        for (int i = 0; i < numItems; i++) {
+            for (int f = 0; f < factors; f++) {
+                Q[i][f] = (random.nextDouble() - 0.5) * 0.1;
+            }
+        }
+
+        // 构造训练样本 (uIdx, iIdx, rating)
+        List<int[]> samples = new ArrayList<>();
+        List<Double> sampleRatings = new ArrayList<>();
+        for (Map.Entry<Long, Map<String, Double>> ue : userVideoMatrix.entrySet()) {
+            int uIdx = userIndex.get(ue.getKey());
+            for (Map.Entry<String, Double> re : ue.getValue().entrySet()) {
+                Integer iIdx = videoIndex.get(re.getKey());
+                if (iIdx == null) continue;
+                samples.add(new int[]{uIdx, iIdx});
+                sampleRatings.add(re.getValue());
+            }
+        }
+
+        if (samples.isEmpty()) {
+            return videoService.listTopByViewCount(limit);
+        }
+
+        // 简单 SGD 训练
+        for (int epoch = 0; epoch < epochs; epoch++) {
+            for (int s = 0; s < samples.size(); s++) {
+                int[] ui = samples.get(s);
+                int u = ui[0];
+                int i = ui[1];
+                double rating = sampleRatings.get(s);
+
+                // 预测值 = P[u] · Q[i]
+                double pred = 0.0;
+                for (int f = 0; f < factors; f++) {
+                    pred += P[u][f] * Q[i][f];
+                }
+                double err = rating - pred;
+
+                // 梯度更新
+                for (int f = 0; f < factors; f++) {
+                    double pu = P[u][f];
+                    double qi = Q[i][f];
+                    P[u][f] += learningRate * (err * qi - reg * pu);
+                    Q[i][f] += learningRate * (err * pu - reg * qi);
+                }
+            }
+        }
+
+        // 对目标用户打分所有未看过的视频
+        int targetIndex = userIndex.get(userId);
+        Map<String, Double> targetRatings = userVideoMatrix.getOrDefault(userId, Collections.emptyMap());
+        Map<String, Double> scores = new HashMap<>();
+
+        for (int i = 0; i < numItems; i++) {
+            String vid = videoIds.get(i);
+            if (targetRatings.containsKey(vid)) continue; // 已有行为的视频跳过
+
+            double score = 0.0;
+            for (int f = 0; f < factors; f++) {
+                score += P[targetIndex][f] * Q[i][f];
+            }
+            scores.put(vid, score);
+        }
+
+        if (scores.isEmpty()) {
+            return videoService.listTopByViewCount(limit);
+        }
+
+        // 排序并返回 Top-N
+        List<String> recommendedVideoIds = scores.entrySet().stream()
                 .sorted(Map.Entry.<String, Double>comparingByValue().reversed())
                 .limit(limit)
                 .map(Map.Entry::getKey)

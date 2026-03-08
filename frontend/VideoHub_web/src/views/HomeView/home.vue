@@ -14,7 +14,7 @@
               </div>
               <div class="qi-text">动态</div>
             </div>
-            <div class="qi-item">
+            <div class="qi-item" @click="goTo('/hot')">
               <div class="qi-circle pink">
                 <img src="/assets/trending.png" class="qi-icon" />
               </div>

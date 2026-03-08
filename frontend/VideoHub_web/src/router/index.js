@@ -9,6 +9,7 @@ const History = () => import('@/views/History/History.vue')
 const SearchResult = () => import('@/views/Search/SearchResult.vue')
 const UserProfile = () => import('@/views/UserProfile/UserProfile.vue')
 const FeedHome = () => import('@/views/FeedHome/FeedHome.vue')
+const HotRecommend = () => import('@/views/HotRecommend/HotRecommend.vue')
 const Column = () => import('@/views/column/Column.vue')
 const MusicChart = () => import('@/views/column/MusicChart.vue')
 const Live = () => import('@/views/column/Live.vue')
@@ -61,6 +62,11 @@ const routes = [
     path: '/feed',//动态页
     name: 'feed',
     component: FeedHome
+  },
+  {
+    path: '/hot', // 热门推荐（个性化推荐页）
+    name: 'hot',
+    component: HotRecommend
   },
   {
     path: '/messages',//消息中心

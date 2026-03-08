@@ -49,6 +49,21 @@ public class RecommendationController {
                 "algorithm", "item-based-cf"
         );
     }
+
+    /**
+     * 基于矩阵分解的推荐
+     */
+    @GetMapping("/mf/{userId}")
+    public Map<String, Object> recommendByMatrixFactorization(
+            @PathVariable Long userId,
+            @RequestParam(defaultValue = "10") int limit) {
+        List<VideoItem> recommendations = recommendationService.recommendByMatrixFactorization(userId, limit);
+        return Map.of(
+                "list", recommendations,
+                "total", recommendations.size(),
+                "algorithm", "matrix-factorization"
+        );
+    }
 }
 
 

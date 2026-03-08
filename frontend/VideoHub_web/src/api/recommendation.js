@@ -33,6 +33,20 @@ export function getItemBasedRecommendations(userId, limit = 10) {
 }
 
 /**
+ * 基于矩阵分解的推荐（MF）
+ * @param {number} userId - 用户ID
+ * @param {number} limit - 推荐数量
+ * @returns {Promise}
+ */
+export function getMfRecommendations(userId, limit = 10) {
+  return request({
+    url: `/api/recommendations/mf/${userId}`,
+    method: 'get',
+    params: { limit }
+  })
+}
+
+/**
  * 检测用户是否为攻击者
  * @param {number} userId - 用户ID
  * @returns {Promise}

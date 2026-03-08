@@ -1827,7 +1827,8 @@ onUnmounted(() => {
     .comments {
       background: #fff;
       border-radius: 8px;
-      padding: 16px 20px;
+      /* 与上方 .desc 左侧对齐：去掉左右内边距，仅保留上下内边距 */
+      padding: 16px 0;
       display: flex;
       flex-direction: column;
       gap: 12px;

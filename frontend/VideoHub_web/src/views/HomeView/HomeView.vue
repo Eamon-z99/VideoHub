@@ -78,13 +78,13 @@
 
     <div class="header_channel">
       <div class="channel-icons">
-        <li class="icons">
+        <li class="icons" @click="goTo('/feed')">
           <div class="dynamic">
             <div class="dynamic-bg"><img src="/assets/feed.png" class="dynamic-img" /></div>
             <span>动态</span>
           </div>
         </li>
-        <li class="icons">
+        <li class="icons" @click="goTo('/hot')">
           <div class="popular">
             <div class="popular-bg"><img src="/assets/trending.png" class="popular-img" /></div>
             <span>热门</span>
@@ -154,10 +154,12 @@
 
 <script setup>
 import { ref } from "vue";
+import { useRouter } from 'vue-router'
 import VideoCard from "@/components/VideoCard.vue";
 import { useUserStore } from '@/stores/user'
 import Login from "@/components/Login.vue";
 
+const router = useRouter()
 const userStore = useUserStore()
 const showLogin = ref(false)
 
@@ -172,6 +174,10 @@ const videoList = ref([
   },
   // 添加更多测试数据...
 ]);
+
+const goTo = (path) => {
+  router.push(path)
+}
 </script>
 
 <style lang="scss" scoped>
