@@ -7,7 +7,8 @@ const BASE_URL = import.meta.env.VITE_API_BASE_URL || ''
 
 const instance = axios.create({
   baseURL: BASE_URL,
-  timeout: 15000
+  // timeout: 15000
+  timeout: 0
 })
 
 // 请求拦截器：自动添加 Token

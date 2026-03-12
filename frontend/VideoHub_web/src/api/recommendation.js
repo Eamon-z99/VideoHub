@@ -12,7 +12,7 @@ import request from '@/utils/request'
  */
 export function getRecommendations(userId, limit = 10) {
   return request({
-    url: `/api/recommendations/user/${userId}`,
+    url: `/api/recommendations/experiment/user/${userId}`,
     method: 'get',
     params: { limit }
   })
@@ -26,7 +26,7 @@ export function getRecommendations(userId, limit = 10) {
  */
 export function getItemBasedRecommendations(userId, limit = 10) {
   return request({
-    url: `/api/recommendations/item/${userId}`,
+    url: `/api/recommendations/experiment/item/${userId}`,
     method: 'get',
     params: { limit }
   })
@@ -40,7 +40,7 @@ export function getItemBasedRecommendations(userId, limit = 10) {
  */
 export function getMfRecommendations(userId, limit = 10) {
   return request({
-    url: `/api/recommendations/mf/${userId}`,
+    url: `/api/recommendations/experiment/mf/${userId}`,
     method: 'get',
     params: { limit }
   })
