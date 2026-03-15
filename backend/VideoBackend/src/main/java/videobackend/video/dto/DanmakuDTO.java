@@ -29,6 +29,11 @@ public class DanmakuDTO {
      */
     private String mode;
 
+    /**
+     * 发送时间（时间戳，毫秒）
+     */
+    private Long sendTime;
+
     public Long getUserId() {
         return userId;
     }
@@ -67,6 +72,14 @@ public class DanmakuDTO {
 
     public void setMode(String mode) {
         this.mode = mode;
+    }
+
+    public Long getSendTime() {
+        return sendTime;
+    }
+
+    public void setSendTime(Long sendTime) {
+        this.sendTime = sendTime;
     }
 }
 

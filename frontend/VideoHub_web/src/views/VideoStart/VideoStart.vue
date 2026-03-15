@@ -26,7 +26,7 @@
         </div>
       </div>
 
-      <div class="player">
+      <div class="player" ref="playerRef">
         <video
           ref="videoPlayer"
           class="video"
@@ -36,6 +36,8 @@
           :poster="posterUrl"
           @timeupdate="onTimeUpdate"
           @loadedmetadata="onVideoLoaded"
+          @play="onVideoPlay"
+          @pause="onVideoPause"
         />
 
         <!-- 弹幕展示层 -->
@@ -47,7 +49,8 @@
             :style="{
               top: (item.track * 26 + 20) + 'px',
               animationDuration: item.duration + 's',
-              color: item.color || '#ffffff'
+              color: item.color || '#ffffff',
+              animationPlayState: isVideoPlaying ? 'running' : 'paused'
             }"
           >
             {{ item.content }}
@@ -358,6 +361,46 @@
         </el-button>
       </div>
 
+      <!-- 弹幕列表 -->
+      <div
+        class="danmaku-list-section"
+        ref="danmakuListSectionRef"
+        :style="danmakuListExpanded && danmakuListHeight ? { height: danmakuListHeight + 'px' } : {}"
+      >
+        <div class="danmaku-list-header" @click="toggleDanmakuList">
+          <span class="header-title">弹幕列表</span>
+          <el-icon class="header-arrow" :class="{ 'is-expanded': danmakuListExpanded }">
+            <ArrowUp />
+          </el-icon>
+        </div>
+        <div v-if="danmakuListExpanded" class="danmaku-list-content">
+          <div class="danmaku-table">
+            <div class="danmaku-table-header">
+              <div class="col-time">时间</div>
+              <div class="col-content">弹幕内容</div>
+              <div class="col-send-time">发送时间</div>
+            </div>
+            <div class="danmaku-table-body">
+              <div v-if="loadingDanmakuList" class="danmaku-loading">加载中...</div>
+              <div v-else-if="danmakuList.length === 0" class="danmaku-empty">暂无弹幕</div>
+              <div
+                v-else
+                v-for="(item, index) in danmakuList"
+                :key="index"
+                class="danmaku-table-row"
+              >
+                <div class="col-time">{{ formatVideoTime(item.time) }}</div>
+                <div class="col-content">{{ item.content }}</div>
+                <div class="col-send-time">{{ formatSendTime(item.sendTime) }}</div>
+              </div>
+            </div>
+          </div>
+          <div v-if="hasMoreDanmaku" class="danmaku-load-more" @click="loadMoreDanmaku">
+            查看历史弹幕
+          </div>
+        </div>
+      </div>
+
       <div class="recommend-title">相关推荐</div>
       <div class="recommend-list">
         <div class="rec-item" v-for="rec in recommends" :key="rec.id" @click="openRecommend(rec)">
@@ -384,9 +427,9 @@
 </template>
 
 <script setup>
-import { ref, onMounted, watch, onUnmounted, computed } from 'vue'
+import { ref, onMounted, watch, onUnmounted, computed, nextTick } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { View, ChatDotRound, Timer } from '@element-plus/icons-vue'
+import { View, ChatDotRound, Timer, ArrowUp } from '@element-plus/icons-vue'
 import { Pointer, Star, Share } from '@element-plus/icons-vue'
 import { fetchVideoDetail, fetchVideosByUploader } from '@/api/video'
 import { recordHistory } from '@/api/history'
@@ -397,7 +440,7 @@ import { likeVideo, unlikeVideo, checkLike, getLikeCount } from '@/api/like'
 import { useUserStore } from '@/stores/user'
 import { ElMessage } from 'element-plus'
 import { getComments, addComment, likeComment, unlikeComment, getCommentReplies } from '@/api/comment'
-import { fetchDanmaku, sendDanmaku, getDanmakuCount } from '@/api/danmaku'
+import { fetchDanmaku, sendDanmaku, getDanmakuCount, getDanmakuList } from '@/api/danmaku'
 
 const route = useRoute()
 const router = useRouter()
@@ -407,6 +450,10 @@ const MAX_RECOMMENDS = 40
 const INITIAL_RECOMMENDS = 4
 
 const videoPlayer = ref(null)
+const playerRef = ref(null)
+const danmakuListSectionRef = ref(null)
+const danmakuListHeight = ref(0)
+const isVideoPlaying = ref(true)
 const videoData = ref({
   id: '',
   title: '',
@@ -628,6 +675,12 @@ const toggleFavorite = async () => {
 
 onMounted(() => {
   loadVideo()
+  // 初次挂载后，同步一次高度
+  nextTick(() => {
+    updateDanmakuListHeight()
+  })
+  // 监听窗口大小变化，保持高度同步
+  window.addEventListener('resize', updateDanmakuListHeight)
 })
 
 watch(() => route.params.id, () => {
@@ -887,6 +940,74 @@ const toggleRecommends = () => {
   if (!showExpandBtn.value) return
   recommendsExpanded.value = !recommendsExpanded.value
   refreshVisibleRecommends()
+}
+
+// 同步右侧弹幕列表高度 = 播放器高度
+const updateDanmakuListHeight = () => {
+  if (!playerRef.value || !danmakuListSectionRef.value) return
+  const rect = playerRef.value.getBoundingClientRect()
+  danmakuListHeight.value = rect.height || 0
+}
+
+// 弹幕列表相关（一次性获取全部弹幕）
+const danmakuListExpanded = ref(false)
+const danmakuList = ref([])
+const danmakuListTotal = ref(0)
+const loadingDanmakuList = ref(false)
+
+// 切换弹幕列表展开/收起
+const toggleDanmakuList = () => {
+  danmakuListExpanded.value = !danmakuListExpanded.value
+  if (danmakuListExpanded.value && danmakuList.value.length === 0) {
+    loadDanmakuList()
+  }
+}
+
+// 加载弹幕列表：一次性获取全部弹幕
+const loadDanmakuList = async () => {
+  const videoId = videoData.value.videoId || route.params.id
+  if (!videoId) return
+
+  loadingDanmakuList.value = true
+  try {
+    const { data } = await getDanmakuList(videoId)
+    if (data && data.success) {
+      const list = Array.isArray(data.list) ? data.list : []
+      danmakuListTotal.value = data.total || 0
+      danmakuList.value = list
+    }
+  } catch (error) {
+    console.error('加载弹幕列表失败:', error)
+  } finally {
+    loadingDanmakuList.value = false
+  }
+}
+
+// 加载更多弹幕（全量模式下不分页，此处保留空实现以兼容模板）
+const loadMoreDanmaku = () => {}
+
+// 是否有更多弹幕（全量模式下固定为 false）
+const hasMoreDanmaku = computed(() => false)
+
+// 格式化视频内时间
+const formatVideoTime = (seconds) => {
+  if (seconds == null || seconds < 0) return '00:00'
+  const m = Math.floor(seconds / 60)
+  const s = Math.floor(seconds % 60)
+  return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`
+}
+
+// 格式化发送时间（显示到“年-月-日 时:分”）
+const formatSendTime = (timestamp) => {
+  if (!timestamp) return ''
+  const date = new Date(timestamp)
+  if (isNaN(date.getTime())) return ''
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  const hours = String(date.getHours()).padStart(2, '0')
+  const minutes = String(date.getMinutes()).padStart(2, '0')
+  return `${year}-${month}-${day} ${hours}:${minutes}`
 }
 
 // 加载评论列表
@@ -1357,6 +1478,19 @@ const onVideoLoaded = () => {
   // 预拉一段弹幕（首屏更稳定）
   const t = videoPlayer.value.currentTime || 0
   fetchDanmakuSegment(Math.max(0, t - 1), t + DANMAKU_LOOKAHEAD_SEC)
+  // 视频尺寸稳定后，同步一次右侧弹幕列表高度
+  nextTick(() => {
+    updateDanmakuListHeight()
+  })
+}
+
+// 视频播放 / 暂停事件，用于控制弹幕动画暂停/继续
+const onVideoPlay = () => {
+  isVideoPlaying.value = true
+}
+
+const onVideoPause = () => {
+  isVideoPlaying.value = false
 }
 
 // 记录播放历史
@@ -1383,12 +1517,13 @@ const recordPlayHistory = async (playTime) => {
   }
 }
 
-// 清理定时器
+// 清理定时器和事件监听
 onUnmounted(() => {
   if (recordTimer) {
     clearInterval(recordTimer)
     recordTimer = null
   }
+  window.removeEventListener('resize', updateDanmakuListHeight)
 })
 </script>
 
@@ -2124,6 +2259,160 @@ onUnmounted(() => {
           white-space: nowrap;
           overflow: hidden;
           text-overflow: ellipsis;
+        }
+      }
+    }
+
+    // 弹幕列表区域
+    .danmaku-list-section {
+      background: #fff;
+      // border-radius: 8px;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+
+      .danmaku-list-header {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 10px 16px;
+        // min-height: 44px;
+        cursor: pointer;
+        user-select: none;
+        border-radius: 8px;
+        // 固定背景色，不随 hover 变化
+        background: #F1F2F3;
+
+        .header-title {
+          flex: 1;
+          // font-weight: 600;
+          font-size: 15px;
+          color: #18191c;
+        }
+
+        .header-arrow {
+          font-size: 14px;
+          color: #9499a0;
+          transition: transform 0.3s;
+
+          &.is-expanded {
+            transform: rotate(180deg);
+          }
+        }
+      }
+
+      .danmaku-list-content {
+        border-top: 1px solid #f1f2f3;
+        display: flex;
+        flex-direction: column;
+        flex: 1;
+        min-height: 0;
+      }
+
+      .danmaku-table {
+        display: flex;
+        flex-direction: column;
+        flex: 1;
+        min-height: 0;
+
+        .danmaku-table-header {
+          display: grid;
+          grid-template-columns: 60px 1fr 100px;
+          gap: 8px;
+          padding: 8px 16px;
+          // background: #f7f7f8;
+          // border-bottom: 1px solid #e3e5e7;
+          font-size: 12px;
+          color: #61666d; // 三个标题统一颜色
+          font-weight: 500;
+
+          .col-time {
+            text-align: left;
+          }
+
+          .col-content {
+            text-align: left;
+          }
+
+          .col-send-time {
+            text-align: right;
+          }
+        }
+
+        .danmaku-table-body {
+          flex: 1;
+          min-height: 0;
+          overflow-y: auto;
+
+          // 美化滚动条
+          scrollbar-width: thin;              // Firefox
+          scrollbar-color: #c0c4cc transparent;
+
+          &::-webkit-scrollbar {
+            width: 6px;
+          }
+
+          &::-webkit-scrollbar-track {
+            background: transparent;
+          }
+
+          &::-webkit-scrollbar-thumb {
+            background-color: #c0c4cc;
+            border-radius: 3px;
+          }
+
+          .danmaku-loading,
+          .danmaku-empty {
+            padding: 24px;
+            text-align: center;
+            color: #9499a0;
+            font-size: 13px;
+          }
+
+          .danmaku-table-row {
+            display: grid;
+            grid-template-columns: 60px 1fr 100px;
+            gap: 8px;
+            padding: 4px 16px;
+            min-height: 24px;
+            align-items: center;
+            font-size: 12px;
+            transition: background-color 0.2s;
+
+            &:hover {
+              background: #f7f7f8;
+            }
+
+            .col-time {
+              color: #61666d; // 时间列颜色
+              font-weight: 500;
+            }
+
+            .col-content {
+              color: #18191c; // 弹幕内容颜色
+              word-break: break-all;
+              line-height: 1.4;
+            }
+
+            .col-send-time {
+              color: #61666d; // 发送时间列颜色
+              text-align: right;
+            }
+          }
+        }
+      }
+
+      .danmaku-load-more {
+        padding: 12px;
+        text-align: center;
+        border-top: 1px solid #f1f2f3;
+        color: #00a1d6;
+        font-size: 13px;
+        cursor: pointer;
+        transition: background-color 0.2s;
+
+        &:hover {
+          background: #f7f7f8;
         }
       }
     }

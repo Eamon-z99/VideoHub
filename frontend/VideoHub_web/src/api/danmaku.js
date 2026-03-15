@@ -27,4 +27,12 @@ export function getDanmakuCount (videoId) {
   })
 }
 
+// 获取弹幕列表：一次性获取某视频全部弹幕（供右侧“弹幕列表”使用）
+export function getDanmakuList (videoId) {
+  return request({
+    url: `/api/danmaku/${videoId}/all`,
+    method: 'get'
+  })
+}
+
 

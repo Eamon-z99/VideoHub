@@ -48,6 +48,10 @@ public class DanmakuService {
         if (dto.getMode() == null || dto.getMode().isEmpty()) {
             dto.setMode("scroll");
         }
+        // 设置发送时间（当前时间戳，毫秒）
+        if (dto.getSendTime() == null) {
+            dto.setSendTime(System.currentTimeMillis());
+        }
 
         String json = objectMapper.writeValueAsString(dto);
         try {
@@ -71,8 +75,7 @@ public class DanmakuService {
      */
     public List<DanmakuDTO> listDanmaku(String videoId, double from, double to) {
         String key = buildKey(videoId);
-        Set<String> members = redisTemplate.opsForZSet()
-                .rangeByScore(key, from, to);
+        Set<String> members = redisTemplate.opsForZSet().rangeByScore(key, from, to);
 
         if (members == null || members.isEmpty()) {
             return Collections.emptyList();
@@ -86,6 +89,51 @@ public class DanmakuService {
             }
         }).filter(Objects::nonNull).sorted(Comparator.comparing(DanmakuDTO::getTime))
                 .collect(Collectors.toList());
+    }
+
+    /**
+     * 分页获取弹幕列表（按视频内时间排序）
+     * @param videoId 视频ID
+     * @param page 页码（从1开始）
+     * @param pageSize 每页数量
+     * @return 弹幕列表
+     */
+    public List<DanmakuDTO> listDanmakuByPage(String videoId, int page, int pageSize) {
+        String key = buildKey(videoId);
+        try {
+            // 计算分页范围
+            long start = (page - 1) * pageSize;
+            long end = start + pageSize - 1;
+            
+            // 获取指定范围的弹幕（按 score 即视频内时间排序）
+            Set<String> members = redisTemplate.opsForZSet().range(key, start, end);
+            
+            if (members == null || members.isEmpty()) {
+                return Collections.emptyList();
+            }
+            
+            return members.stream().map(json -> {
+                try {
+                    return objectMapper.readValue(json, DanmakuDTO.class);
+                } catch (Exception e) {
+                    return null;
+                }
+            }).filter(Objects::nonNull)
+              .sorted(Comparator.comparing(DanmakuDTO::getTime))
+              .collect(Collectors.toList());
+        } catch (Exception e) {
+            e.printStackTrace();
+            return Collections.emptyList();
+        }
+    }
+
+    /**
+     * 获取某视频全部弹幕（不分页）
+     * 供弹幕列表一次性加载使用
+     */
+    public List<DanmakuDTO> listAllDanmaku(String videoId) {
+        // 直接复用按时间范围读取的接口，拿到该视频下所有弹幕
+        return listDanmaku(videoId, Double.NEGATIVE_INFINITY, Double.POSITIVE_INFINITY);
     }
 
     /**
