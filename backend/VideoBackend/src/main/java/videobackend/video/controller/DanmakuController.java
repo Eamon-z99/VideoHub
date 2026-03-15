@@ -2,12 +2,14 @@ package videobackend.video.controller;
 
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.dao.DataAccessException;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import videobackend.video.dto.DanmakuDTO;
 import videobackend.video.service.DanmakuService;
 import videobackend.video.util.JwtUtil;
 
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
 
@@ -138,6 +140,30 @@ public class DanmakuController {
             e.printStackTrace();
             return ResponseEntity.status(500)
                     .body(Map.of("success", false, "message", "获取全部弹幕失败"));
+        }
+    }
+
+    /**
+     * 按发送日期获取某视频的弹幕列表（不分页）
+     * GET /api/danmaku/{videoId}/date?date=2026-03-14
+     */
+    @GetMapping("/{videoId}/date")
+    public ResponseEntity<?> getDanmakuByDate(@PathVariable("videoId") String videoId,
+                                              @RequestParam("date")
+                                              @DateTimeFormat(iso = DateTimeFormat.ISO.DATE)
+                                              LocalDate date) {
+        try {
+            List<DanmakuDTO> list = danmakuService.listDanmakuByDate(videoId, date);
+            long total = list.size();
+            return ResponseEntity.ok(Map.of(
+                    "success", true,
+                    "list", list,
+                    "total", total
+            ));
+        } catch (Exception e) {
+            e.printStackTrace();
+            return ResponseEntity.status(500)
+                    .body(Map.of("success", false, "message", "按日期获取弹幕失败"));
         }
     }
 }

@@ -59,7 +59,7 @@
       </div>
 
       <!-- 弹幕输入栏 -->
-      <div class="danmaku-bar">
+      <div class="danmaku-bar" ref="danmakuBarRef">
         <div class="danmaku-info">
           <span class="danmaku-stats">
             <span class="watching-count">
@@ -365,7 +365,7 @@
       <div
         class="danmaku-list-section"
         ref="danmakuListSectionRef"
-        :style="danmakuListExpanded && danmakuListHeight ? { height: danmakuListHeight + 'px' } : {}"
+        :style="danmakuListStyle"
       >
         <div class="danmaku-list-header" @click="toggleDanmakuList">
           <span class="header-title">弹幕列表</span>
@@ -377,12 +377,16 @@
           <div class="danmaku-table">
             <div class="danmaku-table-header">
               <div class="col-time">时间</div>
-              <div class="col-content">弹幕内容</div>
+              <div class="col-content">
+                弹幕内容<span v-if="danmakuDateLabel">（{{ danmakuDateLabel }}）</span>
+              </div>
               <div class="col-send-time">发送时间</div>
             </div>
             <div class="danmaku-table-body">
               <div v-if="loadingDanmakuList" class="danmaku-loading">加载中...</div>
-              <div v-else-if="danmakuList.length === 0" class="danmaku-empty">暂无弹幕</div>
+              <div v-else-if="danmakuList.length === 0" class="danmaku-empty">
+                {{ danmakuDateLabel ? '该日暂无弹幕' : '暂无弹幕' }}
+              </div>
               <div
                 v-else
                 v-for="(item, index) in danmakuList"
@@ -395,8 +399,20 @@
               </div>
             </div>
           </div>
-          <div v-if="hasMoreDanmaku" class="danmaku-load-more" @click="loadMoreDanmaku">
-            查看历史弹幕
+          <div class="danmaku-history-picker">
+            <div class="danmaku-history-btn">
+              <span class="history-text">查询历史弹幕</span>
+              <el-date-picker
+                v-model="danmakuHistoryDate"
+                type="date"
+                size="small"
+                format="YYYY-MM-DD"
+                value-format="YYYY-MM-DD"
+                placeholder="查询历史弹幕"
+                :disabled-date="disableDanmakuDate"
+                @change="handleDanmakuHistoryChange"
+              />
+            </div>
           </div>
         </div>
       </div>
@@ -440,7 +456,7 @@ import { likeVideo, unlikeVideo, checkLike, getLikeCount } from '@/api/like'
 import { useUserStore } from '@/stores/user'
 import { ElMessage } from 'element-plus'
 import { getComments, addComment, likeComment, unlikeComment, getCommentReplies } from '@/api/comment'
-import { fetchDanmaku, sendDanmaku, getDanmakuCount, getDanmakuList } from '@/api/danmaku'
+import { fetchDanmaku, sendDanmaku, getDanmakuCount, getDanmakuList, getDanmakuByDate } from '@/api/danmaku'
 
 const route = useRoute()
 const router = useRouter()
@@ -451,8 +467,23 @@ const INITIAL_RECOMMENDS = 4
 
 const videoPlayer = ref(null)
 const playerRef = ref(null)
+const danmakuBarRef = ref(null)
 const danmakuListSectionRef = ref(null)
 const danmakuListHeight = ref(0)
+const danmakuListOffset = ref(0)
+const danmakuListBaseOffset = ref(null) // 记录第一次计算出的基准偏移，避免因 transform 导致反复漂移
+const danmakuListStyle = computed(() => {
+  const style = {}
+  // 顶部始终与播放器顶部对齐
+  if (danmakuListOffset.value) {
+    style.transform = `translateY(${danmakuListOffset.value}px)`
+  }
+  // 只在展开时撑满“播放器顶部 -> 弹幕发送栏底部”的高度
+  if (danmakuListExpanded.value && danmakuListHeight.value) {
+    style.height = `${danmakuListHeight.value}px`
+  }
+  return style
+})
 const isVideoPlaying = ref(true)
 const videoData = ref({
   id: '',
@@ -530,6 +561,14 @@ const loadVideo = async () => {
     likeCount.value = data.likeCount || 0
     favoriteCount.value = data.favoriteCount || 0
     uploadTime.value = formatUploadTime(data.createTime || data.uploadDate)
+    // 解析视频发布日（用于限制历史弹幕可选日期）
+    if (uploadTime.value) {
+      const datePart = uploadTime.value.split(' ')[0] // yyyy-MM-dd
+      const d = new Date(datePart)
+      if (!Number.isNaN(d.getTime())) {
+        danmakuMinDate.value = d
+      }
+    }
     videoSrc.value = data.playUrl || ''
     posterUrl.value = data.coverUrl || fallbackCover
     // 视频描述：现在完全使用数据库中的 description 字段
@@ -942,18 +981,36 @@ const toggleRecommends = () => {
   refreshVisibleRecommends()
 }
 
-// 同步右侧弹幕列表高度 = 播放器高度
+// 同步右侧弹幕列表高度，使其与左侧视频区域对齐：
+// 顶部对齐播放器顶部，底部对齐弹幕发送栏底部
 const updateDanmakuListHeight = () => {
-  if (!playerRef.value || !danmakuListSectionRef.value) return
-  const rect = playerRef.value.getBoundingClientRect()
-  danmakuListHeight.value = rect.height || 0
+  if (!playerRef.value || !danmakuBarRef.value || !danmakuListSectionRef.value) return
+
+  const playerRect = playerRef.value.getBoundingClientRect()
+  const barRect = danmakuBarRef.value.getBoundingClientRect()
+
+  // 目标高度：从播放器顶部到弹幕输入栏底部
+  const totalHeight = (barRect.bottom - playerRect.top)
+  if (totalHeight > 0) {
+    danmakuListHeight.value = totalHeight
+  }
+
+  // 纵向偏移：让弹幕列表顶部与播放器顶部对齐（只在首次计算时记录基准）
+  if (danmakuListBaseOffset.value === null) {
+    const listRect = danmakuListSectionRef.value.getBoundingClientRect()
+    danmakuListBaseOffset.value = playerRect.top - listRect.top
+  }
+  danmakuListOffset.value = danmakuListBaseOffset.value || 0
 }
 
-// 弹幕列表相关（一次性获取全部弹幕）
+// 弹幕列表相关（一次性获取全部弹幕 / 按日期查询）
 const danmakuListExpanded = ref(false)
 const danmakuList = ref([])
 const danmakuListTotal = ref(0)
 const loadingDanmakuList = ref(false)
+const danmakuHistoryDate = ref(null) // Date 对象
+const danmakuDateLabel = ref('')    // 用于显示在“弹幕内容 (3月14日)”中
+const danmakuMinDate = ref(null)    // 视频发布日起
 
 // 切换弹幕列表展开/收起
 const toggleDanmakuList = () => {
@@ -975,6 +1032,7 @@ const loadDanmakuList = async () => {
       const list = Array.isArray(data.list) ? data.list : []
       danmakuListTotal.value = data.total || 0
       danmakuList.value = list
+      danmakuDateLabel.value = '' // 默认“当前全部”不显示日期
     }
   } catch (error) {
     console.error('加载弹幕列表失败:', error)
@@ -988,6 +1046,66 @@ const loadMoreDanmaku = () => {}
 
 // 是否有更多弹幕（全量模式下固定为 false）
 const hasMoreDanmaku = computed(() => false)
+
+// 将 YYYY-MM-DD 转成 “M月D日” 文本
+const formatDateLabel = (isoDateStr) => {
+  if (!isoDateStr) return ''
+  const d = new Date(isoDateStr)
+  if (Number.isNaN(d.getTime())) return ''
+  const m = d.getMonth() + 1
+  const day = d.getDate()
+  return `${m}月${day}日`
+}
+
+// 查询指定日期的历史弹幕
+const loadDanmakuByDate = async (dateObj) => {
+  const videoId = videoData.value.videoId || route.params.id
+  if (!videoId || !dateObj) return
+
+  const year = dateObj.getFullYear()
+  const month = String(dateObj.getMonth() + 1).padStart(2, '0')
+  const day = String(dateObj.getDate()).padStart(2, '0')
+  const dateStr = `${year}-${month}-${day}` // 传给后端的 YYYY-MM-DD
+
+  loadingDanmakuList.value = true
+  try {
+    const { data } = await getDanmakuByDate(videoId, dateStr)
+    if (data && data.success) {
+      const list = Array.isArray(data.list) ? data.list : []
+      danmakuListTotal.value = data.total || list.length
+      danmakuList.value = list
+      danmakuDateLabel.value = formatDateLabel(dateStr)
+    }
+  } catch (error) {
+    console.error('按日期加载弹幕失败:', error)
+  } finally {
+    loadingDanmakuList.value = false
+  }
+}
+
+// 日期选择变化回调
+const handleDanmakuHistoryChange = (val) => {
+  if (!val) return
+  // el-date-picker 在设置了 value-format 后会传字符串，这里统一转成 Date 对象
+  const dateObj = typeof val === 'string' ? new Date(val) : val
+  loadDanmakuByDate(dateObj)
+}
+
+// 限制可选日期：从视频发布日期到今天
+const disableDanmakuDate = (time) => {
+  const d = new Date(time)
+  d.setHours(0, 0, 0, 0)
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+
+  if (danmakuMinDate.value) {
+    const min = new Date(danmakuMinDate.value)
+    min.setHours(0, 0, 0, 0)
+    if (d < min) return true
+  }
+
+  return d > today
+}
 
 // 格式化视频内时间
 const formatVideoTime = (seconds) => {
@@ -1897,6 +2015,7 @@ onUnmounted(() => {
     }
 
     .video-meta {
+      margin-bottom: 7px;
       .title {
         margin: 0 0 4px;
         font-size: 20px;
@@ -2219,6 +2338,8 @@ onUnmounted(() => {
       background: #fff;
       border-radius: 8px;
       padding: 12px;
+      margin-top: -12px;
+      margin-bottom: 7px;
       display: grid;
       grid-template-columns: 48px 1fr auto;
       gap: 10px;
@@ -2369,6 +2490,7 @@ onUnmounted(() => {
             font-size: 13px;
           }
 
+
           .danmaku-table-row {
             display: grid;
             grid-template-columns: 60px 1fr 100px;
@@ -2413,6 +2535,61 @@ onUnmounted(() => {
 
         &:hover {
           background: #f7f7f8;
+        }
+      }
+
+      .danmaku-history-picker {
+        padding: 2px 16px 2px;
+        border-top: 1px solid #f1f2f3;
+        text-align: center;
+        background: #F1F2F3;
+        border-radius: 8px;
+
+        .danmaku-history-btn {
+          position: relative;
+          width: 100%;
+          height: 32px;
+        }
+
+        .history-text {
+          position: absolute;
+          left: 50%;
+          top: 50%;
+          transform: translate(-50%, -50%);
+          font-size: 13px;
+          color: #18191c;  // 固定为纯黑文字
+          pointer-events: none;
+          z-index: 2;
+        }
+
+        :deep(.el-date-editor) {
+          width: 100%;
+          height: 100%;
+          position: absolute;
+          inset: 0;
+          z-index: 1;
+        }
+
+        :deep(.el-input__wrapper) {
+          border-radius: 8px;
+          border: none;
+          background: #f1f2f3;
+          box-shadow: none;
+          padding-inline: 0;
+          justify-content: center;
+        }
+
+        :deep(.el-input__inner) {
+          text-align: center;
+          font-size: 13px;
+          color: transparent;       // 隐藏真实文本
+          caret-color: transparent; // 隐藏光标
+        }
+
+        // 隐藏前后缀图标，让整体看起来像一条按钮
+        :deep(.el-input__prefix),
+        :deep(.el-input__suffix) {
+          display: none;
         }
       }
     }

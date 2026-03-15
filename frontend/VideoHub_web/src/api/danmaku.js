@@ -35,4 +35,12 @@ export function getDanmakuList (videoId) {
   })
 }
 
+// 按日期（自然日）获取某视频的弹幕列表，date 格式：YYYY-MM-DD
+export function getDanmakuByDate (videoId, date) {
+  return request({
+    url: `/api/danmaku/${videoId}/date`,
+    method: 'get',
+    params: { date }
+  })
+}
 

@@ -7,6 +7,8 @@ import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 import videobackend.video.dto.DanmakuDTO;
 
+import java.time.LocalDate;
+import java.time.ZoneId;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -134,6 +136,34 @@ public class DanmakuService {
     public List<DanmakuDTO> listAllDanmaku(String videoId) {
         // 直接复用按时间范围读取的接口，拿到该视频下所有弹幕
         return listDanmaku(videoId, Double.NEGATIVE_INFINITY, Double.POSITIVE_INFINITY);
+    }
+
+    /**
+     * 按发送日期（自然日）过滤弹幕
+     * @param videoId 视频ID
+     * @param date    日期（本地日期，例如 2026-03-14）
+     */
+    public List<DanmakuDTO> listDanmakuByDate(String videoId, LocalDate date) {
+        if (date == null) {
+            return Collections.emptyList();
+        }
+        // 取该视频的所有弹幕，然后按 sendTime 过滤到指定日期
+        List<DanmakuDTO> all = listAllDanmaku(videoId);
+        if (all.isEmpty()) {
+            return all;
+        }
+
+        ZoneId zone = ZoneId.systemDefault();
+        long startMillis = date.atStartOfDay(zone).toInstant().toEpochMilli();
+        long endMillis = date.plusDays(1).atStartOfDay(zone).toInstant().toEpochMilli();
+
+        return all.stream()
+                .filter(d -> {
+                    Long ts = d.getSendTime();
+                    return ts != null && ts >= startMillis && ts < endMillis;
+                })
+                .sorted(Comparator.comparing(DanmakuDTO::getTime))
+                .collect(Collectors.toList());
     }
 
     /**
