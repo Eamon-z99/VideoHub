@@ -4,6 +4,7 @@ import App from './App.vue';
 import { createAppRouter } from './router';
 import ElementPlus from 'element-plus';
 import 'element-plus/dist/index.css';
+import zhCn from 'element-plus/dist/locale/zh-cn.mjs';
 import * as ElementPlusIconsVue from '@element-plus/icons-vue';
 
 let app = null;
@@ -35,7 +36,7 @@ function render(props = {}) {
 
   app.use(pinia);
   app.use(router);
-  app.use(ElementPlus);
+  app.use(ElementPlus, { locale: zhCn });
 
   // 注册 Element Plus 图标
   for (const [key, component] of Object.entries(ElementPlusIconsVue)) {

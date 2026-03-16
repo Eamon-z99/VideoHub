@@ -33,6 +33,8 @@ public class JwtInterceptor implements HandlerInterceptor {
             path.startsWith("/api/auth/logout") ||
             // 弹幕列表允许未登录访问（发送仍需登录）
             (path.startsWith("/api/danmaku/") && "GET".equals(request.getMethod())) ||
+            // 在看人数（心跳/查询）允许公开访问
+            path.startsWith("/api/watch/") ||
             path.startsWith("/local-videos/") ||
             path.startsWith("/avatars/") ||
             path.startsWith("/error")) {

@@ -194,150 +194,8 @@
         <p class="intro">{{ description }}</p>
       </div>
 
-      <!-- 评论区 -->
-      <div class="comments">
-        <div class="comment-header">
-          <div class="left">
-            <span class="title">评论 {{ commentTotal }}</span>
-          </div>
-          <div class="sort-tabs">
-            <span
-              class="sort-item"
-              :class="{ 'is-active': activeCommentSort === 'time' }"
-              @click="setCommentSort('time')"
-            >
-              按时间
-            </span>
-            <span
-              class="sort-item"
-              :class="{ 'is-active': activeCommentSort === 'hot' }"
-              @click="setCommentSort('hot')"
-            >
-              按热度
-            </span>
-          </div>
-        </div>
-
-        <div class="comment-editor">
-          <div class="editor-avatar">
-            <img
-              v-if="userStore.user?.avatar"
-              :src="normalizeAvatarUrl(userStore.user.avatar)"
-              alt="avatar"
-            />
-            <div v-else class="avatar-placeholder"></div>
-          </div>
-          <div class="editor-main">
-            <el-input
-              v-model="commentText"
-              :rows="3"
-              type="textarea"
-              placeholder="进来来和UP唠会嗑~"
-              class="editor-input"
-            />
-            <div class="editor-actions">
-              <span v-if="!userStore.isAuthenticated" class="login-hint">请先登录再参与评论</span>
-              <el-button
-                type="primary"
-                size="small"
-                :loading="submittingComment"
-                @click="submitComment"
-              >
-                发表评论
-              </el-button>
-            </div>
-          </div>
-        </div>
-
-        <div class="comment-list">
-          <div v-if="comments.length === 0 && !loadingComments" class="no-comment">
-            还没有评论，来抢沙发吧~
-          </div>
-          <div v-else v-for="item in comments" :key="item.id" class="comment-item">
-            <img :src="item.avatar || '/images/default-avatar.png'" class="avatar" />
-            <div class="content">
-              <div class="header">
-                <span class="name">{{ item.name }}</span>
-                <span class="time">{{ item.time }}</span>
-              </div>
-              <p class="text">{{ item.text }}</p>
-              <div class="comment-footer">
-                <div class="reply-summary" v-if="item.replies && item.replies.length">
-                  共 {{ item.replies.length }} 条回复
-                </div>
-                <div class="comment-actions">
-                  <el-button text size="small" @click="toggleCommentLike(item)">
-                    {{ (item._liked ? '已赞 ' : '点赞 ') + (item.likes ?? 0) }}
-                  </el-button>
-                  <el-button
-                    text
-                    size="small"
-                    @click="startReply(item)"
-                  >
-                    回复
-                  </el-button>
-                </div>
-              </div>
-
-              <!-- 回复列表 -->
-              <div v-if="item.replies && item.replies.length" class="reply-list">
-                       <div
-                         v-for="reply in item.replies"
-                         :key="reply.id"
-                         class="reply-item"
-                       >
-                         <img :src="reply.avatar || '/images/default-avatar.png'" class="reply-avatar" />
-                         <div class="reply-content">
-                           <div class="reply-header">
-                             <span class="name">{{ reply.name }}</span>
-                             <span class="time">{{ reply.time }}</span>
-                           </div>
-                           <p class="text">{{ reply.text }}</p>
-                           <div class="reply-actions">
-                             <el-button
-                               text
-                               size="small"
-                               @click="startReply(item, reply)"
-                             >
-                               回复
-                             </el-button>
-                           </div>
-                         </div>
-                       </div>
-              </div>
-
-              <!-- 回复输入框 -->
-                       <div v-if="replyTarget && replyTarget.id === item.id" class="reply-editor">
-                <el-input
-                  v-model="replyText"
-                  type="textarea"
-                  :rows="2"
-                           :placeholder="`回复 @${replyPlaceholderName || item.name}：`"
-                />
-                <div class="reply-actions">
-                  <el-button size="small" @click="cancelReply">取消</el-button>
-                  <el-button
-                    type="primary"
-                    size="small"
-                    :loading="submittingComment"
-                    @click="submitReply(item)"
-                  >
-                    发表回复
-                  </el-button>
-                </div>
-              </div>
-            </div>
-          </div>
-          <div v-if="loadingComments" class="loading-more">加载中...</div>
-          <div
-            v-else-if="hasMoreComments"
-            class="load-more"
-            @click="loadMoreComments"
-          >
-            加载更多评论
-          </div>
-        </div>
-      </div>
+      <!-- 评论区组件 -->
+      <VideoComments :video-id="videoData.videoId || route.params.id" />
     </section>
 
     <!-- 右侧推荐区 -->
@@ -361,82 +219,25 @@
         </el-button>
       </div>
 
-      <!-- 弹幕列表 -->
+      <!-- 弹幕列表组件 -->
       <div
         class="danmaku-list-section"
         ref="danmakuListSectionRef"
+        :class="{ 'is-expanded': danmakuListExpanded }"
         :style="danmakuListStyle"
       >
-        <div class="danmaku-list-header" @click="toggleDanmakuList">
-          <span class="header-title">弹幕列表</span>
-          <el-icon class="header-arrow" :class="{ 'is-expanded': danmakuListExpanded }">
-            <ArrowUp />
-          </el-icon>
-        </div>
-        <div v-if="danmakuListExpanded" class="danmaku-list-content">
-          <div class="danmaku-table">
-            <div class="danmaku-table-header">
-              <div class="col-time">时间</div>
-              <div class="col-content">
-                弹幕内容<span v-if="danmakuDateLabel">（{{ danmakuDateLabel }}）</span>
-              </div>
-              <div class="col-send-time">发送时间</div>
-            </div>
-            <div class="danmaku-table-body">
-              <div v-if="loadingDanmakuList" class="danmaku-loading">加载中...</div>
-              <div v-else-if="danmakuList.length === 0" class="danmaku-empty">
-                {{ danmakuDateLabel ? '该日暂无弹幕' : '暂无弹幕' }}
-              </div>
-              <div
-                v-else
-                v-for="(item, index) in danmakuList"
-                :key="index"
-                class="danmaku-table-row"
-              >
-                <div class="col-time">{{ formatVideoTime(item.time) }}</div>
-                <div class="col-content">{{ item.content }}</div>
-                <div class="col-send-time">{{ formatSendTime(item.sendTime) }}</div>
-              </div>
-            </div>
-          </div>
-          <div class="danmaku-history-picker">
-            <div class="danmaku-history-btn">
-              <span class="history-text">查询历史弹幕</span>
-              <el-date-picker
-                v-model="danmakuHistoryDate"
-                type="date"
-                size="small"
-                format="YYYY-MM-DD"
-                value-format="YYYY-MM-DD"
-                placeholder="查询历史弹幕"
-                :disabled-date="disableDanmakuDate"
-                @change="handleDanmakuHistoryChange"
-              />
-            </div>
-          </div>
-        </div>
+        <DanmakuList
+          :video-id="videoData.videoId || route.params.id"
+          :danmaku-min-date="danmakuMinDate"
+          v-model:expanded="danmakuListExpanded"
+        />
       </div>
 
-      <div class="recommend-title">相关推荐</div>
-      <div class="recommend-list">
-        <div class="rec-item" v-for="rec in recommends" :key="rec.id" @click="openRecommend(rec)">
-          <img :src="rec.cover" class="rec-cover" />
-          <div class="rec-info">
-            <div class="rec-title">{{ rec.title }}</div>
-            <div class="rec-meta">
-              <span><el-icon><View /></el-icon> {{ rec.plays }}</span>
-              <span><el-icon><Timer /></el-icon> {{ rec.duration }}</span>
-            </div>
-          </div>
-        </div>
-      </div>
-      <div
-        v-if="showExpandBtn"
-        class="recommend-expand"
-        @click="toggleRecommends"
-      >
-        {{ recommendsExpanded ? '关闭' : '展开' }}
-      </div>
+      <VideoRecommendList
+        :uploader-id="uploader.id"
+        :current-video-id="videoData.videoId || route.params.id"
+        :fallback-cover="fallbackCover"
+      />
     </aside>
     </div>
   </div>
@@ -445,9 +246,9 @@
 <script setup>
 import { ref, onMounted, watch, onUnmounted, computed, nextTick } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { View, ChatDotRound, Timer, ArrowUp } from '@element-plus/icons-vue'
+import { View, ChatDotRound, Timer } from '@element-plus/icons-vue'
 import { Pointer, Star, Share } from '@element-plus/icons-vue'
-import { fetchVideoDetail, fetchVideosByUploader } from '@/api/video'
+import { fetchVideoDetail } from '@/api/video'
 import { recordHistory } from '@/api/history'
 import TopHeader from '@/components/TopHeader.vue'
 import { addFavorite, removeFavorite, checkFavorite } from '@/api/favorite'
@@ -455,8 +256,11 @@ import { followUser, unfollowUser, checkFollow, getUserStats } from '@/api/follo
 import { likeVideo, unlikeVideo, checkLike, getLikeCount } from '@/api/like'
 import { useUserStore } from '@/stores/user'
 import { ElMessage } from 'element-plus'
-import { getComments, addComment, likeComment, unlikeComment, getCommentReplies } from '@/api/comment'
-import { fetchDanmaku, sendDanmaku, getDanmakuCount, getDanmakuList, getDanmakuByDate } from '@/api/danmaku'
+import { fetchDanmaku, sendDanmaku, getDanmakuCount } from '@/api/danmaku'
+import { heartbeatWatch } from '@/api/watch'
+import DanmakuList from './DanmakuList.vue'
+import VideoRecommendList from './VideoRecommendList.vue'
+import VideoComments from './VideoComments.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -478,9 +282,9 @@ const danmakuListStyle = computed(() => {
   if (danmakuListOffset.value) {
     style.transform = `translateY(${danmakuListOffset.value}px)`
   }
-  // 只在展开时撑满“播放器顶部 -> 弹幕发送栏底部”的高度
+  // 展开时：限制最大高度（弹幕多就滚动），弹幕少则不强行占满，避免把推荐区顶出大片空白
   if (danmakuListExpanded.value && danmakuListHeight.value) {
-    style.height = `${danmakuListHeight.value}px`
+    style['--danmaku-max-height'] = `${danmakuListHeight.value}px`
   }
   return style
 })
@@ -536,9 +340,37 @@ const loadedDanmakuKeys = new Set() // 用于"本次播放过程"去重
 const pendingDanmakuQueue = ref([]) // 已拉取但未到展示时间的弹幕（按 time 升序）
 let lastVideoTimeSec = 0
 const danmakuEnabled = ref(true) // 弹幕开关状态
-const watchingCount = ref(1) // 观看人数（暂时固定，后续可从后端获取）
+const watchingCount = ref(1)
 const loadedDanmakuCount = ref(0) // 已装填弹幕数
 const showDanmakuSettings = ref(false) // 弹幕设置弹窗
+
+// “在看人数”心跳（轻量实现：TTL 计数）
+const WATCH_CLIENT_ID_KEY = 'videohub_watch_client_id'
+const watchClientId = (() => {
+  try {
+    const existing = localStorage.getItem(WATCH_CLIENT_ID_KEY)
+    if (existing) return existing
+    const id = (crypto?.randomUUID ? crypto.randomUUID() : `c_${Date.now()}_${Math.random().toString(16).slice(2)}`)
+    localStorage.setItem(WATCH_CLIENT_ID_KEY, id)
+    return id
+  } catch (e) {
+    return `c_${Date.now()}_${Math.random().toString(16).slice(2)}`
+  }
+})()
+let watchHeartbeatTimer = null
+
+const sendWatchHeartbeat = async () => {
+  const videoId = videoData.value.videoId || route.params.id
+  if (!videoId) return
+  try {
+    const { data } = await heartbeatWatch(String(videoId), watchClientId)
+    if (data && data.success && typeof data.count === 'number') {
+      watchingCount.value = data.count
+    }
+  } catch (e) {
+    // 静默失败：不影响播放体验
+  }
+}
 
 const resetDanmakuRuntime = () => {
   danmakuItems.value = []
@@ -720,6 +552,10 @@ onMounted(() => {
   })
   // 监听窗口大小变化，保持高度同步
   window.addEventListener('resize', updateDanmakuListHeight)
+
+  // 在看人数：立即心跳一次，并周期上报
+  sendWatchHeartbeat()
+  watchHeartbeatTimer = setInterval(sendWatchHeartbeat, 10_000)
 })
 
 watch(() => route.params.id, () => {
@@ -1003,109 +839,9 @@ const updateDanmakuListHeight = () => {
   danmakuListOffset.value = danmakuListBaseOffset.value || 0
 }
 
-// 弹幕列表相关（一次性获取全部弹幕 / 按日期查询）
+// 弹幕列表展开状态、最小日期（发布日）
 const danmakuListExpanded = ref(false)
-const danmakuList = ref([])
-const danmakuListTotal = ref(0)
-const loadingDanmakuList = ref(false)
-const danmakuHistoryDate = ref(null) // Date 对象
-const danmakuDateLabel = ref('')    // 用于显示在“弹幕内容 (3月14日)”中
 const danmakuMinDate = ref(null)    // 视频发布日起
-
-// 切换弹幕列表展开/收起
-const toggleDanmakuList = () => {
-  danmakuListExpanded.value = !danmakuListExpanded.value
-  if (danmakuListExpanded.value && danmakuList.value.length === 0) {
-    loadDanmakuList()
-  }
-}
-
-// 加载弹幕列表：一次性获取全部弹幕
-const loadDanmakuList = async () => {
-  const videoId = videoData.value.videoId || route.params.id
-  if (!videoId) return
-
-  loadingDanmakuList.value = true
-  try {
-    const { data } = await getDanmakuList(videoId)
-    if (data && data.success) {
-      const list = Array.isArray(data.list) ? data.list : []
-      danmakuListTotal.value = data.total || 0
-      danmakuList.value = list
-      danmakuDateLabel.value = '' // 默认“当前全部”不显示日期
-    }
-  } catch (error) {
-    console.error('加载弹幕列表失败:', error)
-  } finally {
-    loadingDanmakuList.value = false
-  }
-}
-
-// 加载更多弹幕（全量模式下不分页，此处保留空实现以兼容模板）
-const loadMoreDanmaku = () => {}
-
-// 是否有更多弹幕（全量模式下固定为 false）
-const hasMoreDanmaku = computed(() => false)
-
-// 将 YYYY-MM-DD 转成 “M月D日” 文本
-const formatDateLabel = (isoDateStr) => {
-  if (!isoDateStr) return ''
-  const d = new Date(isoDateStr)
-  if (Number.isNaN(d.getTime())) return ''
-  const m = d.getMonth() + 1
-  const day = d.getDate()
-  return `${m}月${day}日`
-}
-
-// 查询指定日期的历史弹幕
-const loadDanmakuByDate = async (dateObj) => {
-  const videoId = videoData.value.videoId || route.params.id
-  if (!videoId || !dateObj) return
-
-  const year = dateObj.getFullYear()
-  const month = String(dateObj.getMonth() + 1).padStart(2, '0')
-  const day = String(dateObj.getDate()).padStart(2, '0')
-  const dateStr = `${year}-${month}-${day}` // 传给后端的 YYYY-MM-DD
-
-  loadingDanmakuList.value = true
-  try {
-    const { data } = await getDanmakuByDate(videoId, dateStr)
-    if (data && data.success) {
-      const list = Array.isArray(data.list) ? data.list : []
-      danmakuListTotal.value = data.total || list.length
-      danmakuList.value = list
-      danmakuDateLabel.value = formatDateLabel(dateStr)
-    }
-  } catch (error) {
-    console.error('按日期加载弹幕失败:', error)
-  } finally {
-    loadingDanmakuList.value = false
-  }
-}
-
-// 日期选择变化回调
-const handleDanmakuHistoryChange = (val) => {
-  if (!val) return
-  // el-date-picker 在设置了 value-format 后会传字符串，这里统一转成 Date 对象
-  const dateObj = typeof val === 'string' ? new Date(val) : val
-  loadDanmakuByDate(dateObj)
-}
-
-// 限制可选日期：从视频发布日期到今天
-const disableDanmakuDate = (time) => {
-  const d = new Date(time)
-  d.setHours(0, 0, 0, 0)
-  const today = new Date()
-  today.setHours(0, 0, 0, 0)
-
-  if (danmakuMinDate.value) {
-    const min = new Date(danmakuMinDate.value)
-    min.setHours(0, 0, 0, 0)
-    if (d < min) return true
-  }
-
-  return d > today
-}
 
 // 格式化视频内时间
 const formatVideoTime = (seconds) => {
@@ -1641,11 +1377,15 @@ onUnmounted(() => {
     clearInterval(recordTimer)
     recordTimer = null
   }
+  if (watchHeartbeatTimer) {
+    clearInterval(watchHeartbeatTimer)
+    watchHeartbeatTimer = null
+  }
   window.removeEventListener('resize', updateDanmakuListHeight)
 })
 </script>
 
-<style lang="scss" scoped>
+<style lang="scss">
 .video-page-wrapper {
   min-width: 1600px;
   max-width: 2300px;
@@ -2392,6 +2132,11 @@ onUnmounted(() => {
       display: flex;
       flex-direction: column;
 
+      &.is-expanded {
+        /* 只限制最大高度，不强行撑满 */
+        max-height: var(--danmaku-max-height);
+      }
+
       .danmaku-list-header {
         display: flex;
         align-items: center;
@@ -2426,15 +2171,14 @@ onUnmounted(() => {
         border-top: 1px solid #f1f2f3;
         display: flex;
         flex-direction: column;
-        flex: 1;
-        min-height: 0;
+        /* 内容自适应高度，避免在容器有 max-height 时被 flex:1 撑出空白 */
+        flex: 0 0 auto;
       }
 
       .danmaku-table {
         display: flex;
         flex-direction: column;
-        flex: 1;
-        min-height: 0;
+        flex: 0 0 auto;
 
         .danmaku-table-header {
           display: grid;
@@ -2461,9 +2205,9 @@ onUnmounted(() => {
         }
 
         .danmaku-table-body {
-          flex: 1;
-          min-height: 0;
           overflow-y: auto;
+          /* 当弹幕很多时在这里滚动；弹幕很少时高度随内容，推荐区不会被顶下去 */
+          max-height: calc(var(--danmaku-max-height, 0px) - 120px);
 
           // 美化滚动条
           scrollbar-width: thin;              // Firefox
