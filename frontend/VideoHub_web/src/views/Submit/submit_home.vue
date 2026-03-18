@@ -177,13 +177,13 @@
             <!-- 从视频截取封面（左侧裁剪区 + 右侧帧拖动区） -->
             <el-dialog v-model="framePickerVisible" title="从视频截取封面" width="980px">
               <div class="frame-picker">
-                <div class="frame-cropper">
+                <div class="frame-cropper" :style="frameCropperBackdropStyle" :class="{ 'is-switching': frameCropSwitching }">
                   <VueCropper
                     ref="frameCropperRef"
                     class="frame-cropper-core"
                     :img="frameCropImg"
                     outputType="jpeg"
-                    :autoCrop="true"
+                    :autoCrop="false"
                     :centerBox="true"
                     :fixed="false"
                     :canMove="false"
@@ -191,6 +191,8 @@
                     :canScale="true"
                     :original="false"
                     :info="true"
+                    @img-load="onFrameCropImgLoad"
+                    @realTime="onFrameCropRealTime"
                   />
                 </div>
                 <div class="frame-controls">
@@ -498,6 +500,9 @@ const onVideoFileChange = (event) => {
   frameCurrentTime.value = 0
   // 切换到新视频时，重置截帧裁剪图（避免不同视频之间继承上一帧）
   frameCropImg.value = ''
+  frameCropBackdropImg.value = ''
+  frameCropAxis.value = null
+  frameCropStarted.value = false
   if (!videoTitle.value) {
     const dot = file.name.lastIndexOf('.')
     videoTitle.value = dot > 0 ? file.name.slice(0, dot) : file.name
@@ -567,11 +572,61 @@ const canvasToCoverFile = (canvas, filename) =>
 
 const frameCropperRef = ref(null)
 const frameCropImg = ref('')
+const frameCropBackdropImg = ref('')
+const frameCropSwitching = ref(false)
+const frameCropAxis = ref(null)
+const frameCropStarted = ref(false)
+const frameCropperBackdropStyle = computed(() => {
+  const url = frameCropBackdropImg.value || frameCropImg.value
+  if (!url) return { '--frame-cropper-backdrop-opacity': '0' }
+  return {
+    '--frame-cropper-backdrop': `url(${url})`,
+    '--frame-cropper-backdrop-opacity': '1'
+  }
+})
 
 // 从隐藏 video 把“当前帧”画成图片，喂给左侧裁剪区
 let frameCaptureTimer = null
+let frameCaptureSeq = 0
+const waitImageReady = (src) =>
+  new Promise((resolve) => {
+    if (!src) return resolve(false)
+    const img = new Image()
+    img.onload = () => resolve(true)
+    img.onerror = () => resolve(false)
+    img.src = src
+  })
+
+const onFrameCropImgLoad = (status) => {
+  if (status !== 'success') return
+  frameCropBackdropImg.value = frameCropImg.value
+
+  // 切换图片时尽量复用同一个裁剪框：不新建，只恢复上一次的范围
+  nextTick(() => {
+    const cropper = frameCropperRef.value
+    if (!cropper) return
+    // autoCrop=false 时，切换图片后必须确保裁剪处于开启态，否则会出现“截取框/阴影消失”
+    cropper.startCrop?.()
+    if (frameCropAxis.value && cropper.setCropAxis) {
+      cropper.setCropAxis(frameCropAxis.value)
+    } else {
+      cropper.goAutoCrop?.()
+    }
+    frameCropStarted.value = true
+  })
+}
+
+const onFrameCropRealTime = () => {
+  // 用户拖动/缩放裁剪框时实时保存范围，确保切帧后能恢复到你最后调整的框
+  const cropper = frameCropperRef.value
+  if (!cropper?.getCropAxis) return
+  try {
+    frameCropAxis.value = cropper.getCropAxis()
+  } catch (e) {}
+}
 
 const captureCurrentFrameToCropper = async () => {
+  const seq = ++frameCaptureSeq
   const videoEl = frameVideoRef.value
   if (!videoEl) return
 
@@ -584,6 +639,7 @@ const captureCurrentFrameToCropper = async () => {
     }
     videoEl.addEventListener('loadeddata', handler)
   })
+  if (seq !== frameCaptureSeq) return
 
   const w = videoEl.videoWidth || 0
   const h = videoEl.videoHeight || 0
@@ -594,7 +650,21 @@ const captureCurrentFrameToCropper = async () => {
   const ctx = canvas.getContext('2d')
   if (!ctx) return
   ctx.drawImage(videoEl, 0, 0, w, h)
-  frameCropImg.value = canvas.toDataURL('image/jpeg', 0.92)
+  const nextUrl = canvas.toDataURL('image/jpeg', 0.92)
+
+  // 切换期间用上一帧兜底，避免底图闪白；同时保存裁剪框范围，切换后恢复
+  if (frameCropImg.value) frameCropBackdropImg.value = frameCropImg.value
+  {
+    const cropper = frameCropperRef.value
+    if (cropper?.getCropAxis) {
+      try {
+        frameCropAxis.value = cropper.getCropAxis()
+      } catch (e) {}
+    }
+  }
+  await waitImageReady(nextUrl)
+  if (seq !== frameCaptureSeq) return
+  frameCropImg.value = nextUrl
 }
 
 const scheduleCaptureCurrentFrame = () => {
@@ -614,7 +684,6 @@ const openFramePicker = async () => {
   // 重置到 0 秒，等待 metadata 后读取时长
   frameDuration.value = 0
   frameCurrentTime.value = 0
-  frameCropImg.value = ''
   videoEl.currentTime = 0
 
   // 绑定事件（先解绑，防止重复打开叠加）
@@ -1044,12 +1113,26 @@ const getPageTitle = (view) => {
     background-size: 16px 16px;
     background-position: 0 0, 0 8px, 8px -8px, -8px 0px;
     position: relative;
+
+    &::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background-image: var(--frame-cropper-backdrop);
+      background-repeat: no-repeat;
+      background-position: center;
+      background-size: contain;
+      opacity: var(--frame-cropper-backdrop-opacity, 0);
+      z-index: 0;
+    }
   }
 
   .frame-cropper-core {
     width: 100%;
     height: 100%;
     background: transparent !important;
+    position: relative;
+    z-index: 1;
   }
 
   .frame-controls {
