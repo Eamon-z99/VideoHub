@@ -9,11 +9,17 @@
     :style="headerStyle"
   >
     <div class="header-inner">
-    <ul class="nav-left">
-      <li class="nav-item" @click="goTo('/')">
-        <img src="/assets/home.png" class="nav-icon" />
-        <span>首页</span>
-      </li>
+    <div class="header-left">
+      <!-- 独立 Logo：仅下滑（scrolled）时显示 -->
+      <div class="brand-logo" v-show="isScrolled" @click="goTo('/')" aria-label="返回首页" role="button">
+        <span class="brand-logo-icon" aria-hidden="true" v-html="webLogoSvg"></span>
+      </div>
+
+      <ul class="nav-left">
+        <li class="nav-item" @click="goTo('/')">
+          <img src="/assets/home.png" class="nav-icon nav-home-icon" />
+          <span>首页</span>
+        </li>
       <li class="nav-item"><span>番剧</span></li>
       <li class="nav-item" @click="goTo('/live')"><span>直播</span></li>
       <li class="nav-item"><span>游戏中心</span></li>
@@ -24,7 +30,8 @@
         <img src="/assets/download-client.png" class="nav-icon" />
         <span>下载客户端</span>
       </li>
-    </ul>
+      </ul>
+    </div>
     <div class="search">
       <input
         class="search-input"
@@ -94,6 +101,7 @@ import Login from '@/components/Login.vue'
 import UserDropdown from '@/components/UserDropdown.vue'
 import { useUserStore } from '@/stores/user'
 import { fetchMyProfile } from '@/api/userProfile'
+import webLogoRaw from '../../public/assets/webLogo.svg?raw'
 
 // Props
 interface Props {
@@ -110,6 +118,13 @@ const props = withDefaults(defineProps<Props>(), {
 
 const router = useRouter()
 const userStore = useUserStore()
+
+const webLogoSvg = computed(() =>
+  webLogoRaw
+    .replace(/fill="#000"\b/gi, 'fill="currentColor"')
+    .replace(/fill="#000000"\b/gi, 'fill="currentColor"')
+    .replace(/<svg\b/i, '<svg style="width:100%;height:100%;display:block;"')
+)
 
 let showLogin = ref(false)
 let showUserDropdown = ref(false)
@@ -414,6 +429,48 @@ const doSearch = () => {
   margin: 0 auto;
 }
 
+.header-left {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+}
+
+.brand-logo {
+  width: 90px;
+  height: 45px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  // margin-right: 12px;
+  margin-top: -6px;
+  cursor: pointer;
+  color: #00a1d6;
+  transition: opacity 0.2s ease;
+
+  &:active {
+    opacity: 0.8;
+  }
+}
+
+.brand-logo-icon {
+  width: 100%;
+  height: 100%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+
+  :deep(svg) {
+    width: 100%;
+    height: 100%;
+    display: block;
+  }
+
+  :deep(path) {
+    fill: currentColor !important;
+  }
+}
+
 .nav-left {
   display: flex;
   gap: 20px;
@@ -433,6 +490,7 @@ const doSearch = () => {
 
   span {
     transition: color .2s;
+    white-space: nowrap;
   }
 
   &:hover span {
@@ -457,13 +515,18 @@ const doSearch = () => {
   filter: brightness(0);
 }
 
+/* “首页”图标：仅最顶部显示；下滑时隐藏 */
+.top-header.scrolled .nav-home-icon {
+  display: none;
+}
+
 .search {
   display: grid;
   grid-template-columns: 1fr 40px;
   background: #F1F2F3;
   border-radius: 8px;
   overflow: hidden;
-  width: 500px;
+  width: clamp(260px, 28vw, 420px);
   margin: 0 auto;
 }
 
