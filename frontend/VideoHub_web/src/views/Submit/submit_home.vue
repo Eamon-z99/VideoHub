@@ -129,149 +129,27 @@
           />
         </el-tabs>
 
-        <!-- 上传区域 -->
+        <!-- 投稿流程：图1上传 -> 图2编辑 -->
         <el-card class="upload-card" shadow="never">
-          <div class="upload-area">
-            <input
-              ref="videoFileInput"
-              type="file"
-              accept="video/*"
-              style="display: none"
-              @change="onVideoFileChange"
-            />
-            <input
-              ref="coverFileInput"
-              type="file"
-              accept="image/*"
-              style="display: none"
-              @change="onCoverFileChange"
-            />
-            <p class="upload-title">选择要投稿的视频文件</p>
-            <el-button type="primary" @click="triggerSelectVideo" :loading="uploading">
-              {{ uploading ? '上传中...' : '选择视频并上传' }}
-            </el-button>
-            <p v-if="selectedVideoName" class="file-hint">
-              当前文件：{{ selectedVideoName }}（{{ selectedVideoSize }}）
-            </p>
-            <div class="cover-row">
-              <div class="cover-info">
-                <span class="cover-label">封面（可选）：</span>
-                <el-button size="small" @click="triggerSelectCover" :disabled="uploading">
-                  选择封面图片
-                </el-button>
-                <el-button
-                  v-if="videoFile"
-                  size="small"
-                  @click="openFramePicker"
-                  :disabled="uploading"
-                >
-                  从视频截取
-                </el-button>
-                <span v-if="coverName" class="cover-text">已选择：{{ coverName }}</span>
-              </div>
-              <div v-if="coverPreview" class="cover-preview">
-                <img :src="coverPreview" alt="封面预览" />
-              </div>
-            </div>
-
-            <!-- 从视频截取封面（左侧裁剪区 + 右侧帧拖动区） -->
-            <el-dialog v-model="framePickerVisible" title="从视频截取封面" width="980px">
-              <div class="frame-picker">
-                <div class="frame-cropper" :style="frameCropperBackdropStyle" :class="{ 'is-switching': frameCropSwitching }">
-                  <VueCropper
-                    ref="frameCropperRef"
-                    class="frame-cropper-core"
-                    :img="frameCropImg"
-                    outputType="jpeg"
-                    :autoCrop="false"
-                    :centerBox="true"
-                    :fixed="false"
-                    :canMove="false"
-                    :canMoveBox="true"
-                    :canScale="true"
-                    :original="false"
-                    :info="true"
-                    @img-load="onFrameCropImgLoad"
-                    @realTime="onFrameCropRealTime"
-                  />
-                </div>
-                <div class="frame-controls">
-                  <div class="frame-preview">
-                    <video
-                      ref="frameVideoRef"
-                      class="frame-video"
-                      :src="videoObjectUrl"
-                      muted
-                      playsinline
-                      preload="auto"
-                    />
-                    <div class="frame-preview-hint">
-                      拖动下方时间条选帧（左侧会自动更新为当前帧，可继续裁剪）
-                    </div>
-                  </div>
-
-                  <div class="frame-time">
-                    <span>{{ formatTime(frameCurrentTime) }}</span>
-                    <span class="sep">/</span>
-                    <span>{{ formatTime(frameDuration) }}</span>
-                  </div>
-                  <el-slider
-                    v-model="frameCurrentTime"
-                    :min="0"
-                    :max="frameDuration"
-                    :step="0.04"
-                    :disabled="!frameDuration"
-                    :show-tooltip="false"
-                    @input="onFrameTimeInput"
-                  />
-                  <div class="frame-actions">
-                    <el-button @click="seekTo(frameCurrentTime - 1)" :disabled="!frameDuration">-1s</el-button>
-                    <el-button @click="seekTo(frameCurrentTime + 1)" :disabled="!frameDuration">+1s</el-button>
-                    <el-button type="primary" @click="captureFrameAsCover" :disabled="!frameDuration || !frameCropImg">
-                      设为封面
-                    </el-button>
-                  </div>
-                </div>
-              </div>
-              <template #footer>
-                <el-button @click="framePickerVisible = false">关闭</el-button>
-              </template>
-            </el-dialog>
-            <el-form label-width="72px" class="upload-form">
-              <el-form-item label="标题">
-                <el-input
-                  v-model="videoTitle"
-                  maxlength="80"
-                  show-word-limit
-                  placeholder="请输入视频标题"
-                />
-              </el-form-item>
-              <el-form-item label="简介">
-                <el-input
-                  v-model="videoDescription"
-                  type="textarea"
-                  :rows="3"
-                  maxlength="200"
-                  show-word-limit
-                  placeholder="简单介绍一下你的视频内容"
-                />
-              </el-form-item>
-              <el-form-item>
-                <el-button
-                  type="primary"
-                  :disabled="!videoFile || uploading"
-                  :loading="uploading"
-                  @click="submitVideo"
-                >
-                  {{ uploading ? '正在投稿...' : '立即投稿' }}
-                </el-button>
-              </el-form-item>
-            </el-form>
-          </div>
+          <SubmitUploadStep
+            v-if="submitStep === 'upload'"
+            @uploaded="onUploaded"
+          />
+          <SubmitEditStep
+            v-else
+            :submission-id="submissionId"
+            :video-file="uploadedVideoFile"
+            :video-name="uploadedVideoName"
+            :duration-seconds="uploadedDurationSeconds"
+            :initial-draft="initialDraft"
+            @back="goBackToUpload"
+            @done="onEditDone"
+            @created="onSubmissionCreated"
+          />
         </el-card>
 
-        <!-- 推广模块 -->
-        <div class="promo-list">
+        <!-- 推广模块（仅上传页展示） -->
+        <div v-if="submitStep === 'upload'" class="promo-list">
           <el-card class="promo-card" shadow="hover">
             <div class="promo-content">
               <div class="promo-text">
@@ -293,8 +171,8 @@
           </el-card>
         </div>
 
-        <!-- 底部说明 -->
-        <div class="footer-note">
+        <!-- 底部说明（仅上传页展示） -->
+        <div v-if="submitStep === 'upload'" class="footer-note">
           <div class="links">
             <el-link type="primary" href="javascript:void(0)">选择本地视频</el-link>
             <el-divider direction="vertical" />
@@ -313,7 +191,7 @@
 
       <!-- 内容管理页面内容 -->
       <div v-else-if="currentView === 'contentManagement'" class="content-page">
-        <ContentManagement />
+        <ContentManagement @continue-edit="openDraftForEdit" />
       </div>
 
       <!-- 数据中心页面内容 -->
@@ -378,7 +256,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, nextTick } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
 import ContentManagement from './content_management.vue'
 import DataCenter from './data_center.vue'
@@ -391,10 +269,9 @@ import Academy from './academy.vue'
 import Rights from './rights.vue'
 import Convention from './convention.vue'
 import Settings from './settings.vue'
-import { uploadVideo } from '@/api/video'
-import { ElMessage } from 'element-plus'
-import { VueCropper } from 'vue-cropper'
-import 'vue-cropper/dist/index.css'
+import SubmitUploadStep from './components/SubmitUploadStep.vue'
+import SubmitEditStep from './components/SubmitEditStep.vue'
+import { getVideoDraftDetail } from '@/api/video'
 import webLogoRaw from '@/../public/assets/webLogo.svg?raw'
 
 const route = useRoute()
@@ -431,393 +308,80 @@ const activeTab = ref('video')
 
 const handleMenuSelect = (index) => {
   currentView.value = index
-  console.log('切换到:', index)
+  // 切回“投稿”时，默认回到上传步骤
+  if (index === 'submit') {
+    submitStep.value = 'upload'
+    submissionId.value = ''
+    uploadedVideoFile.value = null
+    uploadedVideoName.value = ''
+    initialDraft.value = null
+  }
 }
 
-// 视频投稿表单状态
-const videoFileInput = ref(null)
-const coverFileInput = ref(null)
-const videoFile = ref(null)
-const selectedVideoName = ref('')
-const selectedVideoSize = ref('')
-const coverFile = ref(null)
-const coverName = ref('')
-const coverPreview = ref('')
-const coverMime = ref('')
+// 投稿流程状态
+const submitStep = ref('upload') // upload | edit
+const submissionId = ref('')
+const uploadedVideoFile = ref(null)
+const uploadedVideoName = ref('')
+const uploadedDurationSeconds = ref(0)
+const initialDraft = ref(null)
 
-// 视频对象 URL（用于截帧）
-const videoObjectUrl = ref('')
-const framePickerVisible = ref(false)
-const frameVideoRef = ref(null)
-const frameDuration = ref(0)
-const frameCurrentTime = ref(0)
-
-// 视频时长 & 投稿表单
-const videoDurationSeconds = ref(0)
-const videoTitle = ref('')
-const videoDescription = ref('')
-const uploading = ref(false)
-
-const triggerSelectVideo = () => {
-  videoFileInput.value?.click()
+const onUploaded = (payload) => {
+  submissionId.value = payload?.submissionId || ''
+  uploadedVideoFile.value = payload?.videoFile || null
+  uploadedVideoName.value = payload?.videoName || ''
+  uploadedDurationSeconds.value = payload?.durationSeconds || 0
+  // 选择文件后就进入填写信息页；不自动上传
+  submitStep.value = (uploadedVideoFile.value || submissionId.value) ? 'edit' : 'upload'
 }
 
-const triggerSelectCover = () => {
-  coverFileInput.value?.click()
+const goBackToUpload = () => {
+  submitStep.value = 'upload'
+  submissionId.value = ''
 }
 
-const formatSize = (size) => {
-  if (!size && size !== 0) return ''
-  if (size >= 1024 * 1024 * 1024) {
-    return (size / (1024 * 1024 * 1024)).toFixed(2) + ' GB'
-  }
-  if (size >= 1024 * 1024) {
-    return (size / (1024 * 1024)).toFixed(2) + ' MB'
-  }
-  if (size >= 1024) {
-    return (size / 1024).toFixed(2) + ' KB'
-  }
-  return size + ' B'
+const onEditDone = () => {
+  // 保存/投稿完成后回到上传页
+  submitStep.value = 'upload'
+  submissionId.value = ''
+  uploadedVideoFile.value = null
+  uploadedVideoName.value = ''
+  uploadedDurationSeconds.value = 0
+  initialDraft.value = null
 }
 
-const onVideoFileChange = (event) => {
-  const file = event.target.files?.[0]
-  if (!file) return
-  // 简单类型校验
-  if (!file.type.startsWith('video/')) {
-    ElMessage.warning('请选择视频文件')
-    return
-  }
-  videoFile.value = file
-  selectedVideoName.value = file.name
-  selectedVideoSize.value = formatSize(file.size)
-  // 重建视频对象 URL（用于截帧弹窗）
-  if (videoObjectUrl.value) {
-    URL.revokeObjectURL(videoObjectUrl.value)
-  }
-  videoObjectUrl.value = URL.createObjectURL(file)
-  frameDuration.value = 0
-  frameCurrentTime.value = 0
-  // 切换到新视频时，重置截帧裁剪图（避免不同视频之间继承上一帧）
-  frameCropImg.value = ''
-  frameCropBackdropImg.value = ''
-  frameCropAxis.value = null
-  frameCropStarted.value = false
-  if (!videoTitle.value) {
-    const dot = file.name.lastIndexOf('.')
-    videoTitle.value = dot > 0 ? file.name.slice(0, dot) : file.name
-  }
+const onSubmissionCreated = (sid) => {
+  if (!sid || typeof sid !== 'string') return
+  submissionId.value = sid
+}
 
-  // 获取视频时长（秒）：在浏览器端用隐藏 video 元素读取 metadata
+const openDraftForEdit = async (sid) => {
+  if (!sid || typeof sid !== 'string') return
+  currentView.value = 'submit'
+  submitStep.value = 'edit'
+  submissionId.value = sid
+  uploadedVideoFile.value = null
+  uploadedVideoName.value = ''
+  initialDraft.value = null
   try {
-    const url = URL.createObjectURL(file)
-    const videoEl = document.createElement('video')
-    videoEl.preload = 'metadata'
-    videoEl.src = url
-    videoEl.onloadedmetadata = () => {
-      // 部分浏览器需要先暂停
-      videoEl.pause()
-      const dur = videoEl.duration
-      if (typeof dur === 'number' && !Number.isNaN(dur) && dur > 0) {
-        // 使用向下取整，避免 11.9 这类被四舍五入成 12 秒导致数据库多 1 秒
-        videoDurationSeconds.value = Math.floor(dur)
-      } else {
-        videoDurationSeconds.value = 0
-      }
-      URL.revokeObjectURL(url)
-    }
-    videoEl.onerror = () => {
-      videoDurationSeconds.value = 0
-      URL.revokeObjectURL(url)
+    const { data } = await getVideoDraftDetail(sid)
+    if (data?.success) {
+      initialDraft.value = data.data || null
+      uploadedVideoName.value = String(data.data?.title || '')
     }
   } catch (e) {
-    videoDurationSeconds.value = 0
+    // 忽略：草稿可能已不存在
+    initialDraft.value = null
   }
 }
 
-const onCoverFileChange = (event) => {
-  const file = event.target.files?.[0]
-  if (!file) return
-  if (!file.type.startsWith('image/')) {
-    ElMessage.warning('封面必须是图片文件')
-    return
-  }
-  coverFile.value = file
-  coverName.value = file.name
-  coverMime.value = file.type || 'image/jpeg'
-  // 预览
-  coverPreview.value = URL.createObjectURL(file)
-}
-
-// 将秒格式化成 mm:ss（用于截帧弹窗的时间显示）
-const formatTime = (sec) => {
-  const s = Math.max(0, Number(sec) || 0)
-  const mm = Math.floor(s / 60)
-  const ss = Math.floor(s % 60)
-  return `${String(mm).padStart(2, '0')}:${String(ss).padStart(2, '0')}`
-}
-
-// 将 canvas 转成可上传的封面文件（这里统一使用 jpeg，体积小、兼容性好）
-const canvasToCoverFile = (canvas, filename) =>
-  new Promise((resolve, reject) => {
-    canvas.toBlob(
-      (blob) => {
-        if (!blob) return reject(new Error('canvas toBlob failed'))
-        resolve(new File([blob], filename, { type: blob.type || 'image/jpeg' }))
-      },
-      'image/jpeg',
-      0.92
-    )
-  })
-
-const frameCropperRef = ref(null)
-const frameCropImg = ref('')
-const frameCropBackdropImg = ref('')
-const frameCropSwitching = ref(false)
-const frameCropAxis = ref(null)
-const frameCropStarted = ref(false)
-const frameCropperBackdropStyle = computed(() => {
-  const url = frameCropBackdropImg.value || frameCropImg.value
-  if (!url) return { '--frame-cropper-backdrop-opacity': '0' }
-  return {
-    '--frame-cropper-backdrop': `url(${url})`,
-    '--frame-cropper-backdrop-opacity': '1'
+// 支持从 URL 参数直接打开草稿编辑：/submitHome?view=submit&submissionId=xxx
+onMounted(async () => {
+  const sid = route.query.submissionId
+  if (sid && typeof sid === 'string') {
+    await openDraftForEdit(sid)
   }
 })
-
-// 从隐藏 video 把“当前帧”画成图片，喂给左侧裁剪区
-let frameCaptureTimer = null
-let frameCaptureSeq = 0
-const waitImageReady = (src) =>
-  new Promise((resolve) => {
-    if (!src) return resolve(false)
-    const img = new Image()
-    img.onload = () => resolve(true)
-    img.onerror = () => resolve(false)
-    img.src = src
-  })
-
-const onFrameCropImgLoad = (status) => {
-  if (status !== 'success') return
-  frameCropBackdropImg.value = frameCropImg.value
-
-  // 切换图片时尽量复用同一个裁剪框：不新建，只恢复上一次的范围
-  nextTick(() => {
-    const cropper = frameCropperRef.value
-    if (!cropper) return
-    // autoCrop=false 时，切换图片后必须确保裁剪处于开启态，否则会出现“截取框/阴影消失”
-    cropper.startCrop?.()
-    if (frameCropAxis.value && cropper.setCropAxis) {
-      cropper.setCropAxis(frameCropAxis.value)
-    } else {
-      cropper.goAutoCrop?.()
-    }
-    frameCropStarted.value = true
-  })
-}
-
-const onFrameCropRealTime = () => {
-  // 用户拖动/缩放裁剪框时实时保存范围，确保切帧后能恢复到你最后调整的框
-  const cropper = frameCropperRef.value
-  if (!cropper?.getCropAxis) return
-  try {
-    frameCropAxis.value = cropper.getCropAxis()
-  } catch (e) {}
-}
-
-const captureCurrentFrameToCropper = async () => {
-  const seq = ++frameCaptureSeq
-  const videoEl = frameVideoRef.value
-  if (!videoEl) return
-
-  // 确保画面可用（避免 seek 后拿到上一帧/黑帧）
-  await new Promise((resolve) => {
-    if (videoEl.readyState >= 2) return resolve()
-    const handler = () => {
-      videoEl.removeEventListener('loadeddata', handler)
-      resolve()
-    }
-    videoEl.addEventListener('loadeddata', handler)
-  })
-  if (seq !== frameCaptureSeq) return
-
-  const w = videoEl.videoWidth || 0
-  const h = videoEl.videoHeight || 0
-  if (!w || !h) return
-  const canvas = document.createElement('canvas')
-  canvas.width = w
-  canvas.height = h
-  const ctx = canvas.getContext('2d')
-  if (!ctx) return
-  ctx.drawImage(videoEl, 0, 0, w, h)
-  const nextUrl = canvas.toDataURL('image/jpeg', 0.92)
-
-  // 切换期间用上一帧兜底，避免底图闪白；同时保存裁剪框范围，切换后恢复
-  if (frameCropImg.value) frameCropBackdropImg.value = frameCropImg.value
-  {
-    const cropper = frameCropperRef.value
-    if (cropper?.getCropAxis) {
-      try {
-        frameCropAxis.value = cropper.getCropAxis()
-      } catch (e) {}
-    }
-  }
-  await waitImageReady(nextUrl)
-  if (seq !== frameCaptureSeq) return
-  frameCropImg.value = nextUrl
-}
-
-const scheduleCaptureCurrentFrame = () => {
-  if (frameCaptureTimer) window.clearTimeout(frameCaptureTimer)
-  frameCaptureTimer = window.setTimeout(() => {
-    captureCurrentFrameToCropper()
-  }, 80)
-}
-
-const openFramePicker = async () => {
-  if (!videoFile.value || !videoObjectUrl.value) return
-  framePickerVisible.value = true
-  await nextTick()
-  const videoEl = frameVideoRef.value
-  if (!videoEl) return
-
-  // 重置到 0 秒，等待 metadata 后读取时长
-  frameDuration.value = 0
-  frameCurrentTime.value = 0
-  videoEl.currentTime = 0
-
-  // 绑定事件（先解绑，防止重复打开叠加）
-  videoEl.onloadedmetadata = null
-  videoEl.onseeked = null
-  videoEl.onloadedmetadata = () => {
-    const dur = Number(videoEl.duration)
-    frameDuration.value = Number.isFinite(dur) && dur > 0 ? dur : 0
-    frameCurrentTime.value = 0
-    scheduleCaptureCurrentFrame()
-  }
-  videoEl.onseeked = () => {
-    scheduleCaptureCurrentFrame()
-  }
-  // 确保触发 metadata 加载（部分浏览器需要显式 load）
-  try {
-    videoEl.load?.()
-  } catch (e) {}
-}
-
-const onFrameTimeInput = (val) => {
-  seekTo(val)
-}
-
-const seekTo = (t) => {
-  const videoEl = frameVideoRef.value
-  if (!videoEl || !frameDuration.value) return
-  const clamped = Math.min(frameDuration.value, Math.max(0, Number(t) || 0))
-  frameCurrentTime.value = clamped
-  videoEl.currentTime = clamped
-  // 画面更新后由 onseeked 触发截帧（这里也做一次兜底）
-  scheduleCaptureCurrentFrame()
-}
-
-// dataURL -> File（用于截帧时把 canvas 转成可上传文件）
-const dataUrlToFile = (dataUrl, filename) => {
-  const [meta, b64] = dataUrl.split(',')
-  const mime = meta.match(/data:(.*?);base64/)?.[1] || 'image/jpeg'
-  const bytes = atob(b64)
-  const buf = new Uint8Array(bytes.length)
-  for (let i = 0; i < bytes.length; i++) buf[i] = bytes.charCodeAt(i)
-  return new File([buf], filename, { type: mime })
-}
-
-const captureFrameAsCover = async () => {
-  // 先确保左侧裁剪区已有画面
-  if (!frameCropImg.value) {
-    await captureCurrentFrameToCropper()
-  }
-
-  const cropper = frameCropperRef.value
-  if (!cropper?.getCropBlob) {
-    ElMessage.error('裁剪组件未就绪，请刷新页面后重试')
-    return
-  }
-
-  const blob = await new Promise((resolve) => {
-    cropper.getCropBlob((b) => resolve(b || null))
-  })
-  if (!blob) {
-    ElMessage.error('裁剪失败，请稍等片刻再试')
-    return
-  }
-
-  const file = new File([blob], 'cover.jpg', { type: blob.type || 'image/jpeg' })
-
-  // 更新封面
-  if (coverPreview.value) {
-    URL.revokeObjectURL(coverPreview.value)
-  }
-  coverFile.value = file
-  coverName.value = '从视频截取'
-  coverMime.value = file.type
-  coverPreview.value = URL.createObjectURL(file)
-  framePickerVisible.value = false
-}
-
-const submitVideo = async () => {
-  if (!videoFile.value) {
-    ElMessage.warning('请先选择要投稿的视频文件')
-    return
-  }
-  if (!videoTitle.value.trim()) {
-    ElMessage.warning('请填写视频标题')
-    return
-  }
-  const formData = new FormData()
-  formData.append('file', videoFile.value)
-  formData.append('title', videoTitle.value.trim())
-  formData.append('description', videoDescription.value.trim())
-  if (coverFile.value) {
-    formData.append('cover', coverFile.value)
-  }
-  if (videoDurationSeconds.value && videoDurationSeconds.value > 0) {
-    formData.append('duration', String(videoDurationSeconds.value))
-  }
-
-  uploading.value = true
-  try {
-    const { data } = await uploadVideo(formData)
-    if (data && data.success) {
-      ElMessage.success('投稿成功，稍后即可在首页看到新视频')
-      // 重置表单
-      videoFile.value = null
-      selectedVideoName.value = ''
-      selectedVideoSize.value = ''
-      videoTitle.value = ''
-      videoDescription.value = ''
-      if (videoFileInput.value) {
-        videoFileInput.value.value = ''
-      }
-      if (coverFileInput.value) {
-        coverFileInput.value.value = ''
-      }
-      if (coverPreview.value) {
-        URL.revokeObjectURL(coverPreview.value)
-      }
-      if (videoObjectUrl.value) {
-        URL.revokeObjectURL(videoObjectUrl.value)
-      }
-      coverFile.value = null
-      coverName.value = ''
-      coverPreview.value = ''
-      coverMime.value = ''
-      videoObjectUrl.value = ''
-    } else {
-      ElMessage.error(data?.message || '投稿失败，请稍后重试')
-    }
-  } catch (e) {
-    ElMessage.error(e?.response?.data?.message || '投稿失败，请稍后重试')
-  } finally {
-    uploading.value = false
-  }
-}
 
 // 获取页面标题
 const getPageTitle = (view) => {
@@ -1181,6 +745,42 @@ const getPageTitle = (view) => {
     margin-top: 24px;
     text-align: left;
   }
+
+.tag-editor {
+  width: 100%;
+}
+
+.tag-suggestions {
+  margin-top: 10px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.tag-suggestions__label {
+  color: #909399;
+  font-size: 12px;
+  margin-right: 4px;
+}
+
+.schedule-row,
+.collection-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.schedule-hint,
+.collection-hint {
+  color: #909399;
+  font-size: 12px;
+}
+
+.schedule-picker,
+.collection-editor {
+  margin-top: 10px;
+}
 }
 
 .promo-list {

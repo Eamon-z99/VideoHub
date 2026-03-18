@@ -28,6 +28,17 @@ public class JwtInterceptor implements HandlerInterceptor {
 
         // 公开接口不需要验证
         String path = request.getRequestURI();
+        // 视频列表/详情允许未登录访问（但上传投稿必须登录）
+        boolean isPublicVideoRead =
+                ("GET".equals(request.getMethod()) && (
+                        path.equals("/api/db/videos") ||
+                        path.startsWith("/api/db/videos/top") ||
+                        path.startsWith("/api/db/videos/by-uploader") ||
+                        path.startsWith("/api/db/videos/")  // 详情：/api/db/videos/{videoId}
+                ))
+                // 搜索也允许公开（POST /api/db/videos/search）
+                || (path.equals("/api/db/videos/search"));
+
         if (path.startsWith("/api/auth/login") || 
             path.startsWith("/api/auth/register") ||
             path.startsWith("/api/auth/logout") ||
@@ -37,7 +48,8 @@ public class JwtInterceptor implements HandlerInterceptor {
             path.startsWith("/api/watch/") ||
             path.startsWith("/local-videos/") ||
             path.startsWith("/avatars/") ||
-            path.startsWith("/error")) {
+            path.startsWith("/error") ||
+            isPublicVideoRead) {
             return true;
         }
 

@@ -26,4 +26,13 @@ export function sendPrivateMessage(peerId, content) {
   })
 }
 
+// 获取对方基础信息（用于直达某个会话）
+export function fetchPeerInfo(peerId) {
+  return request({
+    url: '/api/messages/peer-info',
+    method: 'get',
+    params: { peerId }
+  })
+}
+
 

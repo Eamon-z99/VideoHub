@@ -151,15 +151,16 @@
 
 <script setup>
 import { ref, computed, onMounted, nextTick, watch, onUnmounted } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRouter, useRoute } from 'vue-router'
 import TopHeader from '@/components/TopHeader.vue'
 import { useUserStore } from '@/stores/user'
-import { fetchContacts, fetchMessageHistory, sendPrivateMessage } from '@/api/messages'
+import { fetchContacts, fetchMessageHistory, sendPrivateMessage, fetchPeerInfo } from '@/api/messages'
 import { getFollowingUsers } from '@/api/follow'
 import { uploadImage } from '@/api/feed'
 import { ElMessage } from 'element-plus'
 
 const router = useRouter()
+const route = useRoute()
 const userStore = useUserStore()
 
 const tab = ref('mine')
@@ -651,13 +652,51 @@ function handleClickOutside(event) {
 }
 
 onMounted(() => {
-  loadContacts()
+  loadContacts().then(() => {
+    // 支持从粉丝页等位置直达会话：/messages?peerId=xxx
+    const peerIdParam = route.query.peerId
+    if (peerIdParam && typeof peerIdParam === 'string') {
+      const pid = Number(peerIdParam)
+      if (Number.isFinite(pid) && pid > 0) {
+        openConversation(pid)
+      }
+    }
+  })
   document.addEventListener('click', handleClickOutside)
 })
 
 onUnmounted(() => {
   document.removeEventListener('click', handleClickOutside)
 })
+
+async function openConversation(peerId) {
+  if (!isAuthed.value) return
+  // 如果左侧已存在该联系人，直接选中
+  const existing = contactList.value.find((c) => c.userId === peerId)
+  if (existing) {
+    selectContact(existing)
+    return
+  }
+  // 不存在则通过后端拉取基础信息并临时插入联系人列表
+  try {
+    const { data } = await fetchPeerInfo(peerId)
+    if (data?.success && data?.data) {
+      const item = data.data
+      const contact = {
+        userId: item.userId || item.user_id || peerId,
+        username: item.username || '用户',
+        avatar: normalizedAvatar(item.avatar),
+        lastContent: '',
+        lastTime: null,
+        unreadCount: 0,
+      }
+      contactList.value = [contact, ...contactList.value]
+      selectContact(contact)
+    }
+  } catch (e) {
+    // 静默失败：可能用户不存在
+  }
+}
 </script>
 
 <style scoped lang="scss">

@@ -1,697 +1,332 @@
 <template>
-  <div class="content-management-page">
-    <header class="page-header">
-      <h1>内容管理</h1>
-      <div class="header-actions">
-        <div class="search-box">
-          <input type="text" placeholder="搜索视频标题" v-model="searchQuery" />
-          <button class="search-btn">🔍</button>
-        </div>
-        <div class="filters">
-          <select v-model="statusFilter" class="filter-select">
-            <option value="">全部状态</option>
-            <option value="published">已发布</option>
-            <option value="draft">草稿</option>
-            <option value="reviewing">审核中</option>
-            <option value="rejected">已拒绝</option>
-          </select>
-          <select v-model="typeFilter" class="filter-select">
-            <option value="">全部类型</option>
-            <option value="video">视频</option>
-            <option value="short">短视频</option>
-            <option value="audio">音频</option>
-          </select>
-        </div>
+  <div class="cm-page">
+    <div class="cm-top-tabs">
+      <div class="tab is-active">视频管理</div>
+      <div class="tab">图文管理</div>
+      <div class="tab">互动视频管理</div>
+      <div class="tab">音频管理</div>
+      <div class="tab">贴纸管理</div>
+      <div class="tab">视频素材管理</div>
+      <div class="tab cm-spacer"></div>
+      <div class="cm-search">
+        <el-input v-model="keyword" placeholder="搜索稿件标题" clearable style="width: 260px" />
       </div>
-    </header>
+    </div>
 
-    <!-- 统计卡片 -->
-    <section class="stats-grid">
-      <div class="stat-card">
-        <div class="stat-icon">📹</div>
-        <div class="stat-content">
-          <div class="stat-value">{{ totalVideos }}</div>
-          <div class="stat-label">总视频数</div>
-        </div>
+    <div class="cm-sub-tabs">
+      <div class="sub-tab" :class="{ active: status === 'all' }" @click="status = 'all'">
+        全部稿件 <span class="num">{{ stats.all }}</span>
       </div>
-      <div class="stat-card">
-        <div class="stat-icon">👁️</div>
-        <div class="stat-content">
-          <div class="stat-value">{{ totalViews }}</div>
-          <div class="stat-label">总播放量</div>
-        </div>
+      <div class="sub-tab" :class="{ active: status === 'draft' }" @click="status = 'draft'">
+        草稿 <span class="num">{{ stats.draft }}</span>
       </div>
-      <div class="stat-card">
-        <div class="stat-icon">👍</div>
-        <div class="stat-content">
-          <div class="stat-value">{{ totalLikes }}</div>
-          <div class="stat-label">总点赞数</div>
-        </div>
+      <div class="sub-tab" :class="{ active: status === 'reviewing' }" @click="status = 'reviewing'">
+        进行中 <span class="num">{{ stats.reviewing }}</span>
       </div>
-      <div class="stat-card">
-        <div class="stat-icon">💬</div>
-        <div class="stat-content">
-          <div class="stat-value">{{ totalComments }}</div>
-          <div class="stat-label">总评论数</div>
-        </div>
+      <div class="sub-tab" :class="{ active: status === 'approved' }" @click="status = 'approved'">
+        已通过 <span class="num">{{ stats.approved }}</span>
       </div>
-    </section>
+      <div class="sub-tab" :class="{ active: status === 'rejected' }" @click="status = 'rejected'">
+        未通过 <span class="num">{{ stats.rejected }}</span>
+      </div>
+      <div class="cm-sub-spacer"></div>
+      <el-select v-model="order" size="small" style="width: 140px">
+        <el-option label="按投稿时间排序" value="time" />
+      </el-select>
+    </div>
 
-    <!-- 内容列表 -->
-    <section class="content-list">
-      <div class="list-header">
-        <div class="list-title">
-          <h3>我的作品</h3>
-          <span class="count">共 {{ filteredVideos.length }} 个</span>
-        </div>
-        <div class="list-actions">
-          <button class="action-btn" @click="batchDelete" :disabled="selectedVideos.length === 0">
-            批量删除
-          </button>
-          <button class="action-btn primary" @click="newVideo">
-            新建视频
-          </button>
-        </div>
+    <div class="cm-body">
+      <div v-if="loading" class="cm-loading">
+        <el-skeleton :rows="5" animated />
       </div>
 
-      <div class="video-table">
-        <div class="table-header">
-          <div class="col-checkbox">
-            <input 
-              type="checkbox" 
-              :checked="allSelected" 
-              @change="toggleSelectAll"
-            />
-          </div>
-          <div class="col-thumbnail">封面</div>
-          <div class="col-title">标题</div>
-          <div class="col-status">状态</div>
-          <div class="col-stats">数据</div>
-          <div class="col-date">发布时间</div>
-          <div class="col-actions">操作</div>
+      <template v-else>
+        <div v-if="displayList.length === 0" class="cm-empty">
+          <el-empty description="一个稿件都没有，请换个筛选条件" />
         </div>
 
-        <div class="table-body">
-          <div 
-            v-for="video in filteredVideos" 
-            :key="video.id" 
-            class="table-row"
-          >
-            <div class="col-checkbox">
-              <input 
-                type="checkbox" 
-                :checked="selectedVideos.includes(video.id)"
-                @change="toggleSelect(video.id)"
-              />
+        <div v-else class="draft-list">
+          <div class="draft-row" v-for="it in displayList" :key="it.submission_id">
+            <div class="cover" :style="{ backgroundImage: it.cover_url ? `url(${normalizeCover(it.cover_url)})` : '' }"></div>
+            <div class="meta">
+              <div class="title">{{ it.title }}</div>
+              <div class="desc">{{ it.description || '-' }}</div>
+              <div class="time">更新：{{ formatDate(it.update_time) }}</div>
             </div>
-            <div class="col-thumbnail">
-              <div class="video-thumbnail" :style="{ backgroundImage: `url(${video.thumbnail})` }">
-                <div class="duration">{{ video.duration }}</div>
-              </div>
-            </div>
-            <div class="col-title">
-              <div class="video-title">{{ video.title }}</div>
-              <div class="video-desc">{{ video.description }}</div>
-            </div>
-            <div class="col-status">
-              <span class="status-badge" :class="video.status">
-                {{ getStatusText(video.status) }}
-              </span>
-            </div>
-            <div class="col-stats">
-              <div class="stat-item">
-                <span class="stat-label">播放:</span>
-                <span class="stat-value">{{ formatNumber(video.views) }}</span>
-              </div>
-              <div class="stat-item">
-                <span class="stat-label">点赞:</span>
-                <span class="stat-value">{{ formatNumber(video.likes) }}</span>
-              </div>
-            </div>
-            <div class="col-date">{{ formatDate(video.publishDate) }}</div>
-            <div class="col-actions">
-              <button class="action-btn small" @click="editVideo(video)">编辑</button>
-              <button class="action-btn small" @click="viewVideo(video)">查看</button>
-              <button class="action-btn small danger" @click="deleteVideo(video)">删除</button>
+            <div class="actions">
+              <el-button size="small" @click="continueEdit(it)">继续编辑</el-button>
+              <el-button size="small" type="danger" plain @click="removeDraft(it)">删除</el-button>
             </div>
           </div>
         </div>
-      </div>
 
-      <!-- 分页 -->
-      <div class="pagination">
-        <button class="page-btn" :disabled="currentPage === 1" @click="currentPage--">
-          上一页
-        </button>
-        <span class="page-info">
-          第 {{ currentPage }} 页，共 {{ totalPages }} 页
-        </span>
-        <button class="page-btn" :disabled="currentPage === totalPages" @click="currentPage++">
-          下一页
-        </button>
-      </div>
-    </section>
+        <div class="cm-pagination" v-if="totalPages > 1">
+          <el-pagination
+            background
+            layout="prev, pager, next"
+            :page-size="pageSize"
+            :total="total"
+            v-model:current-page="page"
+          />
+        </div>
+      </template>
+    </div>
   </div>
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
+import { ElMessage, ElMessageBox } from 'element-plus'
+import { deleteVideoDraft, listVideoDrafts } from '@/api/video'
 
-// 响应式数据
-const searchQuery = ref('')
-const statusFilter = ref('')
-const typeFilter = ref('')
-const selectedVideos = ref([])
-const currentPage = ref(1)
-const pageSize = 10
+const emit = defineEmits(['continue-edit'])
 
-// 模拟视频数据
-const videos = ref([
-  {
-    id: 1,
-    title: 'Vue 3 入门教程 - 从零开始学习前端框架',
-    description: '详细介绍 Vue 3 的基础知识和核心概念',
-    thumbnail: '/placeholder-thumbnail.jpg',
-    duration: '15:30',
-    status: 'published',
-    views: 125000,
-    likes: 3200,
-    comments: 156,
-    publishDate: '2024-01-15'
-  },
-  {
-    id: 2,
-    title: 'JavaScript 高级技巧分享',
-    description: '分享一些实用的 JavaScript 编程技巧',
-    thumbnail: '/placeholder-thumbnail.jpg',
-    duration: '12:45',
-    status: 'reviewing',
-    views: 0,
-    likes: 0,
-    comments: 0,
-    publishDate: '2024-01-20'
-  },
-  {
-    id: 3,
-    title: 'CSS 动画效果制作指南',
-    description: '教你如何制作炫酷的 CSS 动画效果',
-    thumbnail: '/placeholder-thumbnail.jpg',
-    duration: '18:20',
-    status: 'draft',
-    views: 0,
-    likes: 0,
-    comments: 0,
-    publishDate: ''
-  },
-  {
-    id: 4,
-    title: 'React vs Vue 框架对比分析',
-    description: '深度对比两大前端框架的优缺点',
-    thumbnail: '/placeholder-thumbnail.jpg',
-    duration: '22:10',
-    status: 'published',
-    views: 89000,
-    likes: 2100,
-    comments: 89,
-    publishDate: '2024-01-10'
-  },
-  {
-    id: 5,
-    title: 'TypeScript 类型系统详解',
-    description: '深入理解 TypeScript 的类型系统',
-    thumbnail: '/placeholder-thumbnail.jpg',
-    duration: '25:35',
-    status: 'rejected',
-    views: 0,
-    likes: 0,
-    comments: 0,
-    publishDate: ''
-  }
-])
+const keyword = ref('')
+const status = ref('draft')
+const order = ref('time')
+const loading = ref(false)
 
-// 计算属性
-const filteredVideos = computed(() => {
-  let result = videos.value
+const page = ref(1)
+const pageSize = 20
+const total = ref(0)
+const list = ref([])
 
-  // 搜索过滤
-  if (searchQuery.value) {
-    result = result.filter(video => 
-      video.title.toLowerCase().includes(searchQuery.value.toLowerCase())
-    )
-  }
-
-  // 状态过滤
-  if (statusFilter.value) {
-    result = result.filter(video => video.status === statusFilter.value)
-  }
-
-  // 类型过滤
-  if (typeFilter.value) {
-    // 这里可以根据实际需求添加类型字段
-    result = result
-  }
-
-  return result
+const stats = ref({
+  all: 0,
+  draft: 0,
+  reviewing: 0,
+  approved: 0,
+  rejected: 0,
 })
 
-const allSelected = computed(() => {
-  return filteredVideos.value.length > 0 && 
-         filteredVideos.value.every(video => selectedVideos.value.includes(video.id))
+const totalPages = computed(() => Math.ceil((total.value || 0) / pageSize))
+
+const displayList = computed(() => {
+  // 目前先实现草稿箱（draft），其它状态后续可接 video_submissions/videos
+  if (status.value !== 'draft') return []
+  return list.value
 })
 
-const totalPages = computed(() => {
-  return Math.ceil(filteredVideos.value.length / pageSize)
-})
-
-// 统计数据
-const totalVideos = computed(() => videos.value.length)
-const totalViews = computed(() => videos.value.reduce((sum, video) => sum + video.views, 0))
-const totalLikes = computed(() => videos.value.reduce((sum, video) => sum + video.likes, 0))
-const totalComments = computed(() => videos.value.reduce((sum, video) => sum + video.comments, 0))
-
-// 方法
-const getStatusText = (status) => {
-  const statusMap = {
-    published: '已发布',
-    draft: '草稿',
-    reviewing: '审核中',
-    rejected: '已拒绝'
-  }
-  return statusMap[status] || status
-}
-
-const formatNumber = (num) => {
-  if (num >= 10000) {
-    return (num / 10000).toFixed(1) + '万'
-  }
-  return num.toString()
-}
-
-const formatDate = (dateStr) => {
-  if (!dateStr) return '-'
-  return new Date(dateStr).toLocaleDateString('zh-CN')
-}
-
-const toggleSelect = (videoId) => {
-  const index = selectedVideos.value.indexOf(videoId)
-  if (index > -1) {
-    selectedVideos.value.splice(index, 1)
-  } else {
-    selectedVideos.value.push(videoId)
+const formatDate = (v) => {
+  if (!v) return '-'
+  try {
+    return new Date(v).toLocaleString('zh-CN')
+  } catch (e) {
+    return String(v)
   }
 }
 
-const toggleSelectAll = () => {
-  if (allSelected.value) {
-    selectedVideos.value = []
-  } else {
-    selectedVideos.value = filteredVideos.value.map(video => video.id)
-  }
-}
-
-const editVideo = (video) => {
-  console.log('编辑视频:', video.title)
-}
-
-const viewVideo = (video) => {
-  console.log('查看视频:', video.title)
-}
-
-const deleteVideo = (video) => {
-  if (confirm(`确定要删除视频"${video.title}"吗？`)) {
-    const index = videos.value.findIndex(v => v.id === video.id)
-    if (index > -1) {
-      videos.value.splice(index, 1)
+const normalizeCover = (url) => {
+  if (!url) return ''
+  if (url.startsWith('http://') || url.startsWith('https://')) return url
+  // 后端视频/封面文件通过 /local-videos/** 提供访问
+  if (url.startsWith('/local-videos/')) return url
+  if (url.startsWith('/')) {
+    // 兼容旧数据：如果是 /uploads/... 这种路径，仍然走 /local-videos
+    if (url.startsWith('/uploads/') || url.startsWith('/uploads\\')) {
+      return '/local-videos' + url
     }
+    return url
+  }
+  // 常见相对路径：uploads/submissions/covers/...
+  if (url.startsWith('uploads/') || url.startsWith('uploads\\')) {
+    return '/local-videos/' + url.replaceAll('\\', '/')
+  }
+  return '/local-videos/' + url.replaceAll('\\', '/')
+}
+
+const fetchDrafts = async () => {
+  loading.value = true
+  try {
+    const { data } = await listVideoDrafts({ page: page.value, pageSize, keyword: keyword.value || undefined })
+    if (data?.success) {
+      const payload = data.data || {}
+      list.value = payload.list || []
+      total.value = payload.total || 0
+      stats.value.draft = total.value
+      stats.value.all = stats.value.draft
+    } else {
+      ElMessage.error(data?.message || '加载失败')
+    }
+  } catch (e) {
+    ElMessage.error(e?.response?.data?.message || '加载失败')
+  } finally {
+    loading.value = false
   }
 }
 
-const batchDelete = () => {
-  if (selectedVideos.value.length === 0) return
-  
-  if (confirm(`确定要删除选中的 ${selectedVideos.value.length} 个视频吗？`)) {
-    videos.value = videos.value.filter(video => !selectedVideos.value.includes(video.id))
-    selectedVideos.value = []
-  }
+watch([page, keyword, status], () => {
+  page.value = Math.max(1, page.value)
+  if (status.value === 'draft') fetchDrafts()
+})
+
+onMounted(() => {
+  fetchDrafts()
+})
+
+const continueEdit = (it) => {
+  // 通知父组件在当前页面切换到投稿编辑页
+  emit('continue-edit', it.submission_id)
 }
 
-const newVideo = () => {
-  console.log('新建视频')
+const removeDraft = async (it) => {
+  try {
+    await ElMessageBox.confirm('确认删除该草稿？', '删除草稿', { type: 'warning' })
+  } catch (e) {
+    return
+  }
+  loading.value = true
+  try {
+    const { data } = await deleteVideoDraft(it.submission_id)
+    if (data?.success) {
+      ElMessage.success('已删除')
+      fetchDrafts()
+    } else {
+      ElMessage.error(data?.message || '删除失败')
+    }
+  } catch (e) {
+    ElMessage.error(e?.response?.data?.message || '删除失败')
+  } finally {
+    loading.value = false
+  }
 }
 </script>
 
 <style lang="scss" scoped>
-.content-management-page {
+.cm-page {
   background: transparent;
   padding: 0;
 }
 
-.page-header {
+.cm-top-tabs {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  margin-bottom: 16px;
-  
-  h1 {
-    margin: 0;
-    font-size: 20px;
-    color: #333;
-  }
+  gap: 18px;
+  border-bottom: 1px solid #e5e7eb;
+  padding-bottom: 10px;
 }
 
-.header-actions {
+.tab {
+  font-size: 14px;
+  color: #374151;
+  padding: 8px 0;
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+}
+.tab.is-active {
+  color: #00a1d6;
+  border-bottom-color: #00a1d6;
+  font-weight: 600;
+}
+.cm-spacer {
+  flex: 1;
+}
+
+.cm-sub-tabs {
+  margin-top: 10px;
   display: flex;
   align-items: center;
+  gap: 14px;
+}
+.sub-tab {
+  color: #374151;
+  font-size: 13px;
+  cursor: pointer;
+  padding: 6px 0;
+  border-bottom: 2px solid transparent;
+}
+.sub-tab.active {
+  color: #00a1d6;
+  border-bottom-color: #00a1d6;
+  font-weight: 600;
+}
+.num {
+  margin-left: 6px;
+  color: #9ca3af;
+  font-weight: 500;
+}
+.cm-sub-spacer {
+  flex: 1;
+}
+
+.cm-body {
+  margin-top: 14px;
+  background: #fff;
+  border-radius: 10px;
+  padding: 16px;
+  min-height: 420px;
+  box-shadow: 0 1px 3px rgba(0,0,0,.06);
+}
+
+.cm-empty {
+  height: 360px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  color: #6b7280;
+}
+.cm-empty :deep(.el-empty__image) {
+  width: 220px;
+}
+
+.draft-list {
+  display: flex;
+  flex-direction: column;
   gap: 12px;
 }
-
-.search-box {
+.draft-row {
   display: flex;
+  gap: 12px;
+  padding: 12px;
+  border: 1px solid #eef2f7;
+  border-radius: 10px;
   align-items: center;
-  background: #fff;
+}
+.cover {
+  width: 120px;
+  height: 68px;
+  border-radius: 8px;
+  background: #f3f4f6;
+  background-size: cover;
+  background-position: center;
   border: 1px solid #e5e7eb;
-  border-radius: 6px;
+}
+.meta {
+  flex: 1;
+  min-width: 0;
+}
+.title {
+  font-weight: 600;
+  color: #111827;
+  font-size: 14px;
+  white-space: nowrap;
   overflow: hidden;
-  
-  input {
-    border: none;
-    outline: none;
-    padding: 8px 12px;
-    width: 200px;
-  }
-  
-  .search-btn {
-    background: #f5f7fa;
-    border: none;
-    padding: 8px 12px;
-    cursor: pointer;
-  }
+  text-overflow: ellipsis;
 }
-
-.filters {
-  display: flex;
-  gap: 8px;
-}
-
-.filter-select {
-  background: #fff;
-  border: 1px solid #e5e7eb;
-  border-radius: 6px;
-  padding: 8px 12px;
-  outline: none;
-}
-
-.stats-grid {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 12px;
-  margin-bottom: 16px;
-}
-
-.stat-card {
-  background: #fff;
-  border-radius: 8px;
-  padding: 16px;
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  box-shadow: 0 1px 3px rgba(0,0,0,.06);
-  
-  .stat-icon {
-    font-size: 24px;
-  }
-  
-  .stat-content {
-    .stat-value {
-      font-size: 20px;
-      font-weight: 600;
-      color: #333;
-    }
-    
-    .stat-label {
-      font-size: 12px;
-      color: #666;
-    }
-  }
-}
-
-.content-list {
-  background: #fff;
-  border-radius: 8px;
-  padding: 16px;
-  box-shadow: 0 1px 3px rgba(0,0,0,.06);
-}
-
-.list-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 16px;
-  
-  .list-title {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    
-    h3 {
-      margin: 0;
-      font-size: 16px;
-      color: #333;
-    }
-    
-    .count {
-      color: #666;
-      font-size: 12px;
-    }
-  }
-}
-
-.list-actions {
-  display: flex;
-  gap: 8px;
-}
-
-.action-btn {
-  background: #fff;
-  border: 1px solid #e5e7eb;
-  border-radius: 6px;
-  padding: 8px 16px;
-  cursor: pointer;
-  font-size: 14px;
-  
-  &.primary {
-    background: #00aeec;
-    color: #fff;
-    border-color: #00aeec;
-  }
-  
-  &.small {
-    padding: 4px 8px;
-    font-size: 12px;
-  }
-  
-  &.danger {
-    color: #ff4d4f;
-    border-color: #ff4d4f;
-  }
-  
-  &:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
-  }
-}
-
-.video-table {
-  .table-header {
-    display: grid;
-    grid-template-columns: 40px 80px 1fr 100px 120px 120px 120px;
-    gap: 12px;
-    padding: 12px 0;
-    border-bottom: 1px solid #f0f0f0;
-    font-weight: 600;
-    color: #333;
-  }
-  
-  .table-row {
-    display: grid;
-    grid-template-columns: 40px 80px 1fr 100px 120px 120px 120px;
-    gap: 12px;
-    padding: 12px 0;
-    border-bottom: 1px solid #f5f5f5;
-    align-items: center;
-    
-    &:hover {
-      background: #fafafa;
-    }
-  }
-}
-
-.col-checkbox {
-  display: flex;
-  justify-content: center;
-}
-
-.col-thumbnail {
-  .video-thumbnail {
-    width: 60px;
-    height: 40px;
-    background: #e0e0e0;
-    border-radius: 4px;
-    position: relative;
-    background-size: cover;
-    background-position: center;
-    
-    .duration {
-      position: absolute;
-      bottom: 2px;
-      right: 2px;
-      background: rgba(0,0,0,.7);
-      color: #fff;
-      font-size: 10px;
-      padding: 1px 4px;
-      border-radius: 2px;
-    }
-  }
-}
-
-.col-title {
-  .video-title {
-    font-weight: 500;
-    color: #333;
-    margin-bottom: 4px;
-  }
-  
-  .video-desc {
-    font-size: 12px;
-    color: #666;
-    display: -webkit-box;
-    -webkit-line-clamp: 2;
-    -webkit-box-orient: vertical;
-    overflow: hidden;
-  }
-}
-
-.status-badge {
-  padding: 2px 8px;
-  border-radius: 12px;
+.desc {
+  margin-top: 4px;
+  color: #6b7280;
   font-size: 12px;
-  
-  &.published {
-    background: #f6ffed;
-    color: #52c41a;
-  }
-  
-  &.draft {
-    background: #fff7e6;
-    color: #fa8c16;
-  }
-  
-  &.reviewing {
-    background: #e6f7ff;
-    color: #1890ff;
-  }
-  
-  &.rejected {
-    background: #fff1f0;
-    color: #ff4d4f;
-  }
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 }
-
-.col-stats {
-  .stat-item {
-    display: flex;
-    justify-content: space-between;
-    font-size: 12px;
-    margin-bottom: 2px;
-    
-    .stat-label {
-      color: #666;
-    }
-    
-    .stat-value {
-      color: #333;
-      font-weight: 500;
-    }
-  }
+.time {
+  margin-top: 6px;
+  color: #9ca3af;
+  font-size: 12px;
 }
-
-.col-actions {
+.actions {
   display: flex;
-  gap: 4px;
+  gap: 8px;
+  flex-wrap: wrap;
 }
-
-.pagination {
+.cm-pagination {
+  margin-top: 14px;
   display: flex;
-  align-items: center;
   justify-content: center;
-  gap: 16px;
-  margin-top: 16px;
-  padding-top: 16px;
-  border-top: 1px solid #f0f0f0;
-}
-
-.page-btn {
-  background: #fff;
-  border: 1px solid #e5e7eb;
-  border-radius: 6px;
-  padding: 8px 16px;
-  cursor: pointer;
-  
-  &:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
-  }
-}
-
-.page-info {
-  color: #666;
-  font-size: 14px;
-}
-
-@media (max-width: 1024px) {
-  .stats-grid {
-    grid-template-columns: repeat(2, 1fr);
-  }
-  
-  .video-table {
-    .table-header,
-    .table-row {
-      grid-template-columns: 40px 60px 1fr 80px 100px 100px;
-    }
-    
-    .col-stats,
-    .col-actions {
-      display: none;
-    }
-  }
-}
-
-@media (max-width: 768px) {
-  .stats-grid {
-    grid-template-columns: 1fr;
-  }
-  
-  .header-actions {
-    flex-direction: column;
-    align-items: stretch;
-  }
-  
-  .search-box input {
-    width: 100%;
-  }
-  
-  .video-table {
-    .table-header,
-    .table-row {
-      grid-template-columns: 40px 1fr 80px;
-    }
-    
-    .col-thumbnail,
-    .col-stats,
-    .col-date,
-    .col-actions {
-      display: none;
-    }
-  }
 }
 </style>

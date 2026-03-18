@@ -99,6 +99,28 @@ public class MessageController {
         return ResponseEntity.ok(Map.of("success", true, "data", message));
     }
 
+    /**
+     * 获取对方基础信息（用于从其它页面直达私信窗口）
+     */
+    @GetMapping("/peer-info")
+    public ResponseEntity<?> peerInfo(HttpServletRequest request, @RequestParam Long peerId) {
+        Long userId = getUserIdFromRequest(request);
+        if (userId == null) {
+            return ResponseEntity.status(401).body(Map.of("success", false, "message", "未登录或登录已过期"));
+        }
+        if (peerId == null) {
+            return ResponseEntity.badRequest().body(Map.of("success", false, "message", "peerId 不能为空"));
+        }
+        if (peerId.equals(userId)) {
+            return ResponseEntity.badRequest().body(Map.of("success", false, "message", "不能与自己私信"));
+        }
+        var info = messageService.getPeerInfo(peerId);
+        if (info == null) {
+            return ResponseEntity.status(404).body(Map.of("success", false, "message", "用户不存在"));
+        }
+        return ResponseEntity.ok(Map.of("success", true, "data", info));
+    }
+
     private Long getUserIdFromRequest(HttpServletRequest request) {
         String bearerToken = request.getHeader("Authorization");
         if (bearerToken != null && bearerToken.startsWith("Bearer ")) {

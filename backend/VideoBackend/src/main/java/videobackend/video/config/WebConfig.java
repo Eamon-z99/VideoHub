@@ -20,8 +20,7 @@ public class WebConfig implements WebMvcConfigurer {
                 .addPathPatterns("/api/**")
                 .excludePathPatterns(
                         "/api/auth/login",
-                        "/api/auth/register",
-                        "/api/db/videos/**" // 暂时允许公开访问视频列表
+                        "/api/auth/register"
                 );
     }
 

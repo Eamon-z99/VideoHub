@@ -8,7 +8,7 @@ import org.springframework.web.multipart.MultipartFile;
 import videobackend.video.dto.VideoSearchRequest;
 import videobackend.video.model.VideoItem;
 import videobackend.video.service.LocalVideoService;
-import videobackend.video.service.VideoUploadService;
+import videobackend.video.service.VideoSubmissionService;
 import videobackend.video.util.JwtUtil;
 
 import java.io.IOException;
@@ -20,14 +20,14 @@ import java.util.Map;
 public class LocalVideoController {
 
     private final LocalVideoService localVideoService;
-    private final VideoUploadService videoUploadService;
+    private final VideoSubmissionService videoSubmissionService;
     private final JwtUtil jwtUtil;
 
     public LocalVideoController(LocalVideoService localVideoService,
-                                VideoUploadService videoUploadService,
+                                VideoSubmissionService videoSubmissionService,
                                 JwtUtil jwtUtil) {
         this.localVideoService = localVideoService;
-        this.videoUploadService = videoUploadService;
+        this.videoSubmissionService = videoSubmissionService;
         this.jwtUtil = jwtUtil;
     }
 
@@ -67,20 +67,45 @@ public class LocalVideoController {
                                     @RequestPart(value = "cover", required = false) MultipartFile cover,
                                     @RequestParam(required = false) String title,
                                     @RequestParam(required = false) String description,
-                                    @RequestParam(required = false, name = "duration") Integer durationSeconds) {
+                                    @RequestParam(required = false, name = "duration") Integer durationSeconds,
+                                    @RequestParam(required = false, name = "copyright") String copyright,
+                                    @RequestParam(required = false, name = "partition") String partition,
+                                    @RequestParam(required = false, name = "tags") String tagsJson,
+                                    @RequestParam(required = false) String scheduleEnabled,
+                                    @RequestParam(required = false) String schedulePublishAt,
+                                    @RequestParam(required = false) String collectionEnabled,
+                                    @RequestParam(required = false) String collectionName,
+                                    @RequestParam(required = false) String allowSecondCreation,
+                                    @RequestParam(required = false) String commercialPromotion,
+                                    @RequestParam(required = false, defaultValue = "0") int draftOnly) {
         try {
             Long userId = getUserIdFromRequest(request);
             if (userId == null) {
                 return ResponseEntity.status(401).body(Map.of("success", false, "message", "未登录或登录已过期"));
             }
 
-            String videoId = videoUploadService.uploadVideo(userId, title, description, file, cover, durationSeconds);
-            // 返回刚刚创建的视频详情，便于前端刷新
-            VideoItem item = localVideoService.findByVideoId(videoId).orElse(null);
+            String submissionId = videoSubmissionService.createSubmission(
+                    userId,
+                    title,
+                    description,
+                    file,
+                    cover,
+                    durationSeconds,
+                    copyright,
+                    partition,
+                    tagsJson,
+                    scheduleEnabled,
+                    schedulePublishAt,
+                    collectionEnabled,
+                    collectionName,
+                    allowSecondCreation,
+                    commercialPromotion,
+                    draftOnly == 1
+            );
             return ResponseEntity.ok(Map.of(
                     "success", true,
-                    "videoId", videoId,
-                    "video", item
+                    "submissionId", submissionId,
+                    "reviewStatus", "DRAFT"
             ));
         } catch (IllegalArgumentException e) {
             return ResponseEntity.badRequest().body(Map.of("success", false, "message", e.getMessage()));

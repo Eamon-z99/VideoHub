@@ -126,5 +126,40 @@ public class FollowService {
             return user;
         }, userId);
     }
+
+    /**
+     * 获取我的粉丝列表（包含头像、名称等 + 我是否回关）
+     */
+    public List<Map<String, Object>> getFollowerUsers(Long userId) {
+        String sql = """
+                SELECT u.id, u.username, u.avatar, u.account,
+                       CASE WHEN back.id IS NULL THEN 0 ELSE 1 END AS i_follow
+                FROM fans f
+                INNER JOIN users u ON f.follower_id = u.id
+                LEFT JOIN fans back
+                  ON back.follower_id = ?
+                 AND back.following_id = u.id
+                WHERE f.following_id = ?
+                ORDER BY f.create_time DESC
+                """;
+        return jdbcTemplate.query(sql, (rs, rowNum) -> {
+            Map<String, Object> user = new java.util.HashMap<>();
+            user.put("id", rs.getLong("id"));
+            user.put("username", rs.getString("username"));
+            user.put("avatar", rs.getString("avatar"));
+            user.put("account", rs.getString("account"));
+            user.put("iFollow", rs.getInt("i_follow"));
+            return user;
+        }, userId, userId);
+    }
+
+    /**
+     * 移除粉丝：删除对方对我的关注关系
+     */
+    public boolean removeFollower(Long userId, Long followerId) {
+        String sql = "DELETE FROM fans WHERE follower_id = ? AND following_id = ?";
+        int rows = jdbcTemplate.update(sql, followerId, userId);
+        return rows > 0;
+    }
 }
 

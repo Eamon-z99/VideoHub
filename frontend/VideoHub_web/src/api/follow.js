@@ -25,6 +25,16 @@ export const getFollowingUsers = () => {
   return request.get('/api/follows/following/users')
 }
 
+// 获取我的粉丝列表（包含是否回关）
+export const getFansUsers = () => {
+  return request.get('/api/follows/fans/users')
+}
+
+// 移除粉丝
+export const removeFan = (followerId) => {
+  return request.post('/api/follows/fans/remove', { followerId })
+}
+
 // 获取用户统计信息
 export const getUserStats = (userId) => {
   return request.get('/api/follows/stats', { params: { userId } })

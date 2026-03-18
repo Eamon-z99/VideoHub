@@ -43,12 +43,35 @@ export const searchVideos = (payload) => {
   return request.post('/api/db/videos/search', payload)
 }
 
-// 上传视频（投稿）
-export const uploadVideo = (formData) => {
+// 创建投稿（上传视频文件到投稿流）
+export const uploadVideo = (formData, params = {}) => {
   return request.post('/api/db/videos/upload', formData, {
+    params,
     headers: {
       'Content-Type': 'multipart/form-data',
     },
   })
+}
+
+// 二步投稿：上传完成后更新投稿信息（不重新上传视频）
+export const updateVideoSubmission = (submissionId, formData, params = {}) => {
+  return request.post(`/api/db/video-submissions/${encodeURIComponent(submissionId)}/update`, formData, {
+    params,
+    headers: {
+      'Content-Type': 'multipart/form-data',
+    },
+  })
+}
+
+export const listVideoDrafts = (params = {}) => {
+  return request.get('/api/db/video-drafts', { params })
+}
+
+export const getVideoDraftDetail = (submissionId) => {
+  return request.get(`/api/db/video-drafts/${encodeURIComponent(submissionId)}`)
+}
+
+export const deleteVideoDraft = (submissionId) => {
+  return request.delete(`/api/db/video-drafts/${encodeURIComponent(submissionId)}`)
 }
 

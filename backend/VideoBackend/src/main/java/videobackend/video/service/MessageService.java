@@ -157,6 +157,26 @@ public class MessageService {
         jdbcTemplate.update(sql, peerId, userId);
     }
 
+    /**
+     * 获取对方基础信息：用于从粉丝页/个人页直达私信窗口。
+     */
+    public MessageContact getPeerInfo(Long peerId) {
+        String sql = """
+                SELECT id AS user_id, username, avatar
+                FROM users
+                WHERE id = ?
+                """;
+        List<MessageContact> list = jdbcTemplate.query(sql, (rs, i) -> new MessageContact(
+                rs.getLong("user_id"),
+                rs.getString("username"),
+                rs.getString("avatar"),
+                null,
+                null,
+                0L
+        ), peerId);
+        return list.isEmpty() ? null : list.get(0);
+    }
+
     private ChatMessage mapToChatMessage(ResultSet rs) throws SQLException {
         Long id = rs.getLong("id");
         Long senderId = rs.getLong("sender_id");

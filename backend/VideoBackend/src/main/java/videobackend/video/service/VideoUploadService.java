@@ -39,7 +39,16 @@ public class VideoUploadService {
                               String description,
                               MultipartFile file,
                               MultipartFile coverFile,
-                              Integer durationSeconds) throws IOException {
+                              Integer durationSeconds,
+                              String copyright,
+                              String partition,
+                              String tagsJson,
+                              String scheduleEnabled,
+                              String schedulePublishAt,
+                              String collectionEnabled,
+                              String collectionName,
+                              String allowSecondCreation,
+                              String commercialPromotion) throws IOException {
         if (userId == null) {
             throw new IllegalArgumentException("未登录或登录已过期");
         }
@@ -112,8 +121,16 @@ public class VideoUploadService {
         String sql = """
                 INSERT INTO videos
                 (video_id, title, description, duration, cover_url, storage_path, source_file,
-                 view_count, like_count, favorite_count, file_size, user_id, create_time)
-                VALUES (?, ?, ?, ?, ?, ?, ?, 0, 0, 0, ?, ?, NOW())
+                 view_count, like_count, favorite_count, file_size, user_id, create_time,
+                 copyright, `partition`, tags,
+                 schedule_enabled, schedule_publish_at,
+                 collection_enabled, collection_name,
+                 allow_second_creation, commercial_promotion)
+                VALUES (?, ?, ?, ?, ?, ?, ?, 0, 0, 0, ?, ?, NOW(),
+                        ?, ?, ?,
+                        ?, ?,
+                        ?, ?,
+                        ?, ?)
                 """;
 
         int safeDuration = (durationSeconds != null && durationSeconds > 0) ? durationSeconds : 0;
@@ -128,7 +145,16 @@ public class VideoUploadService {
                 relativePath,           // storage_path：包含相对子目录
                 relativePath,           // source_file：保持一致，便于 LocalVideoService 解析
                 fileSize,
-                userId);
+                userId,
+                normalizeCopyright(copyright),
+                normalizePartition(partition),
+                normalizeTags(tagsJson),
+                parseBool01(scheduleEnabled),
+                normalizeScheduleTime(schedulePublishAt, scheduleEnabled),
+                parseBool01(collectionEnabled),
+                normalizeCollectionName(collectionName, collectionEnabled),
+                parseBool01(allowSecondCreation),
+                parseBool01(commercialPromotion));
 
         return videoId;
     }
@@ -155,6 +181,63 @@ public class VideoUploadService {
             name = name.substring(0, dot);
         }
         return name;
+    }
+
+    private Integer parseBool01(String v) {
+        if (!StringUtils.hasText(v)) {
+            return 0;
+        }
+        String s = v.trim().toLowerCase();
+        if (s.equals("1") || s.equals("true") || s.equals("yes") || s.equals("on")) {
+            return 1;
+        }
+        return 0;
+    }
+
+    private String normalizeCopyright(String v) {
+        if (!StringUtils.hasText(v)) {
+            return "original";
+        }
+        String s = v.trim().toLowerCase();
+        return (s.equals("repost") || s.equals("original")) ? s : "original";
+    }
+
+    private String normalizePartition(String v) {
+        if (!StringUtils.hasText(v)) {
+            return "game";
+        }
+        return v.trim();
+    }
+
+    private String normalizeTags(String tagsJson) {
+        if (!StringUtils.hasText(tagsJson)) {
+            return "[]";
+        }
+        String s = tagsJson.trim();
+        // 不做 JSON 解析，直接存原串；前端保证是 JSON 数组字符串
+        return s.length() > 2000 ? s.substring(0, 2000) : s;
+    }
+
+    private String normalizeScheduleTime(String schedulePublishAt, String scheduleEnabled) {
+        if (parseBool01(scheduleEnabled) == 0) {
+            return null;
+        }
+        if (!StringUtils.hasText(schedulePublishAt)) {
+            return null;
+        }
+        // 前端 value-format: YYYY-MM-DD HH:mm:ss
+        return schedulePublishAt.trim();
+    }
+
+    private String normalizeCollectionName(String name, String enabled) {
+        if (parseBool01(enabled) == 0) {
+            return null;
+        }
+        if (!StringUtils.hasText(name)) {
+            return null;
+        }
+        String s = name.trim();
+        return s.length() > 100 ? s.substring(0, 100) : s;
     }
 }
 

@@ -430,6 +430,7 @@ CREATE TABLE `users`  (
   `avatar` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL DEFAULT NULL COMMENT '头像URL',
   `bio` varchar(500) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL DEFAULT NULL COMMENT '个人简介',
   `status` tinyint NULL DEFAULT 1 COMMENT '状态：0-禁用，1-正常',
+  `is_admin` tinyint NULL DEFAULT 0 COMMENT '是否管理员：0-否，1-是',
   `create_time` datetime NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
   `update_time` datetime NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
   PRIMARY KEY (`id`) USING BTREE,
@@ -441,10 +442,10 @@ CREATE TABLE `users`  (
 -- ----------------------------
 -- Records of users
 -- ----------------------------
-INSERT INTO `users` VALUES (1, '阿巴阿巴儿', 'test', '$2a$10$/UbxnmyC1Gh7X0K.S90DgOZerW8.gUP2jHXCEyMRwu4Qe0dWHvMzO', 'test@example.com', '/avatars/2026/02/1-e840220a46bf46c99e4820ecce05bf0c.png', '88888888', 1, '2025-12-05 23:35:56', '2026-02-04 20:53:54');
-INSERT INTO `users` VALUES (2, '有来学酱', 'testuser', '$2a$10$/UbxnmyC1Gh7X0K.S90DgOZerW8.gUP2jHXCEyMRwu4Qe0dWHvMzO', 'testuser@example.com', '/avatars/2026/02/2-25c476e0aa50462ea7ef6c80295902c8.png', NULL, 1, '2025-12-13 23:27:48', '2026-02-04 20:52:28');
-INSERT INTO `users` VALUES (3, '西部斑尾蛇', 'newuser', '$2a$10$/UbxnmyC1Gh7X0K.S90DgOZerW8.gUP2jHXCEyMRwu4Qe0dWHvMzO', 'newuser@example.com', '/avatars/2026/02/3-8a9aacc74b2f424cb1c97fdeaebbb9de.png', NULL, 1, '2025-12-13 23:30:33', '2026-02-04 20:53:18');
-INSERT INTO `users` VALUES (4, '大雪舞刀十八停', 'admin', '$2a$10$/UbxnmyC1Gh7X0K.S90DgOZerW8.gUP2jHXCEyMRwu4Qe0dWHvMzO', 'admin@example.com', '/avatars/2026/02/4-b5916f26b2404dc7ac2576befc09c344.png', NULL, 1, '2025-12-13 23:30:33', '2026-02-04 20:53:39');
+INSERT INTO `users` VALUES (1, '阿巴阿巴儿', 'test', '$2a$10$/UbxnmyC1Gh7X0K.S90DgOZerW8.gUP2jHXCEyMRwu4Qe0dWHvMzO', 'test@example.com', '/avatars/2026/02/1-e840220a46bf46c99e4820ecce05bf0c.png', '88888888', 1, 0, '2025-12-05 23:35:56', '2026-02-04 20:53:54');
+INSERT INTO `users` VALUES (2, '有来学酱', 'testuser', '$2a$10$/UbxnmyC1Gh7X0K.S90DgOZerW8.gUP2jHXCEyMRwu4Qe0dWHvMzO', 'testuser@example.com', '/avatars/2026/02/2-25c476e0aa50462ea7ef6c80295902c8.png', NULL, 1, 0, '2025-12-13 23:27:48', '2026-02-04 20:52:28');
+INSERT INTO `users` VALUES (3, '西部斑尾蛇', 'newuser', '$2a$10$/UbxnmyC1Gh7X0K.S90DgOZerW8.gUP2jHXCEyMRwu4Qe0dWHvMzO', 'newuser@example.com', '/avatars/2026/02/3-8a9aacc74b2f424cb1c97fdeaebbb9de.png', NULL, 1, 0, '2025-12-13 23:30:33', '2026-02-04 20:53:18');
+INSERT INTO `users` VALUES (4, '大雪舞刀十八停', 'admin', '$2a$10$/UbxnmyC1Gh7X0K.S90DgOZerW8.gUP2jHXCEyMRwu4Qe0dWHvMzO', 'admin@example.com', '/avatars/2026/02/4-b5916f26b2404dc7ac2576befc09c344.png', NULL, 1, 1, '2025-12-13 23:30:33', '2026-02-04 20:53:39');
 
 -- ----------------------------
 -- Table structure for video_likes
@@ -478,6 +479,15 @@ CREATE TABLE `videos`  (
   `video_id` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL COMMENT '视频唯一标识（如video_0001）',
   `title` varchar(200) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL COMMENT '视频标题',
   `description` text CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL COMMENT '视频描述',
+  `copyright` varchar(20) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL DEFAULT 'original' COMMENT '类型：original-自制，repost-转载',
+  `partition` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL DEFAULT NULL COMMENT '分区',
+  `tags` varchar(2000) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL DEFAULT '[]' COMMENT '标签（JSON数组字符串）',
+  `schedule_enabled` tinyint(1) NULL DEFAULT 0 COMMENT '是否定时发布：0-否，1-是',
+  `schedule_publish_at` datetime NULL DEFAULT NULL COMMENT '定时发布时间',
+  `collection_enabled` tinyint(1) NULL DEFAULT 0 COMMENT '是否加入合集：0-否，1-是',
+  `collection_name` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL DEFAULT NULL COMMENT '合集名称',
+  `allow_second_creation` tinyint(1) NULL DEFAULT 0 COMMENT '允许二创：0-否，1-是',
+  `commercial_promotion` tinyint(1) NULL DEFAULT 0 COMMENT '商业推广信息：0-否，1-是',
   `duration` int UNSIGNED NOT NULL COMMENT '时长（秒）',
   `width` int UNSIGNED NULL DEFAULT NULL COMMENT '视频宽度',
   `height` int UNSIGNED NULL DEFAULT NULL COMMENT '视频高度',
@@ -500,6 +510,81 @@ CREATE TABLE `videos`  (
   INDEX `idx_create_time`(`create_time` ASC) USING BTREE,
   CONSTRAINT `videos_ibfk_1` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE SET NULL ON UPDATE RESTRICT
 ) ENGINE = InnoDB AUTO_INCREMENT = 2951 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_unicode_ci COMMENT = '视频表' ROW_FORMAT = Dynamic;
+
+-- ----------------------------
+-- Table structure for video_submissions
+-- ----------------------------
+DROP TABLE IF EXISTS `video_submissions`;
+CREATE TABLE `video_submissions`  (
+  `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '投稿ID',
+  `submission_id` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL COMMENT '投稿唯一标识',
+  `user_id` bigint UNSIGNED NOT NULL COMMENT '投稿用户ID',
+  `title` varchar(200) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL COMMENT '标题',
+  `description` text CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL COMMENT '简介',
+  `copyright` varchar(20) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL DEFAULT 'original' COMMENT '类型：original-自制，repost-转载',
+  `partition` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL DEFAULT NULL COMMENT '分区',
+  `tags` varchar(2000) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL DEFAULT '[]' COMMENT '标签（JSON数组字符串）',
+  `duration` int UNSIGNED NOT NULL DEFAULT 0 COMMENT '时长（秒）',
+  `cover_url` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL DEFAULT NULL COMMENT '封面相对路径/URL',
+  `storage_path` varchar(500) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL COMMENT '视频存储相对路径',
+  `source_file` varchar(500) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL DEFAULT NULL COMMENT '原始文件路径',
+  `file_size` bigint UNSIGNED NULL DEFAULT NULL COMMENT '文件大小（字节）',
+  `schedule_enabled` tinyint(1) NULL DEFAULT 0 COMMENT '是否定时发布：0-否，1-是',
+  `schedule_publish_at` datetime NULL DEFAULT NULL COMMENT '定时发布时间',
+  `collection_enabled` tinyint(1) NULL DEFAULT 0 COMMENT '是否加入合集：0-否，1-是',
+  `collection_name` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL DEFAULT NULL COMMENT '合集名称',
+  `allow_second_creation` tinyint(1) NULL DEFAULT 0 COMMENT '允许二创：0-否，1-是',
+  `commercial_promotion` tinyint(1) NULL DEFAULT 0 COMMENT '商业推广信息：0-否，1-是',
+  `review_status` varchar(20) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'PENDING' COMMENT 'PENDING-待审，APPROVED-通过，REJECTED-驳回',
+  `reviewer_id` bigint UNSIGNED NULL DEFAULT NULL COMMENT '审核人ID(管理端)',
+  `review_comment` varchar(500) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL DEFAULT NULL COMMENT '审核备注/驳回原因',
+  `review_time` datetime NULL DEFAULT NULL COMMENT '审核时间',
+  `published_video_id` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL DEFAULT NULL COMMENT '发布后对应 videos.video_id',
+  `publish_time` datetime NULL DEFAULT NULL COMMENT '实际发布时间',
+  `create_time` datetime NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  `update_time` datetime NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+  PRIMARY KEY (`id`) USING BTREE,
+  UNIQUE INDEX `uk_submission_id`(`submission_id` ASC) USING BTREE,
+  INDEX `idx_user_id`(`user_id` ASC) USING BTREE,
+  INDEX `idx_review_status`(`review_status` ASC) USING BTREE,
+  INDEX `idx_create_time`(`create_time` ASC) USING BTREE,
+  INDEX `idx_schedule_publish_at`(`schedule_publish_at` ASC) USING BTREE,
+  INDEX `idx_published_video_id`(`published_video_id` ASC) USING BTREE,
+  CONSTRAINT `video_submissions_ibfk_1` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE ON UPDATE RESTRICT
+) ENGINE = InnoDB AUTO_INCREMENT = 1 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_unicode_ci COMMENT = '视频投稿/审核表' ROW_FORMAT = Dynamic;
+
+-- ----------------------------
+-- Table structure for video_drafts
+-- ----------------------------
+DROP TABLE IF EXISTS `video_drafts`;
+CREATE TABLE `video_drafts`  (
+  `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '草稿ID',
+  `submission_id` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL COMMENT '对应 video_submissions.submission_id',
+  `user_id` bigint UNSIGNED NOT NULL COMMENT '用户ID',
+  `title` varchar(200) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL COMMENT '标题',
+  `description` text CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL COMMENT '简介',
+  `copyright` varchar(20) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL DEFAULT 'original' COMMENT '类型：original-自制，repost-转载',
+  `partition` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL DEFAULT NULL COMMENT '分区',
+  `tags` varchar(2000) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL DEFAULT '[]' COMMENT '标签（JSON数组字符串）',
+  `duration` int UNSIGNED NOT NULL DEFAULT 0 COMMENT '时长（秒）',
+  `cover_url` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL DEFAULT NULL COMMENT '封面相对路径/URL',
+  `storage_path` varchar(500) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL COMMENT '视频存储相对路径',
+  `source_file` varchar(500) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL DEFAULT NULL COMMENT '原始文件路径',
+  `file_size` bigint UNSIGNED NULL DEFAULT NULL COMMENT '文件大小（字节）',
+  `schedule_enabled` tinyint(1) NULL DEFAULT 0 COMMENT '是否定时发布：0-否，1-是',
+  `schedule_publish_at` datetime NULL DEFAULT NULL COMMENT '定时发布时间',
+  `collection_enabled` tinyint(1) NULL DEFAULT 0 COMMENT '是否加入合集：0-否，1-是',
+  `collection_name` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL DEFAULT NULL COMMENT '合集名称',
+  `allow_second_creation` tinyint(1) NULL DEFAULT 0 COMMENT '允许二创：0-否，1-是',
+  `commercial_promotion` tinyint(1) NULL DEFAULT 0 COMMENT '商业推广信息：0-否，1-是',
+  `create_time` datetime NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  `update_time` datetime NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+  PRIMARY KEY (`id`) USING BTREE,
+  UNIQUE INDEX `uk_submission_id`(`submission_id` ASC) USING BTREE,
+  INDEX `idx_user_id`(`user_id` ASC) USING BTREE,
+  INDEX `idx_update_time`(`update_time` ASC) USING BTREE,
+  CONSTRAINT `video_drafts_ibfk_1` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE ON UPDATE RESTRICT
+) ENGINE = InnoDB AUTO_INCREMENT = 1 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_unicode_ci COMMENT = '视频草稿表（内容管理-草稿箱）' ROW_FORMAT = Dynamic;
 
 -- ----------------------------
 -- Records of videos

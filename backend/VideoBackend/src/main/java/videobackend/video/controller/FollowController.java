@@ -147,6 +147,47 @@ public class FollowController {
     }
 
     /**
+     * 获取我的粉丝列表（包含头像、名称等 + 我是否回关）
+     */
+    @GetMapping("/fans/users")
+    public ResponseEntity<?> getFansUsers(HttpServletRequest request) {
+        try {
+            Long userId = getUserIdFromRequest(request);
+            if (userId == null) {
+                return ResponseEntity.status(401).body(Map.of("success", false, "message", "未登录或登录已过期"));
+            }
+            List<Map<String, Object>> fans = followService.getFollowerUsers(userId);
+            return ResponseEntity.ok(Map.of("success", true, "users", fans));
+        } catch (Exception e) {
+            return ResponseEntity.status(500).body(Map.of("success", false, "message", "获取粉丝列表失败: " + e.getMessage()));
+        }
+    }
+
+    /**
+     * 移除粉丝：删除对方对我的关注关系
+     */
+    @PostMapping("/fans/remove")
+    public ResponseEntity<?> removeFan(HttpServletRequest request, @RequestBody Map<String, Object> body) {
+        try {
+            Long userId = getUserIdFromRequest(request);
+            if (userId == null) {
+                return ResponseEntity.status(401).body(Map.of("success", false, "message", "未登录或登录已过期"));
+            }
+            Object followerIdObj = body.get("followerId");
+            if (followerIdObj == null) {
+                return ResponseEntity.badRequest().body(Map.of("success", false, "message", "缺少 followerId"));
+            }
+            Long followerId = (followerIdObj instanceof Number n) ? n.longValue() : Long.parseLong(followerIdObj.toString());
+            boolean ok = followService.removeFollower(userId, followerId);
+            return ResponseEntity.ok(Map.of("success", ok));
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(Map.of("success", false, "message", e.getMessage()));
+        } catch (Exception e) {
+            return ResponseEntity.status(500).body(Map.of("success", false, "message", "移除粉丝失败: " + e.getMessage()));
+        }
+    }
+
+    /**
      * 获取用户统计信息（关注数、粉丝数、视频数）
      */
     @GetMapping("/stats")
