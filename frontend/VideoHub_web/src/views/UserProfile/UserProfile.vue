@@ -9,7 +9,11 @@
         <img class="cover" :src="coverImage" alt="cover" @error="onImageError" @load="onImageLoad" />
         <div class="header-inner user-profile-container">
           <div class="user-row">
-            <div class="avatar-wrap" @click="onChangeAvatarClick">
+            <div
+              class="avatar-wrap"
+              :class="{ 'avatar-wrap-disabled': !canEditProfile }"
+              @click="onChangeAvatarClick"
+            >
               <img class="avatar" :src="avatar" alt="avatar" />
               <div v-if="avatarUploading" class="avatar-mask">上传中...</div>
             </div>
@@ -26,7 +30,11 @@
                 <span class="badge level">LV5</span>
                 <span class="badge vip">大会员</span>
               </div>
-              <div class="sub-row" @click="editBio">
+              <div
+                class="sub-row"
+                :class="{ 'sub-row-disabled': !canEditProfile }"
+                @click="editBio"
+              >
                 <span v-if="bio">{{ bio }}</span>
                 <span v-else class="bio-placeholder">编辑个性签名</span>
               </div>
@@ -420,7 +428,11 @@
             </div>
           </div>
 
-          <ProfileHome v-else-if="activeTab === 'home'" @open-folder="handleOpenFolder" />
+          <ProfileHome
+            v-else-if="activeTab === 'home'"
+            :user-id="currentUserId"
+            @open-folder="handleOpenFolder"
+          />
           <div v-else-if="activeTab === 'dynamics'" class="empty">动态内容</div>
           <div v-else-if="activeTab === 'submit'" class="empty">投稿内容</div>
         </section>
@@ -435,9 +447,18 @@ import ProfileHome from './ProfileHome.vue'
 import { getFavoriteListByFolder } from '@/api/favorite'
 import { getFavoriteFolderList, createFavoriteFolder } from '@/api/favoriteFolder'
 import { fetchMyProfile, updateAvatar as apiUpdateAvatar, updateBio as apiUpdateBio } from '@/api/userProfile'
+import { getUserStats } from '@/api/follow'
 import { useUserStore } from '@/stores/user'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import zhCn from 'element-plus/dist/locale/zh-cn.mjs'
+
+const DEFAULT_GREY_AVATAR = `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(
+  `<svg xmlns="http://www.w3.org/2000/svg" width="120" height="120" viewBox="0 0 120 120">
+    <circle cx="60" cy="60" r="58" fill="#d1d5db"/>
+    <circle cx="60" cy="48" r="18" fill="#b6c0ca"/>
+    <path d="M22 120c6-30 25-46 38-46s32 16 38 46" fill="#b6c0ca"/>
+  </svg>`
+)}`;
 
 export default {
   name: 'UserProfile',
@@ -453,13 +474,13 @@ export default {
         { key: 'submit', label: '投稿' },
         { key: 'collections', label: '收藏', count: 0 }
       ],
-      nickname: '皇升级',
-      avatar: '',
+      nickname: '-',
+      avatar: DEFAULT_GREY_AVATAR,
       bio: '',
       avatarUploading: false,
       // store 引用（用于刷新后从 localStorage 同步头像/签名）
       userStore: null,
-      stats: { following: 24, followers: 3, likes: 0, views: 0 },
+      stats: { following: 0, followers: 0, likes: 0, views: 0 },
       activeFolderId: null,
       folders: [],
       followedFolders: [],
@@ -508,6 +529,19 @@ export default {
       const userStore = useUserStore()
       return userStore.user?.userId || userStore.user?.id
     },
+    myUserId () {
+      const userStore = this.userStore || useUserStore()
+      return userStore.user?.userId || userStore.user?.id
+    },
+    // 仅当查看的是自己的主页时才允许编辑（头像/姓名/签名）
+    canEditProfile () {
+      const viewingId = this.$route?.params?.id
+      const myId = this.myUserId
+      if (!myId) return false
+      // /profile（不带 id）默认就是自己的主页
+      if (!viewingId) return true
+      return String(viewingId) === String(myId)
+    },
     // 是否全选
     isAllSelected () {
       if (this.videos.length === 0) return false
@@ -541,6 +575,11 @@ export default {
         if (this.activeTab === 'collections' && this.currentUserId) {
           this.initCollections()
         }
+
+        // 加载用户统计信息（关注/粉丝/获赞/播放）
+        if (this.currentUserId) {
+          this.loadUserStats(this.currentUserId)
+        }
       })
     
     // 监听tab切换（只在从其他tab切换到collections时加载）
@@ -564,6 +603,16 @@ export default {
     syncProfileFromStore () {
       try {
         const store = this.userStore || useUserStore()
+        const routeUserId = this.$route?.params?.id
+        const myUserId = store.user?.userId || store.user?.id
+        // 当路由指向“他人主页”时，不覆盖显示当前用户的头像/昵称/简介
+        if (routeUserId && myUserId && String(routeUserId) !== String(myUserId)) {
+          const q = this.$route?.query || {}
+          if (typeof q.nickname === 'string' && q.nickname.trim()) this.nickname = q.nickname.trim()
+          if (typeof q.avatar === 'string' && q.avatar.trim()) this.avatar = this.normalizeAvatarUrl(q.avatar.trim())
+          if (typeof q.bio === 'string' && q.bio.trim()) this.bio = q.bio.trim()
+          return
+        }
         const u = store.user || {}
         if (u.username) this.nickname = u.username
         // 头像优先取 store 的 avatar（刷新后 localStorage 会带着）
@@ -610,6 +659,16 @@ export default {
       try {
         const userStore = this.userStore || useUserStore()
         if (!userStore.isAuthenticated) return
+        const routeUserId = this.$route?.params?.id
+        const myUserId = userStore.user?.userId || userStore.user?.id
+        // 他人主页：避免调用“我的资料”接口覆盖展示内容
+        if (routeUserId && myUserId && String(routeUserId) !== String(myUserId)) {
+          const q = this.$route?.query || {}
+          if (typeof q.nickname === 'string' && q.nickname.trim()) this.nickname = q.nickname.trim()
+          if (typeof q.avatar === 'string' && q.avatar.trim()) this.avatar = this.normalizeAvatarUrl(q.avatar.trim())
+          if (typeof q.bio === 'string' && q.bio.trim()) this.bio = q.bio.trim()
+          return
+        }
         const { data } = await fetchMyProfile()
         if (data && data.id) {
           this.nickname = data.username || this.nickname
@@ -634,6 +693,24 @@ export default {
         console.warn('加载用户资料失败:', e)
       }
     },
+    async loadUserStats (targetUserId) {
+      if (!targetUserId) return
+      try {
+        const { data } = await getUserStats(targetUserId)
+        if (data?.success) {
+          const s = data.stats || {}
+          const num = (v) => (v === undefined || v === null || v === '' ? 0 : Number(v))
+          this.stats = {
+            following: num(s.followingCount ?? s.following ?? 0),
+            followers: num(s.followerCount ?? s.followers ?? 0),
+            likes: num(s.likeCount ?? s.likes ?? 0),
+            views: num(s.viewCount ?? s.views ?? 0),
+          }
+        }
+      } catch (e) {
+        // 不阻断页面展示
+      }
+    },
     onTabChange (key) {
       // 如果切换到收藏tab，重置并加载数据
       if (key === 'collections' && this.currentUserId) {
@@ -646,6 +723,7 @@ export default {
 
     // 点击头像更换
     onChangeAvatarClick () {
+      if (!this.canEditProfile) return
       if (this.avatarUploading) return
       const input = this.$refs.avatarInput
       if (input) {
@@ -655,6 +733,7 @@ export default {
 
     // 选择头像文件
     async onAvatarSelected (event) {
+      if (!this.canEditProfile) return
       const file = event?.target?.files?.[0]
       if (!file) return
       this.avatarUploading = true
@@ -688,6 +767,7 @@ export default {
 
     // 编辑个性签名
     async editBio () {
+      if (!this.canEditProfile) return
       const current = this.bio || ''
       try {
         const { value } = await ElMessageBox.prompt('请输入个性签名', '编辑个性签名', {
@@ -1430,6 +1510,11 @@ export default {
     flex-shrink: 0;
   }
 
+  .avatar-wrap-disabled {
+    cursor: default !important;
+    pointer-events: none;
+  }
+
   .avatar {
     width: 100%;
     height: 100%;
@@ -1482,6 +1567,11 @@ export default {
       text-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
       cursor: pointer;
     }
+
+  .sub-row-disabled {
+    cursor: default !important;
+    pointer-events: none;
+  }
 
     .bio-placeholder {
       opacity: 0.9;

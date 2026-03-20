@@ -94,10 +94,10 @@ import { computed, ref } from 'vue'
 // 顶部标签
 const tabs = [
   { key: 'overview', label: '数据概览' },
-  { key: 'account', label: '账号诊断' },
-  { key: 'submission', label: '稿件分析' },
-  { key: 'fans', label: '粉丝分析' },
-  { key: 'column', label: '专栏数据' }
+  // { key: 'account', label: '账号诊断' },
+  // { key: 'submission', label: '稿件分析' },
+  // { key: 'fans', label: '粉丝分析' },
+  // { key: 'column', label: '专栏数据' }
 ]
 const activeTab = ref('overview')
 
@@ -132,20 +132,28 @@ const incomeCustom = ref('0')
 .tab-nav {
   display: flex;
   gap: 16px;
-  margin-bottom: 12px;
+  padding: 0 35px;
+  height: 64px;
+  align-items: center;
+  margin: 0;
 }
 
 .tab-item {
   background: transparent;
   border: none;
-  color: #666;
-  padding: 6px 2px;
+  color: #374151;
+  padding: 0 18px;
   cursor: pointer;
   position: relative;
+  height: 64px;
+  line-height: 64px;
+  font-size: 16px;
+  font-weight: 400;
 }
 
 .tab-item.active {
   color: #00aeec;
+  font-weight: 700;
 }
 
 .tab-item.active::after {
@@ -153,9 +161,9 @@ const incomeCustom = ref('0')
   position: absolute;
   left: 0;
   right: 0;
-  bottom: -6px;
-  height: 2px;
-  background: #00aeec;
+  bottom: 0;
+  height: 3px;
+  background: #00a1d6;
 }
 
 .panel {

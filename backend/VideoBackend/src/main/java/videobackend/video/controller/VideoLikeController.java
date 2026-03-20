@@ -106,15 +106,18 @@ public class VideoLikeController {
     public ResponseEntity<?> getUserLikedVideos(
             HttpServletRequest request,
             @RequestParam(defaultValue = "1") Integer page,
-            @RequestParam(defaultValue = "20") Integer pageSize) {
+            @RequestParam(defaultValue = "20") Integer pageSize,
+            @RequestParam(required = false) Long targetUserId) {
         try {
             Long userId = getUserIdFromRequest(request);
             if (userId == null) {
                 return ResponseEntity.status(401).body(Map.of("success", false, "message", "未登录或登录已过期"));
             }
 
-            var list = videoLikeService.getUserLikedVideos(userId, page, pageSize);
-            Long total = videoLikeService.getUserLikedCount(userId);
+            // 如果前端传了 targetUserId，则查询该用户的点赞列表；否则回退为查询当前登录用户
+            Long queryUserId = (targetUserId != null) ? targetUserId : userId;
+            var list = videoLikeService.getUserLikedVideos(queryUserId, page, pageSize);
+            Long total = videoLikeService.getUserLikedCount(queryUserId);
             return ResponseEntity.ok(Map.of(
                     "success", true,
                     "list", list,

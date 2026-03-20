@@ -149,7 +149,7 @@
         </el-card>
 
         <!-- 推广模块（仅上传页展示） -->
-        <div v-if="submitStep === 'upload'" class="promo-list">
+        <!-- <div v-if="submitStep === 'upload'" class="promo-list">
           <el-card class="promo-card" shadow="hover">
             <div class="promo-content">
               <div class="promo-text">
@@ -169,10 +169,10 @@
               <el-button type="primary" plain>立即下载</el-button>
             </div>
           </el-card>
-        </div>
+        </div> -->
 
         <!-- 底部说明（仅上传页展示） -->
-        <div v-if="submitStep === 'upload'" class="footer-note">
+        <!-- <div v-if="submitStep === 'upload'" class="footer-note">
           <div class="links">
             <el-link type="primary" href="javascript:void(0)">选择本地视频</el-link>
             <el-divider direction="vertical" />
@@ -186,7 +186,7 @@
             <el-divider direction="vertical" />
             <el-link type="primary" href="javascript:void(0)">PC版</el-link>
           </div>
-        </div>
+        </div> -->
       </div>
 
       <!-- 内容管理页面内容 -->
@@ -296,12 +296,12 @@ onMounted(() => {
 
 const tabs = [
   { key: 'video', label: '视频投稿' },
-  { key: 'short', label: '短剧投稿' },
-  { key: 'column', label: '专栏投稿' },
-  { key: 'interactive', label: '互动视频投稿' },
-  { key: 'music', label: '音频投稿' },
-  { key: 'sticker', label: '贴纸投稿' },
-  { key: 'material', label: '视频素材投稿' }
+  // { key: 'short', label: '短剧投稿' },
+  // { key: 'column', label: '专栏投稿' },
+  // { key: 'interactive', label: '互动视频投稿' },
+  // { key: 'music', label: '音频投稿' },
+  // { key: 'sticker', label: '贴纸投稿' },
+  // { key: 'material', label: '视频素材投稿' }
 ]
 
 const activeTab = ref('video')
@@ -580,25 +580,80 @@ const getPageTitle = (view) => {
 
 .content-main {
   flex: 1;
-  padding: 16px;
+  padding: 16px 16px 0;
   overflow-y: auto;
+  background: #fafafa;
 }
 
 .content-page {
-  max-width: 1200px;
+  max-width: 1100px;
   margin: 0 auto;
+  background: #ffffff;
+  height: 100%;
 }
 
 .submit-tabs {
-  margin-bottom: 16px;
-  
   :deep(.el-tabs__header) {
-    margin: 0 0 16px 0;
+    height: 64px;
+    margin: 0;
+    padding: 0 35px;
+    display: flex;
+    align-items: center;
+    border-bottom: 1.5px solid #eef2f7;
+  }
+
+  :deep(.el-tabs__nav-wrap) {
+    height: 64px;
+  }
+
+  :deep(.el-tabs__nav-scroll) {
+    height: 64px;
+    display: flex;
+    align-items: center;
+  }
+
+  /* 去掉 Tabs 底下的灰色分隔线（避免选中蓝色条出现“粗灰底”） */
+  :deep(.el-tabs__nav-wrap)::after {
+    background-color: transparent !important;
+    border-bottom: none !important;
+    height: 0 !important;
+  }
+
+  :deep(.el-tabs__nav-scroll)::after {
+    background-color: transparent !important;
+    border-bottom: none !important;
+    height: 0 !important;
+  }
+
+  :deep(.el-tabs__nav) {
+    height: 64px;
+  }
+
+  :deep(.el-tabs__item) {
+    height: 64px;
+    line-height: 64px;
+    padding: 0 18px;
+    font-size: 16px;
+    color: #00a1d6;
+    font-weight: 700;
+  }
+
+  :deep(.el-tabs__active-bar) {
+    height: 3px;
   }
 }
 
 .upload-card {
-  margin-bottom: 16px;
+  margin: 14px 0 16px;
+}
+
+:deep(.upload-card.el-card) {
+  border: none !important;
+  box-shadow: none !important;
+}
+
+::deep(.upload-card.el-card > .el-card__body) {
+  padding: 10px 70px !important;
 }
 
 .upload-area {

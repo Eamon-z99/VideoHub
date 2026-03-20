@@ -22,7 +22,7 @@
     </div>
 
     <el-form label-width="72px" class="edit-form">
-      <el-form-item label="封面">
+      <el-form-item label="封面" required>
         <div class="cover-row">
           <input
             ref="coverFileInput"
@@ -38,7 +38,12 @@
             </div>
             <div class="cover-actions">
               <el-button size="small" @click="triggerSelectCover">上传封面</el-button>
-              <el-button size="small" :disabled="!videoFile" @click="framePickerVisible = true">
+              <el-button
+                size="small"
+                :loading="loadingDraftVideo"
+                :disabled="!videoFileForFrame || loadingDraftVideo"
+                @click="framePickerVisible = true"
+              >
                 从视频截取
               </el-button>
               <span v-if="coverName" class="cover-name">已选择：{{ coverName }}</span>
@@ -49,7 +54,7 @@
 
       <FrameCoverPicker
         v-model="framePickerVisible"
-        :video-file="videoFile"
+        :video-file="videoFileForFrame"
         @selected="onFrameCoverSelected"
       />
 
@@ -64,7 +69,7 @@
         </el-radio-group>
       </el-form-item>
 
-      <el-form-item label="分区" required>
+      <el-form-item label="分区">
         <el-select v-model="form.partition" placeholder="请选择分区" style="width: 260px">
           <el-option v-for="opt in partitionOptions" :key="opt.value" :label="opt.label" :value="opt.value" />
         </el-select>
@@ -113,15 +118,15 @@
         <div class="schedule-row">
           <el-switch v-model="form.scheduleEnabled" />
           <span class="schedule-hint">可选择距离当前最早5分钟/最晚15天的时间</span>
-        </div>
-        <div v-if="form.scheduleEnabled" class="schedule-picker">
-          <el-date-picker
-            v-model="form.schedulePublishAt"
-            type="datetime"
-            placeholder="选择发布时间"
-            value-format="YYYY-MM-DD HH:mm:ss"
-            style="width: 260px"
-          />
+          <div v-if="form.scheduleEnabled" class="schedule-picker">
+            <el-date-picker
+              v-model="form.schedulePublishAt"
+              type="datetime"
+              placeholder="选择发布时间"
+              value-format="YYYY-MM-DD HH:mm:ss"
+              style="width: 260px"
+            />
+          </div>
         </div>
       </el-form-item>
 
@@ -129,15 +134,15 @@
         <div class="collection-row">
           <el-switch v-model="form.collectionEnabled" />
           <span class="collection-hint">合集功能可用于收集整理系列投稿件</span>
-        </div>
-        <div v-if="form.collectionEnabled" class="collection-editor">
-          <el-input
-            v-model="form.collectionName"
-            placeholder="输入合集名称（示例：XX系列）"
-            style="width: 260px"
-            maxlength="40"
-            show-word-limit
-          />
+          <div v-if="form.collectionEnabled" class="collection-editor">
+            <el-input
+              v-model="form.collectionName"
+              placeholder="输入合集名称（示例：XX系列）"
+              style="width: 260px"
+              maxlength="40"
+              show-word-limit
+            />
+          </div>
         </div>
       </el-form-item>
 
@@ -248,6 +253,56 @@ watch(
   { immediate: true }
 )
 
+const normalizeLocalVideoUrl = (path) => {
+  if (!path) return ''
+  const p = String(path).replaceAll('\\', '/')
+  if (p.startsWith('http://') || p.startsWith('https://')) return p
+  if (p.startsWith('/local-videos/')) return p
+  if (p.startsWith('/')) return '/local-videos' + p
+  return '/local-videos/' + p
+}
+
+// 草稿箱进入时没有本地 File，需要从已保存的视频拉取 blob 供截帧使用
+const videoFileForFrame = ref(props.videoFile || null)
+const loadingDraftVideo = ref(false)
+
+watch(
+  () => props.videoFile,
+  (f) => {
+    if (f) videoFileForFrame.value = f
+  },
+  { immediate: true }
+)
+
+watch(
+  () => props.initialDraft,
+  async (d) => {
+    if (!d) return
+    if (videoFileForFrame.value) return
+    const storagePath = d.storage_path || d.source_file
+    if (!storagePath) return
+    const url = normalizeLocalVideoUrl(storagePath)
+    loadingDraftVideo.value = true
+    try {
+      const resp = await fetch(url)
+      if (!resp.ok) {
+        throw new Error(`HTTP ${resp.status}`)
+      }
+      const blob = await resp.blob()
+      const name = String(d.source_file || d.storage_path || 'draft-video').split('/').pop() || 'draft-video.mp4'
+      const file = new File([blob], name, { type: blob.type || 'video/mp4' })
+      videoFileForFrame.value = file
+    } catch (e) {
+      // 不阻断编辑，只是无法截帧
+      ElMessage.warning('草稿视频文件读取失败，无法从视频截取封面（可重新上传视频）')
+      videoFileForFrame.value = null
+    } finally {
+      loadingDraftVideo.value = false
+    }
+  },
+  { immediate: true }
+)
+
 const normalizeCoverUrl = (url) => {
   if (!url) return ''
   if (url.startsWith('http://') || url.startsWith('https://')) return url
@@ -274,6 +329,8 @@ const coverFileInput = ref(null)
 const coverFile = ref(null)
 const coverName = ref('')
 const coverPreview = ref('')
+
+const hasCover = computed(() => !!coverPreview.value)
 
 const triggerSelectCover = () => {
   coverFileInput.value?.click()
@@ -371,6 +428,10 @@ const ensureSubmissionId = async (draftOnly) => {
 }
 
 const saveDraft = async () => {
+  if (!hasCover.value) {
+    ElMessage.warning('请先设置封面')
+    return
+  }
   const sid = canSaveDraft.value ? props.submissionId : await ensureSubmissionId(true)
   if (!sid) {
     return
@@ -381,6 +442,7 @@ const saveDraft = async () => {
     const { data } = await updateVideoSubmission(sid, fd, { submitNow: 0 })
     if (data?.success) {
       ElMessage.success('已存入草稿箱（可在内容管理中继续编辑）')
+      emit('done')
     } else {
       ElMessage.error(data?.message || '保存草稿失败，请稍后重试')
     }
@@ -392,6 +454,10 @@ const saveDraft = async () => {
 }
 
 const submitNow = async () => {
+  if (!hasCover.value) {
+    ElMessage.warning('请先设置封面')
+    return
+  }
   const sid = canSaveDraft.value ? props.submissionId : await ensureSubmissionId(false)
   if (!sid) {
     return
@@ -545,11 +611,15 @@ const submitNow = async () => {
 .collection-hint {
   color: #6b7280;
   font-size: 12px;
+  flex: 1;
+  min-width: 0;
 }
 
 .schedule-picker,
 .collection-editor {
-  margin-top: 10px;
+  margin-top: 0;
+  margin-left: 12px; // 右侧框与左侧文字之间留出间距
+  flex-shrink: 0; // 避免输入框被挤压
 }
 
 .form-actions {

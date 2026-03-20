@@ -2,11 +2,11 @@
   <div class="cm-page">
     <div class="cm-top-tabs">
       <div class="tab is-active">视频管理</div>
-      <div class="tab">图文管理</div>
+      <!-- <div class="tab">图文管理</div>
       <div class="tab">互动视频管理</div>
       <div class="tab">音频管理</div>
       <div class="tab">贴纸管理</div>
-      <div class="tab">视频素材管理</div>
+      <div class="tab">视频素材管理</div> -->
       <div class="tab cm-spacer"></div>
       <div class="cm-search">
         <el-input v-model="keyword" placeholder="搜索稿件标题" clearable style="width: 260px" />
@@ -202,21 +202,25 @@ const removeDraft = async (it) => {
   display: flex;
   align-items: center;
   gap: 18px;
-  border-bottom: 1px solid #e5e7eb;
-  padding-bottom: 10px;
+  border-bottom: none;
+  height: 64px;
+  padding: 0 35px;
+  margin: 0;
 }
 
 .tab {
-  font-size: 14px;
+  font-size: 16px;
   color: #374151;
-  padding: 8px 0;
+  padding: 0 18px;
+  height: 64px;
+  line-height: 64px;
   cursor: pointer;
-  border-bottom: 2px solid transparent;
+  border-bottom: 3px solid transparent;
 }
 .tab.is-active {
   color: #00a1d6;
   border-bottom-color: #00a1d6;
-  font-weight: 600;
+  font-weight: 700;
 }
 .cm-spacer {
   flex: 1;
@@ -312,6 +316,7 @@ const removeDraft = async (it) => {
   display: -webkit-box;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
+  line-clamp: 2; // 兼容性：提供标准属性给支持 line-clamp 的浏览器
   overflow: hidden;
 }
 .time {

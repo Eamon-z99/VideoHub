@@ -2,8 +2,8 @@
   <div class="fans-page">
     <div class="top-tabs">
       <div class="tab active">粉丝列表</div>
-      <div class="tab">粉丝勋章</div>
-      <div class="tab">骑士团</div>
+      <!-- <div class="tab">粉丝勋章</div>
+      <div class="tab">骑士团</div> -->
     </div>
 
     <div class="panel">
@@ -22,9 +22,13 @@
 
       <div v-else class="list">
         <div v-for="u in list" :key="u.id" class="row">
-          <div class="avatar" :style="u.avatar ? { backgroundImage: `url(${u.avatar})` } : {}" />
+          <div
+            class="avatar"
+            :style="u.avatar ? { backgroundImage: `url(${u.avatar})` } : {}"
+            @click.stop="openUserProfile(u)"
+          />
           <div class="info">
-            <div class="name">{{ u.username || u.account || ('用户' + u.id) }}</div>
+            <div class="name" @click.stop="openUserProfile(u)">{{ u.username || u.account || ('用户' + u.id) }}</div>
           </div>
 
           <div class="right">
@@ -142,6 +146,19 @@ function onMoreCommand(cmd, u) {
   }
 }
 
+function openUserProfile(u) {
+  const targetId = u?.userId ?? u?.user_id ?? u?.followerId ?? u?.follower_id ?? u?.fanId ?? u?.fan_id ?? u?.id
+  if (!targetId) return
+  const nickname = u?.username || u?.account || '-'
+  const avatar = u?.avatar || ''
+
+  const query = new URLSearchParams()
+  if (nickname) query.set('nickname', String(nickname))
+  if (avatar) query.set('avatar', String(avatar))
+
+  openInNewTab(`/profile/${encodeURIComponent(String(targetId))}?${query.toString()}`)
+}
+
 async function removeOne(u) {
   try {
     await ElMessageBox.confirm('确定要移除该粉丝吗？（将取消对方对你的关注）', '移除粉丝', { type: 'warning' })
@@ -169,34 +186,40 @@ onMounted(() => {
 <style scoped lang="scss">
 .fans-page {
   padding: 0;
+  --fans-tabs-content-left: 35px;
 }
 
 .top-tabs {
   display: flex;
   gap: 18px;
-  border-bottom: 1px solid #e5e7eb;
-  padding-bottom: 10px;
+  border-bottom: 1.5px solid #eef2f7;
+  padding: 0 35px;
+  height: 64px;
   margin-bottom: 12px;
+  align-items: center;
 }
 
 .tab {
-  font-size: 14px;
+  font-size: 16px;
   color: #374151;
-  padding: 8px 0;
+  padding: 0 0px;
+  height: 64px;
+  line-height: 64px;
   cursor: default;
-  border-bottom: 2px solid transparent;
+  border-bottom: 3px solid transparent;
 }
 
 .tab.active {
   color: #00a1d6;
   border-bottom-color: #00a1d6;
-  font-weight: 600;
+  font-weight: 700;
 }
 
 .panel {
   background: #fff;
   border-radius: 10px;
   padding: 14px 16px;
+  padding-left: var(--fans-tabs-content-left);
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
   min-height: 360px;
 }
@@ -218,7 +241,7 @@ onMounted(() => {
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 10px 6px;
+  padding: 10px 0;
   border-bottom: 1px solid #f3f4f6;
 }
 
@@ -229,6 +252,7 @@ onMounted(() => {
   background: #e5e7eb;
   background-size: cover;
   background-position: center;
+  cursor: pointer;
 }
 
 .info {
@@ -237,9 +261,14 @@ onMounted(() => {
 }
 
 .name {
-  font-weight: 600;
+  // font-weight: 600;
   color: #111827;
   font-size: 14px;
+  cursor: pointer;
+
+  &:hover {
+    color: #00a1d6;
+  }
 }
 
 .right {

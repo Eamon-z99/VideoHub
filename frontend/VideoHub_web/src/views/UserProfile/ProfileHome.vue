@@ -63,7 +63,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onBeforeUnmount } from 'vue'
+import { computed, ref, onMounted, onBeforeUnmount, watch } from 'vue'
 import { getFavoriteFolderList } from '@/api/favoriteFolder'
 import { getUserLikedVideos } from '@/api/like'
 import { useUserStore } from '@/stores/user'
@@ -71,6 +71,17 @@ import VideoCard from '@/components/VideoCard.vue'
 
 const emit = defineEmits(['open-folder'])
 const userStore = useUserStore()
+
+const props = defineProps({
+  // 由 UserProfile 传入：当前展示的用户 id
+  userId: {
+    type: [String, Number],
+    default: null,
+  },
+})
+
+const currentUserId = computed(() => userStore.user?.userId || userStore.user?.id)
+const targetUserId = computed(() => props.userId ?? currentUserId.value)
 
 const folders = ref([])
 const likedVideos = ref([])
@@ -88,16 +99,21 @@ onBeforeUnmount(() => {
   window.removeEventListener('favorite-folder-cover-updated', handleFolderCoverUpdated)
 })
 
+watch(targetUserId, () => {
+  loadFolders()
+  loadLikes()
+})
+
 async function loadFolders() {
   if (!userStore.isAuthenticated) return
   loadingFolders.value = true
   try {
-    const userId = userStore.user?.id || userStore.user?.userId
-    if (!userId) {
+    const targetUserId = props.userId ?? currentUserId.value
+    if (!targetUserId) {
       loadingFolders.value = false
       return
     }
-    const { data } = await getFavoriteFolderList(userId)
+    const { data } = await getFavoriteFolderList(targetUserId)
     if (data && data.success && Array.isArray(data.list)) {
       // 忽略后端返回的封面，前端统一按“最新收藏视频封面”规则计算
       folders.value = data.list.map(item => ({
@@ -112,7 +128,7 @@ async function loadFolders() {
       // 为每个有视频的收藏夹异步拉取“最新收藏视频”封面
       folders.value.forEach(folder => {
         if (folder.count > 0) {
-          updateFolderCoverForHome(userId, folder.id)
+          updateFolderCoverForHome(targetUserId, folder.id)
         }
       })
     } else {
@@ -159,7 +175,7 @@ async function loadLikes() {
   if (!userStore.isAuthenticated) return
   loadingLikes.value = true
   try {
-    const { data } = await getUserLikedVideos(1, 12)
+    const { data } = await getUserLikedVideos(1, 12, targetUserId.value)
     if (data && data.success && Array.isArray(data.list)) {
       likedVideos.value = data.list.map(item => ({
         id: item.id,

@@ -21,8 +21,16 @@ export const getLikeCount = (videoId) => {
 }
 
 // 获取用户点赞的视频列表
-export const getUserLikedVideos = (page = 1, pageSize = 20) => {
-  return request.get('/api/video-likes/list', { params: { page, pageSize } })
+export const getUserLikedVideos = (page = 1, pageSize = 20, userId) => {
+  const params = { page, pageSize }
+  if (userId) {
+    // 兼容：后端可能使用不同字段名
+    params.userId = userId
+    params.user_id = userId
+    params.uid = userId
+    params.targetUserId = userId
+  }
+  return request.get('/api/video-likes/list', { params })
 }
 
 
