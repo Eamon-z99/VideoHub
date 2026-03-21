@@ -220,7 +220,7 @@ onMounted(() => {
   border-radius: 10px;
   padding: 14px 16px;
   padding-left: var(--fans-tabs-content-left);
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+  // box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
   min-height: 360px;
 }
 

@@ -16,18 +16,24 @@
       >
         <el-menu-item-group title="主要功能">
           <!-- 投稿：使用纯样式图标按钮，不再依赖图片资源 -->
-          <el-menu-item index="submit" class="submit-menu-item">
-            <div class="submit-entry">
+          <el-menu-item index="submit" class="submit-menu-item" @click.stop.prevent>
+            <div class="submit-entry" @click.stop="enterSubmitView">
               <span class="submit-icon" aria-hidden="true">
-                <svg viewBox="0 0 20 20" width="20" height="20">
+                <svg
+                  t="1774079965106"
+                  class="icon"
+                  viewBox="0 0 1024 1024"
+                  version="1.1"
+                  xmlns="http://www.w3.org/2000/svg"
+                  p-id="10407"
+                  width="20"
+                  height="20"
+                >
                   <path
-                    d="M10 2.5a.75.75 0 0 1 .75.75v8.19l2.22-2.22a.75.75 0 1 1 1.06 1.06l-3.5 3.5a.75.75 0 0 1-1.06 0l-3.5-3.5a.75.75 0 1 1 1.06-1.06l2.22 2.22V3.25A.75.75 0 0 1 10 2.5Z"
+                    d="M522.666667 586.666667a21.333333 21.333333 0 0 0 21.333333-21.333334l-0.042667-253.397333 112.938667 112.896 2.986667 2.474667a21.333333 21.333333 0 0 0 27.221333-2.474667l15.061333-15.061333a21.333333 21.333333 0 0 0 0-30.208l-152.448-152.448a53.333333 53.333333 0 0 0-75.434666 0L321.834667 379.562667a21.333333 21.333333 0 0 0 0 30.208l15.061333 15.061333 2.986667 2.474667a21.333333 21.333333 0 0 0 27.221333-2.474667l112.853333-112.896 0.042667 253.397333a21.333333 21.333333 0 0 0 17.493333 20.992l3.84 0.341334z m213.333333 181.333333c29.44 0 53.333333-23.893333 53.333333-53.333333V640a21.333333 21.333333 0 0 0-21.333333-21.333333h-21.333333a21.333333 21.333333 0 0 0-21.333334 21.333333v64H298.666667V640a21.333333 21.333333 0 0 0-21.333334-21.333333H256a21.333333 21.333333 0 0 0-21.333333 21.333333v74.666667c0 29.44 23.893333 53.333333 53.333333 53.333333h448z"
                     fill="currentColor"
-                  />
-                  <path
-                    d="M4.5 13.5a.75.75 0 0 1 .75.75v1c0 .97.78 1.75 1.75 1.75h6c.97 0 1.75-.78 1.75-1.75v-1a.75.75 0 0 1 1.5 0v1A3.25 3.25 0 0 1 13 18.5H7A3.25 3.25 0 0 1 3.75 15.25v-1a.75.75 0 0 1 .75-.75Z"
-                    fill="currentColor"
-                  />
+                    p-id="10408"
+                  ></path>
                 </svg>
               </span>
               <span class="submit-text">投稿</span>
@@ -307,15 +313,18 @@ const tabs = [
 const activeTab = ref('video')
 
 const handleMenuSelect = (index) => {
+  // 投稿入口只允许点击蓝色 submit-entry 区域触发
+  if (index === 'submit') return
   currentView.value = index
-  // 切回“投稿”时，默认回到上传步骤
-  if (index === 'submit') {
-    submitStep.value = 'upload'
-    submissionId.value = ''
-    uploadedVideoFile.value = null
-    uploadedVideoName.value = ''
-    initialDraft.value = null
-  }
+}
+
+const enterSubmitView = () => {
+  currentView.value = 'submit'
+  submitStep.value = 'upload'
+  submissionId.value = ''
+  uploadedVideoFile.value = null
+  uploadedVideoName.value = ''
+  initialDraft.value = null
 }
 
 // 投稿流程状态
@@ -495,6 +504,9 @@ const getPageTitle = (view) => {
 :deep(.submit-menu-item) {
   /* 单独的 li 间距：与下面普通按钮拉开一些距离 */
   margin: 24px 0;
+  /* 整行禁用点击，避免白色区域触发 */
+  pointer-events: none;
+  cursor: default;
   /* hover 时父容器不要变色 */
   &:hover {
     background-color: transparent !important;
@@ -506,6 +518,8 @@ const getPageTitle = (view) => {
 
   .submit-entry {
     width: 80%;
+    /* 只允许蓝色按钮区域可点击 */
+    pointer-events: auto;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -526,16 +540,16 @@ const getPageTitle = (view) => {
   }
 
   .submit-icon {
-    width: 20px;
-    height: 20px;
+    width: 25px;
+    height: 25px;
     display: inline-flex;
     align-items: center;
     justify-content: center;
     color: #fff;
 
     svg {
-      width: 20px;
-      height: 20px;
+      width: 25px;
+      height: 25px;
       display: block;
     }
   }

@@ -103,7 +103,8 @@ const totalPages = computed(() => Math.ceil((total.value || 0) / pageSize))
 
 const displayList = computed(() => {
   // 目前先实现草稿箱（draft），其它状态后续可接 video_submissions/videos
-  if (status.value !== 'draft') return []
+  // 这里先让“全部稿件(all)”也复用草稿列表，避免点“全部”却看不到数据
+  if (status.value !== 'draft' && status.value !== 'all') return []
   return list.value
 })
 
@@ -157,7 +158,7 @@ const fetchDrafts = async () => {
 
 watch([page, keyword, status], () => {
   page.value = Math.max(1, page.value)
-  if (status.value === 'draft') fetchDrafts()
+  if (status.value === 'draft' || status.value === 'all') fetchDrafts()
 })
 
 onMounted(() => {
@@ -206,12 +207,13 @@ const removeDraft = async (it) => {
   height: 64px;
   padding: 0 35px;
   margin: 0;
+  border-bottom: 1.5px solid #eef2f7;
 }
 
 .tab {
   font-size: 16px;
   color: #374151;
-  padding: 0 18px;
+  // padding: 0 18px;
   height: 64px;
   line-height: 64px;
   cursor: pointer;
@@ -231,6 +233,7 @@ const removeDraft = async (it) => {
   display: flex;
   align-items: center;
   gap: 14px;
+  padding: 0 35px;
 }
 .sub-tab {
   color: #374151;
@@ -257,9 +260,9 @@ const removeDraft = async (it) => {
   margin-top: 14px;
   background: #fff;
   border-radius: 10px;
-  padding: 16px;
+  padding: 16px 35px;
   min-height: 420px;
-  box-shadow: 0 1px 3px rgba(0,0,0,.06);
+  // box-shadow: 0 1px 3px rgba(0,0,0,.06);
 }
 
 .cm-empty {
@@ -289,8 +292,8 @@ const removeDraft = async (it) => {
   align-items: center;
 }
 .cover {
-  width: 120px;
-  height: 68px;
+  width: 154px;
+  height: 87px;
   border-radius: 8px;
   background: #f3f4f6;
   background-size: cover;
