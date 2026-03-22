@@ -67,6 +67,11 @@ export const listVideoDrafts = (params = {}) => {
   return request.get('/api/db/video-drafts', { params })
 }
 
+/** 内容管理：已发布 + 草稿 + 审核中投稿（tab: all|draft|reviewing|approved|rejected） */
+export const listCreatorWorks = (params = {}) => {
+  return request.get('/api/db/creator-works', { params })
+}
+
 export const getVideoDraftDetail = (submissionId) => {
   return request.get(`/api/db/video-drafts/${encodeURIComponent(submissionId)}`)
 }

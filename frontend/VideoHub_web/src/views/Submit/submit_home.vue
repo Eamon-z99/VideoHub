@@ -207,7 +207,7 @@
 
       <!-- 首页内容 -->
       <div v-else-if="currentView === 'home'" class="content-page">
-        <CreatorHome />
+        <CreatorHome @switch-view="onCreatorHomeSwitchView" />
       </div>
 
       <!-- 创作成长内容 -->
@@ -327,6 +327,16 @@ const enterSubmitView = () => {
   initialDraft.value = null
 }
 
+/** 创作中心首页快捷入口 */
+const onCreatorHomeSwitchView = (view) => {
+  if (!view || typeof view !== 'string') return
+  if (view === 'submit') {
+    enterSubmitView()
+    return
+  }
+  currentView.value = view
+}
+
 // 投稿流程状态
 const submitStep = ref('upload') // upload | edit
 const submissionId = ref('')
@@ -430,6 +440,7 @@ const getPageTitle = (view) => {
 .submit-main {
   display: flex;
   flex: 1;
+  min-height: 0;
 }
 
 .sidebar-header {
@@ -592,10 +603,12 @@ const getPageTitle = (view) => {
   font-size: 14px;
 }
 
-.content-main {
+/* 滚动只使用 App 根级 .scroll-container，避免与 el-main 叠加成双滚动条 */
+.content-main.el-main {
   flex: 1;
-  padding: 16px 16px 0;
-  overflow-y: auto;
+  min-width: 0;
+  padding: 16px 16px 24px;
+  overflow: visible !important;
   background: #fafafa;
 }
 
@@ -603,7 +616,7 @@ const getPageTitle = (view) => {
   max-width: 1100px;
   margin: 0 auto;
   background: #ffffff;
-  height: 100%;
+  min-height: 0;
 }
 
 .submit-tabs {

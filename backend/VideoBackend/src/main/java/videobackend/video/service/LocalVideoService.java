@@ -466,6 +466,14 @@ public class LocalVideoService {
     }
 
     /**
+     * 与视频列表/详情一致：根据 source_file + 封面路径/文件名生成可访问的 /local-videos/... URL。
+     * 创作中心内容管理「已发布」列表等场景使用。
+     */
+    public String buildCoverPublicUrl(String sourceFile, String coverFile) {
+        return buildLocalUrl(sourceFile, coverFile);
+    }
+
+    /**
      * 尝试对字符串进行 URL 解码，失败则返回原值，避免包含 % 的普通文件名抛异常
      */
     private String safeDecode(String value) {

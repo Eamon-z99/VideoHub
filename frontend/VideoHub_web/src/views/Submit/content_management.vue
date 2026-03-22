@@ -2,11 +2,6 @@
   <div class="cm-page">
     <div class="cm-top-tabs">
       <div class="tab is-active">视频管理</div>
-      <!-- <div class="tab">图文管理</div>
-      <div class="tab">互动视频管理</div>
-      <div class="tab">音频管理</div>
-      <div class="tab">贴纸管理</div>
-      <div class="tab">视频素材管理</div> -->
       <div class="tab cm-spacer"></div>
       <div class="cm-search">
         <el-input v-model="keyword" placeholder="搜索稿件标题" clearable style="width: 260px" />
@@ -14,19 +9,19 @@
     </div>
 
     <div class="cm-sub-tabs">
-      <div class="sub-tab" :class="{ active: status === 'all' }" @click="status = 'all'">
+      <div class="sub-tab" :class="{ active: status === 'all' }" @click="selectTab('all')">
         全部稿件 <span class="num">{{ stats.all }}</span>
       </div>
-      <div class="sub-tab" :class="{ active: status === 'draft' }" @click="status = 'draft'">
+      <div class="sub-tab" :class="{ active: status === 'draft' }" @click="selectTab('draft')">
         草稿 <span class="num">{{ stats.draft }}</span>
       </div>
-      <div class="sub-tab" :class="{ active: status === 'reviewing' }" @click="status = 'reviewing'">
+      <div class="sub-tab" :class="{ active: status === 'reviewing' }" @click="selectTab('reviewing')">
         进行中 <span class="num">{{ stats.reviewing }}</span>
       </div>
-      <div class="sub-tab" :class="{ active: status === 'approved' }" @click="status = 'approved'">
+      <div class="sub-tab" :class="{ active: status === 'approved' }" @click="selectTab('approved')">
         已通过 <span class="num">{{ stats.approved }}</span>
       </div>
-      <div class="sub-tab" :class="{ active: status === 'rejected' }" @click="status = 'rejected'">
+      <div class="sub-tab" :class="{ active: status === 'rejected' }" @click="selectTab('rejected')">
         未通过 <span class="num">{{ stats.rejected }}</span>
       </div>
       <div class="cm-sub-spacer"></div>
@@ -41,21 +36,37 @@
       </div>
 
       <template v-else>
-        <div v-if="displayList.length === 0" class="cm-empty">
+        <div v-if="list.length === 0" class="cm-empty">
           <el-empty description="一个稿件都没有，请换个筛选条件" />
         </div>
 
         <div v-else class="draft-list">
-          <div class="draft-row" v-for="it in displayList" :key="it.submission_id">
-            <div class="cover" :style="{ backgroundImage: it.cover_url ? `url(${normalizeCover(it.cover_url)})` : '' }"></div>
+          <div class="draft-row" v-for="it in list" :key="rowKey(it)">
+            <div
+              class="cover"
+              :style="coverStyle(it)"
+            ></div>
             <div class="meta">
-              <div class="title">{{ it.title }}</div>
+              <div class="title-row">
+                <span class="title">{{ it.title || '未命名稿件' }}</span>
+                <el-tag :type="statusTagType(it)" size="small" class="status-tag">{{ statusLabel(it) }}</el-tag>
+              </div>
               <div class="desc">{{ it.description || '-' }}</div>
-              <div class="time">更新：{{ formatDate(it.update_time) }}</div>
+              <div class="time-row">
+                <span class="time">更新：{{ formatDate(it.update_time) }}</span>
+                <span v-if="isPublishedRow(it)" class="mini-stat">
+                  {{ formatNum(it.view_count) }} 播放 · {{ formatNum(it.like_count) }} 点赞
+                </span>
+              </div>
             </div>
             <div class="actions">
-              <el-button size="small" @click="continueEdit(it)">继续编辑</el-button>
-              <el-button size="small" type="danger" plain @click="removeDraft(it)">删除</el-button>
+              <el-button v-if="isPublishedRow(it)" size="small" type="primary" plain @click="openVideo(it.video_id)">
+                查看视频
+              </el-button>
+              <template v-if="isDraftRow(it)">
+                <el-button size="small" @click="continueEdit(it)">继续编辑</el-button>
+                <el-button size="small" type="danger" plain @click="removeDraft(it)">删除</el-button>
+              </template>
             </div>
           </div>
         </div>
@@ -76,13 +87,16 @@
 
 <script setup>
 import { computed, onMounted, ref, watch } from 'vue'
+import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { deleteVideoDraft, listVideoDrafts } from '@/api/video'
+import { deleteVideoDraft, listCreatorWorks } from '@/api/video'
 
 const emit = defineEmits(['continue-edit'])
+const router = useRouter()
 
 const keyword = ref('')
-const status = ref('draft')
+/** 默认「全部稿件」，展示已发布 + 草稿 + 审核流 */
+const status = ref('all')
 const order = ref('time')
 const loading = ref(false)
 
@@ -96,17 +110,49 @@ const stats = ref({
   draft: 0,
   reviewing: 0,
   approved: 0,
-  rejected: 0,
+  rejected: 0
 })
 
 const totalPages = computed(() => Math.ceil((total.value || 0) / pageSize))
 
-const displayList = computed(() => {
-  // 目前先实现草稿箱（draft），其它状态后续可接 video_submissions/videos
-  // 这里先让“全部稿件(all)”也复用草稿列表，避免点“全部”却看不到数据
-  if (status.value !== 'draft' && status.value !== 'all') return []
-  return list.value
-})
+const rowKey = (it) => {
+  const vid = it.video_id || it.videoId || ''
+  const sid = it.submission_id || it.submissionId || ''
+  const k = it.kind || it.KIND || ''
+  const t = String(it.title || '')
+  const u = String(it.update_time || it.sort_key || '')
+  return `${k}|${vid}|${sid}|${t}|${u}`
+}
+
+const isPublishedRow = (it) => (it.kind || it.KIND) === 'published' && (it.video_id || it.videoId)
+const isDraftRow = (it) => (it.kind || it.KIND) === 'draft'
+
+const statusLabel = (it) => {
+  if (isPublishedRow(it)) return '已发布'
+  if (isDraftRow(it)) return '草稿'
+  const rs = String(it.review_status || it.reviewStatus || '').toUpperCase()
+  if (rs === 'PENDING') return '审核中'
+  if (rs === 'APPROVED') return '待发布'
+  if (rs === 'REJECTED') return '未通过'
+  return '投稿'
+}
+
+const statusTagType = (it) => {
+  if (isPublishedRow(it)) return 'success'
+  if (isDraftRow(it)) return 'info'
+  const rs = String(it.review_status || it.reviewStatus || '').toUpperCase()
+  if (rs === 'PENDING') return 'warning'
+  if (rs === 'APPROVED') return 'primary'
+  if (rs === 'REJECTED') return 'danger'
+  return ''
+}
+
+const formatNum = (v) => {
+  const n = Number(v)
+  if (!Number.isFinite(n)) return '0'
+  if (n >= 10000) return `${(n / 10000).toFixed(1).replace(/\.0$/, '')}万`
+  return String(n)
+}
 
 const formatDate = (v) => {
   if (!v) return '-'
@@ -117,35 +163,53 @@ const formatDate = (v) => {
   }
 }
 
+const rawCover = (it) => (it && (it.cover_url ?? it.coverUrl)) || ''
+
 const normalizeCover = (url) => {
   if (!url) return ''
   if (url.startsWith('http://') || url.startsWith('https://')) return url
-  // 后端视频/封面文件通过 /local-videos/** 提供访问
   if (url.startsWith('/local-videos/')) return url
   if (url.startsWith('/')) {
-    // 兼容旧数据：如果是 /uploads/... 这种路径，仍然走 /local-videos
     if (url.startsWith('/uploads/') || url.startsWith('/uploads\\')) {
       return '/local-videos' + url
     }
     return url
   }
-  // 常见相对路径：uploads/submissions/covers/...
   if (url.startsWith('uploads/') || url.startsWith('uploads\\')) {
     return '/local-videos/' + url.replaceAll('\\', '/')
   }
   return '/local-videos/' + url.replaceAll('\\', '/')
 }
 
-const fetchDrafts = async () => {
+/** 封面 URL 可能含括号、空格等，需加引号；后端已返回 /local-videos/... */
+const coverStyle = (it) => {
+  const u = normalizeCover(rawCover(it))
+  if (!u) return {}
+  return { backgroundImage: `url("${u.replace(/"/g, '\\"')}")` }
+}
+
+const fetchList = async () => {
   loading.value = true
   try {
-    const { data } = await listVideoDrafts({ page: page.value, pageSize, keyword: keyword.value || undefined })
+    const { data } = await listCreatorWorks({
+      page: page.value,
+      pageSize,
+      keyword: keyword.value || undefined,
+      tab: status.value
+    })
     if (data?.success) {
       const payload = data.data || {}
       list.value = payload.list || []
       total.value = payload.total || 0
-      stats.value.draft = total.value
-      stats.value.all = stats.value.draft
+      if (payload.stats && typeof payload.stats === 'object') {
+        stats.value = {
+          all: Number(payload.stats.all) || 0,
+          draft: Number(payload.stats.draft) || 0,
+          reviewing: Number(payload.stats.reviewing) || 0,
+          approved: Number(payload.stats.approved) || 0,
+          rejected: Number(payload.stats.rejected) || 0
+        }
+      }
     } else {
       ElMessage.error(data?.message || '加载失败')
     }
@@ -156,21 +220,39 @@ const fetchDrafts = async () => {
   }
 }
 
+const selectTab = (tab) => {
+  if (status.value === tab) return
+  status.value = tab
+  page.value = 1
+}
+
 watch([page, keyword, status], () => {
   page.value = Math.max(1, page.value)
-  if (status.value === 'draft' || status.value === 'all') fetchDrafts()
+  fetchList()
 })
 
 onMounted(() => {
-  fetchDrafts()
+  fetchList()
 })
 
+const openVideo = (videoId) => {
+  const id = videoId || ''
+  if (!id) return
+  router.push({ path: `/video/${encodeURIComponent(id)}` })
+}
+
 const continueEdit = (it) => {
-  // 通知父组件在当前页面切换到投稿编辑页
-  emit('continue-edit', it.submission_id)
+  const sid = it.submission_id || it.submissionId
+  if (!sid) {
+    ElMessage.info('该条目无法从草稿编辑页打开')
+    return
+  }
+  emit('continue-edit', sid)
 }
 
 const removeDraft = async (it) => {
+  const sid = it.submission_id || it.submissionId
+  if (!sid) return
   try {
     await ElMessageBox.confirm('确认删除该草稿？', '删除草稿', { type: 'warning' })
   } catch (e) {
@@ -178,10 +260,10 @@ const removeDraft = async (it) => {
   }
   loading.value = true
   try {
-    const { data } = await deleteVideoDraft(it.submission_id)
+    const { data } = await deleteVideoDraft(sid)
     if (data?.success) {
       ElMessage.success('已删除')
-      fetchDrafts()
+      await fetchList()
     } else {
       ElMessage.error(data?.message || '删除失败')
     }
@@ -203,7 +285,6 @@ const removeDraft = async (it) => {
   display: flex;
   align-items: center;
   gap: 18px;
-  border-bottom: none;
   height: 64px;
   padding: 0 35px;
   margin: 0;
@@ -213,7 +294,6 @@ const removeDraft = async (it) => {
 .tab {
   font-size: 16px;
   color: #374151;
-  // padding: 0 18px;
   height: 64px;
   line-height: 64px;
   cursor: pointer;
@@ -234,6 +314,7 @@ const removeDraft = async (it) => {
   align-items: center;
   gap: 14px;
   padding: 0 35px;
+  flex-wrap: wrap;
 }
 .sub-tab {
   color: #374151;
@@ -262,7 +343,6 @@ const removeDraft = async (it) => {
   border-radius: 10px;
   padding: 16px 35px;
   min-height: 420px;
-  // box-shadow: 0 1px 3px rgba(0,0,0,.06);
 }
 
 .cm-empty {
@@ -290,6 +370,11 @@ const removeDraft = async (it) => {
   border: 1px solid #eef2f7;
   border-radius: 10px;
   align-items: center;
+  transition: box-shadow 0.2s ease, border-color 0.2s ease;
+}
+.draft-row:hover {
+  border-color: #dbeafe;
+  box-shadow: 0 4px 14px rgba(0, 161, 214, 0.08);
 }
 .cover {
   width: 154px;
@@ -299,10 +384,17 @@ const removeDraft = async (it) => {
   background-size: cover;
   background-position: center;
   border: 1px solid #e5e7eb;
+  flex-shrink: 0;
 }
 .meta {
   flex: 1;
   min-width: 0;
+}
+.title-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
 }
 .title {
   font-weight: 600;
@@ -311,6 +403,10 @@ const removeDraft = async (it) => {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  max-width: 100%;
+}
+.status-tag {
+  flex-shrink: 0;
 }
 .desc {
   margin-top: 4px;
@@ -319,18 +415,26 @@ const removeDraft = async (it) => {
   display: -webkit-box;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
-  line-clamp: 2; // 兼容性：提供标准属性给支持 line-clamp 的浏览器
+  line-clamp: 2;
   overflow: hidden;
 }
-.time {
+.time-row {
   margin-top: 6px;
-  color: #9ca3af;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: center;
   font-size: 12px;
+  color: #9ca3af;
+}
+.mini-stat {
+  color: #6b7280;
 }
 .actions {
   display: flex;
   gap: 8px;
   flex-wrap: wrap;
+  flex-shrink: 0;
 }
 .cm-pagination {
   margin-top: 14px;

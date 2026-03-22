@@ -144,6 +144,14 @@ public class CreatorStatsService {
     private Map<String, Object> queryCoreMetrics(Long creatorId, LocalDateTime start, LocalDateTime end) {
         Map<String, Object> data = new HashMap<>();
 
+        // 已发布稿件总数（不受时间范围影响）
+        Long videoCount = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM videos WHERE user_id = ?",
+                Long.class,
+                creatorId
+        );
+        data.put("videoCount", videoCount != null ? videoCount : 0L);
+
         // 播放量总量：基于播放事件流水，确保与按日趋势口径一致
         Long totalPlays = jdbcTemplate.queryForObject(
                 "SELECT COUNT(*) FROM video_play_events WHERE creator_id = ?",
