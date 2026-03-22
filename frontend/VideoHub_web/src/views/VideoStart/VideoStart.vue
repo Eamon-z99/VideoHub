@@ -181,6 +181,21 @@
                      <span class="action-num">{{ formatCount(favoriteCount) }}</span>
                    </button>
 
+                  <button
+                    class="action-item"
+                    :class="{ 'is-active': isCoined }"
+                    :disabled="coinLoading"
+                    @click="toggleCoin"
+                  >
+                    <span class="action-icon">
+                      <svg width="28" height="28" viewBox="0 0 28 28" xmlns="http://www.w3.org/2000/svg">
+                        <circle cx="14" cy="14" r="9.5" fill="none" stroke="currentColor" stroke-width="2.2" />
+                        <text x="14" y="17" text-anchor="middle" font-size="10" font-weight="700" fill="currentColor">B</text>
+                      </svg>
+                    </span>
+                    <span class="action-num">{{ formatCount(coinCount) }}</span>
+                  </button>
+
                    <button class="action-item" @click="ElMessage.info('开发中')">
                      <span class="action-icon">
                        <svg width="28" height="28" viewBox="0 0 28 28" xmlns="http://www.w3.org/2000/svg">
@@ -269,6 +284,7 @@ import TopHeader from '@/components/TopHeader.vue'
 import { addFavorite, removeFavorite, checkFavorite } from '@/api/favorite'
 import { followUser, unfollowUser, checkFollow, getUserStats } from '@/api/follow'
 import { likeVideo, unlikeVideo, checkLike, getLikeCount } from '@/api/like'
+import { coinVideo, uncoinVideo, checkCoin, getCoinCount } from '@/api/coin'
 import { useUserStore } from '@/stores/user'
 import { ElMessage } from 'element-plus'
 import { fetchDanmaku, sendDanmaku, getDanmakuCount } from '@/api/danmaku'
@@ -319,6 +335,7 @@ const playCount = ref('本地文件')
 const danmakuCount = ref('0')
 const likeCount = ref(0)
 const favoriteCount = ref(0)
+const coinCount = ref(0)
 const tags = ref(['本地视频', '离线播放'])
 const description = ref('播放来自 E:\\Videos 目录的本地视频。')
 const uploadTime = ref('')
@@ -334,6 +351,10 @@ const likeLoading = ref(false)
 // 收藏相关
 const isFavorited = ref(false)
 const favoriteLoading = ref(false)
+
+// 投币相关
+const isCoined = ref(false)
+const coinLoading = ref(false)
 
 // 播放历史记录相关
 let recordTimer = null
@@ -458,6 +479,16 @@ const loadVideo = async () => {
       console.warn('获取点赞数失败:', error)
     }
 
+    // 投币数
+    try {
+      const coinResp = await getCoinCount(videoId)
+      if (coinResp.data && coinResp.data.success) {
+        coinCount.value = coinResp.data.coinCount || 0
+      }
+    } catch (error) {
+      console.warn('获取投币数失败:', error)
+    }
+
     // 加载弹幕总数
     try {
       const countResp = await getDanmakuCount(videoId)
@@ -468,10 +499,11 @@ const loadVideo = async () => {
       console.warn('获取弹幕总数失败:', error)
     }
 
-    // 检查收藏 / 点赞 / 关注状态
+    // 检查收藏 / 点赞 / 投币 / 关注状态
     if (userStore.isAuthenticated) {
       await checkFavoriteStatus(videoId)
       await checkLikeStatus(videoId)
+      await checkCoinStatus(videoId)
       if (uploader.value.id) {
         await checkFollowStatus(uploader.value.id)
       }
@@ -580,8 +612,10 @@ watch(() => route.params.id, () => {
 watch(() => userStore.isAuthenticated, (isAuth) => {
   if (isAuth && videoData.value.videoId) {
     checkFavoriteStatus(videoData.value.videoId)
+    checkCoinStatus(videoData.value.videoId)
   } else {
     isFavorited.value = false
+    isCoined.value = false
   }
 })
 
@@ -691,6 +725,22 @@ const checkLikeStatus = async (videoId) => {
   }
 }
 
+// 检查投币状态
+const checkCoinStatus = async (videoId) => {
+  if (!userStore.isAuthenticated || !videoId) return
+  try {
+    const { data } = await checkCoin(videoId)
+    if (data && data.success) {
+      isCoined.value = data.isCoined || false
+      if (typeof data.coinCount === 'number') {
+        coinCount.value = data.coinCount
+      }
+    }
+  } catch (error) {
+    console.warn('检查投币状态失败:', error)
+  }
+}
+
 const formatUploadTime = (timeStr) => {
   if (!timeStr) return ''
   const d = new Date(timeStr)
@@ -743,6 +793,46 @@ const toggleLike = async () => {
     ElMessage.error('操作失败，请稍后重试')
   } finally {
     likeLoading.value = false
+  }
+}
+
+// 切换投币
+const toggleCoin = async () => {
+  if (!userStore.isAuthenticated) {
+    ElMessage.warning('请先登录')
+    return
+  }
+
+  const videoId = videoData.value.videoId || route.params.id
+  if (!videoId) return
+
+  coinLoading.value = true
+  try {
+    if (isCoined.value) {
+      const { data } = await uncoinVideo(videoId)
+      if (data && data.success) {
+        isCoined.value = false
+        if (typeof data.coinCount === 'number') coinCount.value = data.coinCount
+        ElMessage.success('已取消投币')
+      } else {
+        ElMessage.warning(data?.message || '取消投币失败')
+      }
+    } else {
+      const { data } = await coinVideo(videoId)
+      if (data && data.success) {
+        isCoined.value = true
+        if (typeof data.coinCount === 'number') coinCount.value = data.coinCount
+        ElMessage.success('投币成功')
+      } else {
+        if (typeof data?.coinCount === 'number') coinCount.value = data.coinCount
+        ElMessage.warning(data?.message || '已投币过该视频')
+      }
+    }
+  } catch (error) {
+    console.error('投币操作失败:', error)
+    ElMessage.error('操作失败，请稍后重试')
+  } finally {
+    coinLoading.value = false
   }
 }
 

@@ -21,4 +21,9 @@ export const updateAvatar = (file) => {
   })
 }
 
+// 记录访问个人主页行为（用于“空间访客”统计）
+export const recordProfileVisit = (profileUserId) => {
+  return request.post('/api/user/profile/visit', { profileUserId })
+}
+
 

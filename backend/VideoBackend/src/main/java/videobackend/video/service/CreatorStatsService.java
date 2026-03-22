@@ -2,9 +2,11 @@ package videobackend.video.service;
 
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
+import videobackend.video.dto.DanmakuDTO;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.HashMap;
 import java.util.List;
@@ -14,9 +16,11 @@ import java.util.Map;
 public class CreatorStatsService {
 
     private final JdbcTemplate jdbcTemplate;
+    private final DanmakuService danmakuService;
 
-    public CreatorStatsService(JdbcTemplate jdbcTemplate) {
+    public CreatorStatsService(JdbcTemplate jdbcTemplate, DanmakuService danmakuService) {
         this.jdbcTemplate = jdbcTemplate;
+        this.danmakuService = danmakuService;
     }
 
     /**
@@ -26,20 +30,108 @@ public class CreatorStatsService {
      * 时间范围使用 play_history / fans / likes 等表的 create_time 过滤。
      */
     public Map<String, Object> getOverview(Long creatorId, String rangeKey) {
-        int days = switch (rangeKey) {
-            case "90d" -> 90;
-            case "30d" -> 30;
-            default -> 7;
-        };
-
         LocalDateTime end = LocalDate.now().atTime(23, 59, 59);
-        LocalDateTime start = end.minusDays(days - 1).withHour(0).withMinute(0).withSecond(0);
+        LocalDateTime start;
+        if ("all".equals(rangeKey)) {
+            start = queryEarliestDataTime(creatorId);
+        } else {
+            int days = switch (rangeKey) {
+                case "90d" -> 90;
+                case "30d" -> 30;
+                default -> 7;
+            };
+            start = end.minusDays(days - 1).withHour(0).withMinute(0).withSecond(0);
+        }
 
         Map<String, Object> result = new HashMap<>();
         result.put("coreMetrics", queryCoreMetrics(creatorId, start, end));
         result.put("trend", queryTrend(creatorId, start, end));
         result.put("works", queryWorkStats(creatorId, start, end));
         return result;
+    }
+
+    private LocalDateTime queryEarliestDataTime(Long creatorId) {
+        LocalDate danmakuEarliestDate = queryEarliestDanmakuDate(creatorId);
+        LocalDate earliestDate = jdbcTemplate.queryForObject(
+                """
+                SELECT MIN(d) FROM (
+                    SELECT MIN(pv.visit_date) AS d
+                    FROM profile_visits pv
+                    WHERE pv.profile_user_id = ?
+                    UNION ALL
+                    SELECT MIN(DATE(vpe.played_at)) AS d
+                    FROM video_play_events vpe
+                    WHERE vpe.creator_id = ?
+                    UNION ALL
+                    SELECT MIN(DATE(ph.create_time)) AS d
+                    FROM play_history ph
+                    JOIN videos v ON ph.video_id = v.video_id
+                    WHERE v.user_id = ?
+                    UNION ALL
+                    SELECT MIN(DATE(f.create_time)) AS d
+                    FROM fans f
+                    WHERE f.following_id = ?
+                    UNION ALL
+                    SELECT MIN(DATE(vl.create_time)) AS d
+                    FROM video_likes vl
+                    JOIN videos v ON vl.video_id = v.video_id
+                    WHERE v.user_id = ?
+                    UNION ALL
+                    SELECT MIN(DATE(vc.create_time)) AS d
+                    FROM video_coins vc
+                    JOIN videos v ON vc.video_id = v.video_id
+                    WHERE v.user_id = ?
+                    UNION ALL
+                    SELECT MIN(DATE(fa.create_time)) AS d
+                    FROM favorites fa
+                    JOIN videos v ON fa.video_id = v.video_id
+                    WHERE v.user_id = ?
+                    UNION ALL
+                    SELECT MIN(DATE(c.create_time)) AS d
+                    FROM comments c
+                    JOIN videos v ON c.video_id = v.video_id
+                    WHERE v.user_id = ?
+                ) t
+                """,
+                LocalDate.class,
+                creatorId, creatorId, creatorId, creatorId, creatorId, creatorId, creatorId, creatorId
+        );
+        if (danmakuEarliestDate != null && (earliestDate == null || danmakuEarliestDate.isBefore(earliestDate))) {
+            earliestDate = danmakuEarliestDate;
+        }
+
+        if (earliestDate == null) {
+            earliestDate = LocalDate.now().minusDays(6);
+        }
+        return earliestDate.atStartOfDay();
+    }
+
+    private List<String> queryCreatorVideoIds(Long creatorId) {
+        return jdbcTemplate.query(
+                "SELECT video_id FROM videos WHERE user_id = ?",
+                (rs, rowNum) -> rs.getString("video_id"),
+                creatorId
+        );
+    }
+
+    private LocalDate queryEarliestDanmakuDate(Long creatorId) {
+        List<String> videoIds = queryCreatorVideoIds(creatorId);
+        if (videoIds.isEmpty()) return null;
+
+        LocalDate earliest = null;
+        ZoneId zone = ZoneId.systemDefault();
+        for (String videoId : videoIds) {
+            List<DanmakuDTO> list = danmakuService.listAllDanmaku(videoId);
+            for (DanmakuDTO dto : list) {
+                Long sendTime = dto.getSendTime();
+                if (sendTime == null || sendTime <= 0) continue;
+                LocalDate d = java.time.Instant.ofEpochMilli(sendTime).atZone(zone).toLocalDate();
+                if (earliest == null || d.isBefore(earliest)) {
+                    earliest = d;
+                }
+            }
+        }
+        return earliest;
     }
 
     private String normalizeDayKey(Object dateObj) {
@@ -52,88 +144,97 @@ public class CreatorStatsService {
     private Map<String, Object> queryCoreMetrics(Long creatorId, LocalDateTime start, LocalDateTime end) {
         Map<String, Object> data = new HashMap<>();
 
-        // 总播放数：使用 videos.view_count 汇总
+        // 播放量总量：基于播放事件流水，确保与按日趋势口径一致
         Long totalPlays = jdbcTemplate.queryForObject(
-                "SELECT COALESCE(SUM(view_count),0) FROM videos WHERE user_id = ?",
+                "SELECT COUNT(*) FROM video_play_events WHERE creator_id = ?",
                 Long.class,
                 creatorId
         );
         data.put("plays", totalPlays != null ? totalPlays : 0L);
 
-        // 空间访客：按播放历史中访问该 UP 视频的去重用户
+        // 空间访客总量：访问过该创作者个人主页的去重用户数
         Long visitors = jdbcTemplate.queryForObject(
                 """
-                SELECT COUNT(DISTINCT ph.user_id)
-                FROM play_history ph
-                JOIN videos v ON ph.video_id = v.video_id
-                WHERE v.user_id = ?
-                  AND COALESCE(ph.last_watch_time, ph.create_time) BETWEEN ? AND ?
+                SELECT COUNT(DISTINCT pv.visitor_id)
+                FROM profile_visits pv
+                WHERE pv.profile_user_id = ?
                 """,
                 Long.class,
-                creatorId, start, end
+                creatorId
         );
         data.put("visitors", visitors != null ? visitors : 0L);
 
-        // 新增粉丝：fans.following_id = creatorId
+        // 粉丝总量：历史累计（不受时间范围影响）
         Long newFans = jdbcTemplate.queryForObject(
                 """
                 SELECT COUNT(*)
                 FROM fans
                 WHERE following_id = ?
-                  AND create_time BETWEEN ? AND ?
                 """,
                 Long.class,
-                creatorId, start, end
+                creatorId
         );
         data.put("newFans", newFans != null ? newFans : 0L);
 
-        // 点赞
+        // 点赞总量（不受时间范围影响）
         Long likes = jdbcTemplate.queryForObject(
                 """
                 SELECT COUNT(*)
                 FROM video_likes vl
                 JOIN videos v ON vl.video_id = v.video_id
                 WHERE v.user_id = ?
-                  AND vl.create_time BETWEEN ? AND ?
                 """,
                 Long.class,
-                creatorId, start, end
+                creatorId
         );
         data.put("likes", likes != null ? likes : 0L);
 
-        // 收藏
+        // 收藏总量（不受时间范围影响）
         Long favorites = jdbcTemplate.queryForObject(
                 """
                 SELECT COUNT(*)
                 FROM favorites f
                 JOIN videos v ON f.video_id = v.video_id
                 WHERE v.user_id = ?
-                  AND f.create_time BETWEEN ? AND ?
                 """,
                 Long.class,
-                creatorId, start, end
+                creatorId
         );
         data.put("favorites", favorites != null ? favorites : 0L);
 
-        // 投币：当前没有专门投币表，先返回 0，后续如有表结构可替换
-        data.put("coins", 0L);
+        // 投币总量
+        Long coins = jdbcTemplate.queryForObject(
+                """
+                SELECT COUNT(*)
+                FROM video_coins vc
+                JOIN videos v ON vc.video_id = v.video_id
+                WHERE v.user_id = ?
+                """,
+                Long.class,
+                creatorId
+        );
+        data.put("coins", coins != null ? coins : 0L);
 
-        // 评论
+        // 评论总量（不受时间范围影响）
         Long comments = jdbcTemplate.queryForObject(
                 """
                 SELECT COUNT(*)
                 FROM comments c
                 JOIN videos v ON c.video_id = v.video_id
                 WHERE v.user_id = ?
-                  AND c.create_time BETWEEN ? AND ?
                 """,
                 Long.class,
-                creatorId, start, end
+                creatorId
         );
         data.put("comments", comments != null ? comments : 0L);
 
-        // 弹幕 / 分享：当前没有统一结构，这里先返回 0
-        data.put("danmaku", 0L);
+        // 弹幕总量：该创作者全部视频在 Redis 中的弹幕总数
+        List<String> creatorVideoIds = queryCreatorVideoIds(creatorId);
+        long danmakuTotal = 0L;
+        for (String videoId : creatorVideoIds) {
+            danmakuTotal += danmakuService.getDanmakuCount(videoId);
+        }
+        data.put("danmaku", danmakuTotal);
         data.put("shares", 0L);
 
         return data;
@@ -148,21 +249,24 @@ public class CreatorStatsService {
         LocalDate endDate = end.toLocalDate();
         int days = (int) (endDate.toEpochDay() - startDate.toEpochDay()) + 1;
 
+        String[] dayKeys = new String[days];
         String[] labels = new String[days];
         for (int i = 0; i < days; i++) {
-            labels[i] = startDate.plusDays(i).format(dayFmt);
+            LocalDate current = startDate.plusDays(i);
+            dayKeys[i] = current.toString();
+            labels[i] = current.format(dayFmt);
         }
+        data.put("dayKeys", dayKeys);
         data.put("labels", labels);
 
-        // 播放趋势（总播放量，按天）
+        // 播放趋势：按天统计播放事件，确保与卡片总量同口径
         List<Map<String, Object>> playRows = jdbcTemplate.queryForList(
                 """
-                SELECT DATE(COALESCE(ph.last_watch_time, ph.create_time)) AS d, COUNT(*) AS cnt
-                FROM play_history ph
-                JOIN videos v ON ph.video_id = v.video_id
-                WHERE v.user_id = ?
-                  AND COALESCE(ph.last_watch_time, ph.create_time) BETWEEN ? AND ?
-                GROUP BY DATE(COALESCE(ph.last_watch_time, ph.create_time))
+                SELECT DATE(vpe.played_at) AS d, COUNT(*) AS cnt
+                FROM video_play_events vpe
+                WHERE vpe.creator_id = ?
+                  AND vpe.played_at BETWEEN ? AND ?
+                GROUP BY DATE(vpe.played_at)
                 """,
                 creatorId, start, end
         );
@@ -183,16 +287,16 @@ public class CreatorStatsService {
         }
         data.put("totalPlays", totalPlays);
 
-        // 粉丝播放：粉丝看视频的次数
+        // 粉丝播放：按天（使用 create_time 保证历史日值稳定）
         List<Map<String, Object>> fanPlayRows = jdbcTemplate.queryForList(
                 """
-                SELECT DATE(COALESCE(ph.last_watch_time, ph.create_time)) AS d, COUNT(*) AS cnt
+                SELECT DATE(ph.create_time) AS d, COUNT(*) AS cnt
                 FROM play_history ph
                 JOIN videos v ON ph.video_id = v.video_id
                 JOIN fans f ON ph.user_id = f.follower_id AND f.following_id = v.user_id
                 WHERE v.user_id = ?
-                  AND COALESCE(ph.last_watch_time, ph.create_time) BETWEEN ? AND ?
-                GROUP BY DATE(COALESCE(ph.last_watch_time, ph.create_time))
+                  AND ph.create_time BETWEEN ? AND ?
+                GROUP BY DATE(ph.create_time)
                 """,
                 creatorId, start, end
         );
@@ -213,15 +317,14 @@ public class CreatorStatsService {
         }
         data.put("fanPlays", fanPlays);
 
-        // 空间访客：每天去重播放用户数
+        // 空间访客：每天访问主页的去重用户数
         List<Map<String, Object>> visitorRows = jdbcTemplate.queryForList(
                 """
-                SELECT DATE(COALESCE(ph.last_watch_time, ph.create_time)) AS d, COUNT(DISTINCT ph.user_id) AS cnt
-                FROM play_history ph
-                JOIN videos v ON ph.video_id = v.video_id
-                WHERE v.user_id = ?
-                  AND COALESCE(ph.last_watch_time, ph.create_time) BETWEEN ? AND ?
-                GROUP BY DATE(COALESCE(ph.last_watch_time, ph.create_time))
+                SELECT pv.visit_date AS d, COUNT(DISTINCT pv.visitor_id) AS cnt
+                FROM profile_visits pv
+                WHERE pv.profile_user_id = ?
+                  AND pv.visit_date BETWEEN DATE(?) AND DATE(?)
+                GROUP BY pv.visit_date
                 """,
                 creatorId, start, end
         );
@@ -396,9 +499,59 @@ public class CreatorStatsService {
         }
         data.put("interactions", interactions);
 
-        // 弹幕/投币/分享：当前数据库没有对应表结构，这里按 0 返回（保证前端可切换）
-        data.put("danmaku", new long[days]);
-        data.put("coins", new long[days]);
+        // 弹幕趋势：按 send_time 自然日聚合（Redis）
+        List<String> creatorVideoIds = queryCreatorVideoIds(creatorId);
+        Map<String, Long> danmakuMap = new HashMap<>();
+        ZoneId zone = ZoneId.systemDefault();
+        long startMillis = startDate.atStartOfDay(zone).toInstant().toEpochMilli();
+        long endMillis = endDate.plusDays(1).atStartOfDay(zone).toInstant().toEpochMilli();
+        for (String videoId : creatorVideoIds) {
+            List<DanmakuDTO> all = danmakuService.listAllDanmaku(videoId);
+            for (DanmakuDTO dto : all) {
+                Long sendTime = dto.getSendTime();
+                if (sendTime == null || sendTime < startMillis || sendTime >= endMillis) continue;
+                LocalDate d = java.time.Instant.ofEpochMilli(sendTime).atZone(zone).toLocalDate();
+                String dayKey = d.toString();
+                danmakuMap.put(dayKey, danmakuMap.getOrDefault(dayKey, 0L) + 1L);
+            }
+        }
+        long[] danmaku = new long[days];
+        for (int i = 0; i < days; i++) {
+            LocalDate d = startDate.plusDays(i);
+            danmaku[i] = danmakuMap.getOrDefault(d.toString(), 0L);
+        }
+        data.put("danmaku", danmaku);
+
+        // 投币趋势（按天）
+        List<Map<String, Object>> coinRows = jdbcTemplate.queryForList(
+                """
+                SELECT DATE(vc.create_time) AS d, COUNT(*) AS cnt
+                FROM video_coins vc
+                JOIN videos v ON vc.video_id = v.video_id
+                WHERE v.user_id = ?
+                  AND vc.create_time BETWEEN ? AND ?
+                GROUP BY DATE(vc.create_time)
+                """,
+                creatorId, start, end
+        );
+
+        Map<String, Long> coinMap = new HashMap<>();
+        for (Map<String, Object> row : coinRows) {
+            String d = normalizeDayKey(row.get("d"));
+            Object cnt = row.get("cnt");
+            if (d != null && cnt != null) {
+                coinMap.put(d, ((Number) cnt).longValue());
+            }
+        }
+
+        long[] coinsTrend = new long[days];
+        for (int i = 0; i < days; i++) {
+            LocalDate d = startDate.plusDays(i);
+            coinsTrend[i] = coinMap.getOrDefault(d.toString(), 0L);
+        }
+        data.put("coins", coinsTrend);
+
+        // 分享：当前没有对应表结构，这里按 0 返回（保证前端可切换）
         data.put("shares", new long[days]);
 
         return data;

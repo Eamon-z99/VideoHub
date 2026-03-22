@@ -5,6 +5,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 import videobackend.video.model.User;
+import videobackend.video.service.ProfileVisitService;
 import videobackend.video.service.UserProfileService;
 import videobackend.video.util.JwtUtil;
 
@@ -18,10 +19,14 @@ import java.util.Map;
 public class UserProfileController {
 
     private final UserProfileService userProfileService;
+    private final ProfileVisitService profileVisitService;
     private final JwtUtil jwtUtil;
 
-    public UserProfileController(UserProfileService userProfileService, JwtUtil jwtUtil) {
+    public UserProfileController(UserProfileService userProfileService,
+                                 ProfileVisitService profileVisitService,
+                                 JwtUtil jwtUtil) {
         this.userProfileService = userProfileService;
+        this.profileVisitService = profileVisitService;
         this.jwtUtil = jwtUtil;
     }
 
@@ -69,6 +74,22 @@ public class UserProfileController {
                 "success", true,
                 "bio", user.getBio()
         ));
+    }
+
+    @PostMapping("/visit")
+    public ResponseEntity<?> recordProfileVisit(HttpServletRequest request,
+                                                @RequestBody Map<String, Object> body) {
+        Object rawProfileUserId = body.get("profileUserId");
+        if (rawProfileUserId == null) {
+            return ResponseEntity.badRequest().body(Map.of("success", false, "message", "缺少 profileUserId"));
+        }
+        Long profileUserId = Long.valueOf(rawProfileUserId.toString());
+        Long visitorId = getUserIdFromRequest(request);
+
+        if (visitorId != null) {
+            profileVisitService.recordVisit(visitorId, profileUserId);
+        }
+        return ResponseEntity.ok(Map.of("success", true));
     }
 
     private Long getUserIdFromRequest(HttpServletRequest request) {

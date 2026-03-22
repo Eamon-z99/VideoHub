@@ -32,6 +32,7 @@ public class PlayHistoryService {
      */
     @Transactional
     public void recordPlayHistory(Long userId, String videoId, Integer playTime, Integer duration) {
+        Long creatorId = queryCreatorId(videoId);
         // 检查是否已存在记录，同时获取上次的播放时间
         String checkSql = "SELECT id, watch_count, play_time FROM play_history WHERE user_id = ? AND video_id = ?";
         List<Map<String, Object>> existing = jdbcTemplate.queryForList(checkSql, userId, videoId);
@@ -114,6 +115,9 @@ public class PlayHistoryService {
                     """;
             }
             jdbcTemplate.update(updateSql, playTime, duration, progressPercent, isWatched ? 1 : 0, id);
+            if (isNewWatch) {
+                insertPlayEvent(userId, videoId, creatorId, playTime);
+            }
         } else {
             // 插入新记录（首次观看，watch_count = 1）
             Integer progressPercent = 0;
@@ -130,7 +134,29 @@ public class PlayHistoryService {
                 """;
             jdbcTemplate.update(insertSql, userId, videoId, playTime, duration, 
                               progressPercent, isWatched ? 1 : 0);
+            insertPlayEvent(userId, videoId, creatorId, playTime);
         }
+    }
+
+    private Long queryCreatorId(String videoId) {
+        List<Long> creatorIds = jdbcTemplate.query(
+                "SELECT user_id FROM videos WHERE video_id = ? LIMIT 1",
+                (rs, rowNum) -> rs.getObject("user_id") == null ? null : rs.getLong("user_id"),
+                videoId
+        );
+        return creatorIds.isEmpty() ? null : creatorIds.get(0);
+    }
+
+    private void insertPlayEvent(Long userId, String videoId, Long creatorId, Integer playTime) {
+        if (creatorId == null) return;
+        int safePlaySeconds = (playTime == null || playTime < 0) ? 0 : playTime;
+        jdbcTemplate.update(
+                """
+                INSERT INTO video_play_events (user_id, video_id, creator_id, played_at, play_seconds)
+                VALUES (?, ?, ?, NOW(), ?)
+                """,
+                userId, videoId, creatorId, safePlaySeconds
+        );
     }
 
     /**

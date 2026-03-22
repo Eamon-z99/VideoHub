@@ -446,7 +446,7 @@ import TopHeader from '@/components/TopHeader.vue'
 import ProfileHome from './ProfileHome.vue'
 import { getFavoriteListByFolder } from '@/api/favorite'
 import { getFavoriteFolderList, createFavoriteFolder } from '@/api/favoriteFolder'
-import { fetchMyProfile, updateAvatar as apiUpdateAvatar, updateBio as apiUpdateBio } from '@/api/userProfile'
+import { fetchMyProfile, updateAvatar as apiUpdateAvatar, updateBio as apiUpdateBio, recordProfileVisit } from '@/api/userProfile'
 import { getUserStats } from '@/api/follow'
 import { useUserStore } from '@/stores/user'
 import { ElMessage, ElMessageBox } from 'element-plus'
@@ -571,6 +571,10 @@ export default {
     // 先加载当前用户资料（头像 + 签名）
     this.loadProfile()
       .finally(() => {
+        // 记录主页访问（仅登录用户有效；后端会自动忽略本人访问）
+        if (this.currentUserId) {
+          this.recordVisitIfNeeded(this.currentUserId)
+        }
         // 如果初始就是收藏tab，则加载数据（initCollections 会处理 folder 参数）
         if (this.activeTab === 'collections' && this.currentUserId) {
           this.initCollections()
@@ -592,6 +596,13 @@ export default {
     })
   },
   methods: {
+    async recordVisitIfNeeded (profileUserId) {
+      try {
+        await recordProfileVisit(profileUserId)
+      } catch (e) {
+        // 访问记录失败不影响页面主流程
+      }
+    },
     openVideoInNewTab (videoId) {
       if (!videoId) return
       const base = window.__MICRO_APP_BASE_ROUTE__ || ''
