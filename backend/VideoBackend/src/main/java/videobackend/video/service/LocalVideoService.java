@@ -65,6 +65,12 @@ public class LocalVideoService {
                        v.storage_path,
                        v.source_file,
                        v.view_count,
+                       (SELECT COUNT(*)
+                        FROM comments c
+                        WHERE c.video_id = v.video_id
+                          AND c.status = 1
+                          AND c.parent_id IS NULL
+                       ) AS comment_count,
                        v.like_count,
                        v.favorite_count,
                        v.file_size,
@@ -315,6 +321,17 @@ public class LocalVideoService {
                     .format(DateTimeFormatter.ISO_OFFSET_DATE_TIME);
         }
 
+        // comments 统计：仅在部分查询里返回 comment_count 字段时生效
+        Long commentCount = 0L;
+        try {
+            Object ccObj = rs.getObject("comment_count");
+            if (ccObj != null) {
+                commentCount = ((Number) ccObj).longValue();
+            }
+        } catch (SQLException ignore) {
+            // 旧查询未选择 comment_count 字段时兼容
+        }
+
         return new VideoItem(
                 rs.getString("video_id"),
                 firstNonBlank(rs.getString("title"), "本地视频"),
@@ -325,6 +342,7 @@ public class LocalVideoService {
                 storagePath,
                 sourceFile,
                 rs.getObject("view_count") == null ? null : rs.getLong("view_count"),
+                commentCount,
                 rs.getObject("like_count") == null ? null : rs.getLong("like_count"),
                 rs.getObject("favorite_count") == null ? null : rs.getLong("favorite_count"),
                 rs.getObject("file_size") == null ? null : rs.getLong("file_size"),

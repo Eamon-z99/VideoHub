@@ -41,18 +41,35 @@
         </div>
       </div>
 
-      <div class="player" ref="playerRef">
+      <div
+        class="player"
+        ref="playerRef"
+      >
         <video
           ref="videoPlayer"
           class="video"
           :src="videoSrc"
-          controls
+          :controls="nativeControlsEnabled"
           autoplay
           :poster="posterUrl"
+          disablePictureInPicture
+          disableRemotePlayback
+          controlsList="nodownload noplaybackrate nofullscreen noremoteplayback"
+          @contextmenu.prevent
+          @dblclick.prevent
+          @mouseenter="isVideoHovered = true"
+          @mouseleave="isVideoHovered = false"
           @timeupdate="onTimeUpdate"
           @loadedmetadata="onVideoLoaded"
           @play="onVideoPlay"
           @pause="onVideoPause"
+        />
+
+        <!-- 未悬停时显示极简进度条（2px） -->
+        <div
+          class="mini-progress"
+          :style="{ width: miniProgressPercent + '%' }"
+          aria-hidden="true"
         />
 
         <!-- 弹幕展示层 -->
@@ -61,10 +78,14 @@
             v-for="item in danmakuItems"
             :key="item.id"
             class="danmaku-item"
+            @animationend="onDanmakuAnimationEnd(item.id)"
             :style="{
-              top: (item.track * 26 + 20) + 'px',
+              top: getDanmakuTopPx(item.track) + 'px',
               animationDuration: item.duration + 's',
               color: item.color || '#ffffff',
+              opacity: danmakuOpacity,
+              fontSize: danmakuFontSizePx + 'px',
+              '--danmaku-travel-distance': (item.travelDistancePx || 0) + 'px',
               animationPlayState: isVideoPlaying ? 'running' : 'paused'
             }"
           >
@@ -109,17 +130,105 @@
                 <path d="M16.9 19.0L18.4 20.5L21.1 17.8" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path>
               </svg>
             </button>
-            <button 
-              class="danmaku-settings-btn" 
-              :disabled="!danmakuEnabled"
-              :class="{ 'is-disabled': !danmakuEnabled }"
-              @click="danmakuEnabled && (showDanmakuSettings = true)"
-              title="弹幕设置"
+            <div
+              class="danmaku-settings-wrap"
+              @mouseenter="onDanmakuSettingsEnter"
+              @mouseleave="onDanmakuSettingsLeave"
             >
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
-                <path fill-rule="evenodd" d="m15.645 4.881 1.06-1.473a.998.998 0 1 0-1.622-1.166L13.22 4.835a110.67 110.67 0 0 0-1.1-.007h-.131c-.47 0-.975.004-1.515.012L8.783 2.3A.998.998 0 0 0 7.12 3.408l.988 1.484c-.688.019-1.418.042-2.188.069a4.013 4.013 0 0 0-3.83 3.44c-.165 1.15-.245 2.545-.245 4.185 0 1.965.115 3.67.35 5.116a4.012 4.012 0 0 0 3.763 3.363c1.903.094 3.317.141 5.513.141a.988.988 0 0 0 0-1.975 97.58 97.58 0 0 1-5.416-.139 2.037 2.037 0 0 1-1.91-1.708c-.216-1.324-.325-2.924-.325-4.798 0-1.563.076-2.864.225-3.904.14-.977.96-1.713 1.945-1.747 2.444-.087 4.465-.13 6.063-.131 1.598 0 3.62.044 6.064.13.96.034 1.71.81 1.855 1.814.075.524.113 1.962.141 3.065v.002c.005.183.01.07.014-.038.004-.096.008-.189.011-.081a.987.987 0 1 0 1.974-.069c-.004-.105-.007-.009-.011.09-.002.056-.004.112-.007.135l-.002.01a.574.574 0 0 1-.005-.091v-.027c-.03-1.118-.073-2.663-.16-3.276-.273-1.906-1.783-3.438-3.74-3.507-.905-.032-1.752-.058-2.543-.079Zm-3.113 4.703h-1.307v4.643h2.2v.04l.651-1.234c.113-.215.281-.389.482-.509v-.11h.235c.137-.049.283-.074.433-.074h1.553V9.584h-1.264a8.5 8.5 0 0 0 .741-1.405l-1.078-.381c-.24.631-.501 1.23-.806 1.786h-1.503l.686-.305c-.228-.501-.5-.959-.806-1.394l-1.034.348c.294.392.566.839.817 1.35Zm-1.7 5.502h2.16l-.564 1.068h-1.595v-1.068Zm-2.498-1.863.152-1.561h1.96V8.289H7.277v.969h2.048v1.435h-1.84l-.306 3.51h2.254c0 1.155-.043 1.906-.12 2.255-.076.348-.38.523-.925.523-.305 0-.61-.022-.893-.055l.294 1.056.061.005c.282.02.546.039.81.039.991-.065 1.547-.414 1.677-1.046.11-.631.175-1.883.175-3.757H8.334Zm5.09-.8v.85h-1.188v-.85h1.187Zm-1.188-.955h1.187v-.893h-1.187v.893Zm2.322.007v-.893h1.241v.893h-1.241Zm.528 2.757a1.26 1.26 0 0 1 1.087-.627l4.003-.009a1.26 1.26 0 0 1 1.094.63l1.721 2.982c.226.39.225.872-.001 1.263l-1.743 3a1.26 1.26 0 0 1-1.086.628l-4.003.009a1.26 1.26 0 0 1-1.094-.63l-1.722-2.982a1.26 1.26 0 0 1 .002-1.263l1.742-3Zm1.967.858a1.26 1.26 0 0 0-1.08.614l-.903 1.513a1.26 1.26 0 0 0-.002 1.289l.885 1.492c.227.384.64.62 1.086.618l2.192-.005a1.26 1.26 0 0 0 1.08-.615l.904-1.518a1.26 1.26 0 0 0 .001-1.288l-.884-1.489a1.26 1.26 0 0 0-1.086-.616l-2.193.005Zm2.517 2.76a1.4 1.4 0 1 1-2.8 0 1.4 1.4 0 0 1 2.8 0Z" clip-rule="evenodd"></path>
-              </svg>
-            </button>
+              <button
+                class="danmaku-settings-btn"
+                :disabled="!danmakuEnabled"
+                :class="{ 'is-disabled': !danmakuEnabled }"
+                title="弹幕设置"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+                  <path fill-rule="evenodd" d="m15.645 4.881 1.06-1.473a.998.998 0 1 0-1.622-1.166L13.22 4.835a110.67 110.67 0 0 0-1.1-.007h-.131c-.47 0-.975.004-1.515.012L8.783 2.3A.998.998 0 0 0 7.12 3.408l.988 1.484c-.688.019-1.418.042-2.188.069a4.013 4.013 0 0 0-3.83 3.44c-.165 1.15-.245 2.545-.245 4.185 0 1.965.115 3.67.35 5.116a4.012 4.012 0 0 0 3.763 3.363c1.903.094 3.317.141 5.513.141a.988.988 0 0 0 0-1.975 97.58 97.58 0 0 1-5.416-.139 2.037 2.037 0 0 1-1.91-1.708c-.216-1.324-.325-2.924-.325-4.798 0-1.563.076-2.864.225-3.904.14-.977.96-1.713 1.945-1.747 2.444-.087 4.465-.13 6.063-.131 1.598 0 3.62.044 6.064.13.96.034 1.71.81 1.855 1.814.075.524.113 1.962.141 3.065v.002c.005.183.01.07.014-.038.004-.096.008-.189.011-.081a.987.987 0 1 0 1.974-.069c-.004-.105-.007-.009-.011.09-.002.056-.004.112-.007.135l-.002.01a.574.574 0 0 1-.005-.091v-.027c-.03-1.118-.073-2.663-.16-3.276-.273-1.906-1.783-3.438-3.74-3.507-.905-.032-1.752-.058-2.543-.079Zm-3.113 4.703h-1.307v4.643h2.2v.04l.651-1.234c.113-.215.281-.389.482-.509v-.11h.235c.137-.049.283-.074.433-.074h1.553V9.584h-1.264a8.5 8.5 0 0 0 .741-1.405l-1.078-.381c-.24.631-.501 1.23-.806 1.786h-1.503l.686-.305c-.228-.501-.5-.959-.806-1.394l-1.034.348c.294.392.566.839.817 1.35Zm-1.7 5.502h2.16l-.564 1.068h-1.595v-1.068Zm-2.498-1.863.152-1.561h1.96V8.289H7.277v.969h2.048v1.435h-1.84l-.306 3.51h2.254c0 1.155-.043 1.906-.12 2.255-.076.348-.38.523-.925.523-.305 0-.61-.022-.893-.055l.294 1.056.061.005c.282.02.546.039.81.039.991-.065 1.547-.414 1.677-1.046.11-.631.175-1.883.175-3.757H8.334Zm5.09-.8v.85h-1.188v-.85h1.187Zm-1.188-.955h1.187v-.893h-1.187v.893Zm2.322.007v-.893h1.241v.893h-1.241Zm.528 2.757a1.26 1.26 0 0 1 1.087-.627l4.003-.009a1.26 1.26 0 0 1 1.094.63l1.721 2.982c.226.39.225.872-.001 1.263l-1.743 3a1.26 1.26 0 0 1-1.086.628l-4.003.009a1.26 1.26 0 0 1-1.094-.63l-1.722-2.982a1.26 1.26 0 0 1 .002-1.263l1.742-3Zm1.967.858a1.26 1.26 0 0 0-1.08.614l-.903 1.513a1.26 1.26 0 0 0-.002 1.289l.885 1.492c.227.384.64.62 1.086.618l2.192-.005a1.26 1.26 0 0 0 1.08-.615l.904-1.518a1.26 1.26 0 0 0 .001-1.288l-.884-1.489a1.26 1.26 0 0 0-1.086-.616l-2.193.005Zm2.517 2.76a1.4 1.4 0 1 1-2.8 0 1.4 1.4 0 0 1 2.8 0Z" clip-rule="evenodd"></path>
+                </svg>
+              </button>
+              <div
+                v-if="isDanmakuSettingsOpen && danmakuEnabled"
+                class="danmaku-settings-panel"
+              >
+                <div class="setting-row">
+                  <span class="setting-label">显示区域</span>
+                  <div class="setting-slider-wrap">
+                    <input
+                      class="setting-slider slider-with-marks"
+                      type="range"
+                      min="0"
+                      max="4"
+                      step="1"
+                      :value="danmakuDisplayAreaSlotIndex"
+                      :style="getSliderTrackStyle(displayAreaTrackPercent)"
+                      @input="onDisplayAreaInput"
+                    />
+                    <div class="slider-marks">
+                      <span
+                        v-for="(_, idx) in 5"
+                        :key="`display-mark-${idx}`"
+                        class="slider-mark"
+                      />
+                    </div>
+                  </div>
+                  <span class="setting-value">{{ danmakuDisplayAreaPercent }}%</span>
+                </div>
+
+                <div class="setting-row">
+                  <span class="setting-label">不透明度</span>
+                  <div class="setting-slider-wrap">
+                    <input
+                      v-model.number="danmakuOpacityPercent"
+                      class="setting-slider"
+                      type="range"
+                      min="0"
+                      max="100"
+                      step="1"
+                      :style="getSliderTrackStyle(danmakuOpacityPercent)"
+                    />
+                  </div>
+                  <span class="setting-value">{{ danmakuOpacityPercent }}%</span>
+                </div>
+
+                <div class="setting-row">
+                  <span class="setting-label">弹幕字号</span>
+                  <div class="setting-slider-wrap">
+                    <input
+                      v-model.number="danmakuFontSizePercent"
+                      class="setting-slider"
+                      type="range"
+                      min="50"
+                      max="150"
+                      step="1"
+                      :style="getSliderTrackStyle(fontSizeTrackPercent)"
+                    />
+                  </div>
+                  <span class="setting-value">{{ danmakuFontSizePercent }}%</span>
+                </div>
+
+                <div class="setting-row">
+                  <span class="setting-label">弹幕速度</span>
+                  <div class="setting-slider-wrap">
+                    <input
+                      v-model.number="danmakuSpeedSlotIndex"
+                      class="setting-slider slider-with-marks"
+                      type="range"
+                      min="0"
+                      max="4"
+                      step="1"
+                      :style="getSliderTrackStyle(speedTrackPercent)"
+                    />
+                    <div class="slider-marks">
+                      <span
+                        v-for="(_, idx) in 5"
+                        :key="`speed-mark-${idx}`"
+                        class="slider-mark"
+                      />
+                    </div>
+                  </div>
+                  <span class="setting-value">{{ danmakuSpeedLabel }}</span>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
         <div class="danmaku-input-wrapper">
@@ -162,25 +271,7 @@
                      <span class="action-num">{{ formatCount(likeCount) }}</span>
                    </button>
 
-                   <button
-                     class="action-item"
-                     :class="{ 'is-active': isFavorited }"
-                     :disabled="favoriteLoading"
-                     @click="toggleFavorite"
-                   >
-                     <span class="action-icon">
-                       <svg width="28" height="28" viewBox="0 0 28 28" xmlns="http://www.w3.org/2000/svg">
-                         <path
-                           fill-rule="evenodd"
-                           clip-rule="evenodd"
-                           d="M19.8071 9.26152C18.7438 9.09915 17.7624 8.36846 17.3534 7.39421L15.4723 3.4972C14.8998 2.1982 13.1004 2.1982 12.4461 3.4972L10.6468 7.39421C10.1561 8.36846 9.25639 9.09915 8.19315 9.26152L3.94016 9.91102C2.63155 10.0734 2.05904 11.6972 3.04049 12.6714L6.23023 15.9189C6.96632 16.6496 7.29348 17.705 7.1299 18.7605L6.39381 23.307C6.14844 24.6872 7.62063 25.6614 8.84745 25.0119L12.4461 23.0634C13.4276 22.4951 14.6544 22.4951 15.6359 23.0634L19.2345 25.0119C20.4614 25.6614 21.8518 24.6872 21.6882 23.307L20.8703 18.7605C20.7051 17.705 21.0339 16.6496 21.77 15.9189L24.9597 12.6714C25.9412 11.6972 25.3687 10.0734 24.06 9.91102L19.8071 9.26152Z"
-                           fill="currentColor"
-                         />
-                       </svg>
-                     </span>
-                     <span class="action-num">{{ formatCount(favoriteCount) }}</span>
-                   </button>
-
+                  <!-- 位置调整：投币与收藏互换；投币使用新 SVG 图标 -->
                   <button
                     class="action-item"
                     :class="{ 'is-active': isCoined }"
@@ -188,12 +279,40 @@
                     @click="toggleCoin"
                   >
                     <span class="action-icon">
-                      <svg width="28" height="28" viewBox="0 0 28 28" xmlns="http://www.w3.org/2000/svg">
-                        <circle cx="14" cy="14" r="9.5" fill="none" stroke="currentColor" stroke-width="2.2" />
-                        <text x="14" y="17" text-anchor="middle" font-size="10" font-weight="700" fill="currentColor">B</text>
+                      <svg
+                        width="28"
+                        height="28"
+                        viewBox="0 0 28 28"
+                        xmlns="http://www.w3.org/2000/svg"
+                      >
+                        <path
+                          fill-rule="evenodd"
+                          clip-rule="evenodd"
+                          d="M14.045 25.5454C7.69377 25.5454 2.54504 20.3967 2.54504 14.0454C2.54504 7.69413 7.69377 2.54541 14.045 2.54541C20.3963 2.54541 25.545 7.69413 25.545 14.0454C25.545 17.0954 24.3334 20.0205 22.1768 22.1771C20.0201 24.3338 17.095 25.5454 14.045 25.5454ZM9.66202 6.81624H18.2761C18.825 6.81624 19.27 7.22183 19.27 7.72216C19.27 8.22248 18.825 8.62807 18.2761 8.62807H14.95V10.2903C17.989 10.4444 20.3766 12.9487 20.3855 15.9916V17.1995C20.3854 17.6997 19.9799 18.1052 19.4796 18.1052C18.9793 18.1052 18.5738 17.6997 18.5737 17.1995V15.9916C18.5667 13.9478 16.9882 12.2535 14.95 12.1022V20.5574C14.95 21.0577 14.5444 21.4633 14.0441 21.4633C13.5437 21.4633 13.1382 21.0577 13.1382 20.5574V12.1022C11.1 12.2535 9.52148 13.9478 9.51448 15.9916V17.1995C9.5144 17.6997 9.10883 18.1052 8.60856 18.1052C8.1083 18.1052 7.70273 17.6997 7.70265 17.1995V15.9916C7.71158 12.9487 10.0992 10.4444 13.1382 10.2903V8.62807H9.66202C9.11309 8.62807 8.66809 8.22248 8.66809 7.72216C8.66809 7.22183 9.11309 6.81624 9.66202 6.81624Z"
+                          fill="currentColor"
+                        />
                       </svg>
                     </span>
                     <span class="action-num">{{ formatCount(coinCount) }}</span>
+                  </button>
+
+                  <button
+                    class="action-item"
+                    :class="{ 'is-active': isFavorited }"
+                    :disabled="favoriteLoading"
+                    @click="toggleFavorite"
+                  >
+                    <span class="action-icon">
+                      <svg width="28" height="28" viewBox="0 0 28 28" xmlns="http://www.w3.org/2000/svg">
+                        <path
+                          fill-rule="evenodd"
+                          clip-rule="evenodd"
+                          d="M19.8071 9.26152C18.7438 9.09915 17.7624 8.36846 17.3534 7.39421L15.4723 3.4972C14.8998 2.1982 13.1004 2.1982 12.4461 3.4972L10.6468 7.39421C10.1561 8.36846 9.25639 9.09915 8.19315 9.26152L3.94016 9.91102C2.63155 10.0734 2.05904 11.6972 3.04049 12.6714L6.23023 15.9189C6.96632 16.6496 7.29348 17.705 7.1299 18.7605L6.39381 23.307C6.14844 24.6872 7.62063 25.6614 8.84745 25.0119L12.4461 23.0634C13.4276 22.4951 14.6544 22.4951 15.6359 23.0634L19.2345 25.0119C20.4614 25.6614 21.8518 24.6872 21.6882 23.307L20.8703 18.7605C20.7051 17.705 21.0339 16.6496 21.77 15.9189L24.9597 12.6714C25.9412 11.6972 25.3687 10.0734 24.06 9.91102L19.8071 9.26152Z"
+                          fill="currentColor"
+                        />
+                      </svg>
+                    </span>
+                    <span class="action-num">{{ formatCount(favoriteCount) }}</span>
                   </button>
 
                    <button class="action-item" @click="ElMessage.info('开发中')">
@@ -269,6 +388,7 @@
         :fallback-cover="fallbackCover"
       />
     </aside>
+    
     </div>
   </div>
 </template>
@@ -320,6 +440,8 @@ const danmakuListStyle = computed(() => {
   return style
 })
 const isVideoPlaying = ref(true)
+const isVideoHovered = ref(false)
+const nativeControlsEnabled = computed(() => isVideoPlaying.value || isVideoHovered.value)
 const videoData = ref({
   id: '',
   title: '',
@@ -367,18 +489,121 @@ const MIN_PLAY_TIME_DIFF = 5 // 播放时间变化超过5秒才记录
 const danmakuInput = ref('')
 const danmakuItems = ref([]) // 当前在屏幕上飞行的弹幕
 const DANMAKU_TRACK_COUNT = 8
-const DANMAKU_ANIM_DURATION = 8 // 秒
+const DANMAKU_BASE_TOP_PX = 20
+const DANMAKU_BASE_STEP_PX = 26
+const DANMAKU_ANIM_DURATION_FALLBACK_SEC = 8 // 兜底：避免异常时动画参数缺失
+const DANMAKU_TRACK_GAP_PX = 12 // 同轨相邻弹幕最小间距
 let danmakuIdCounter = 0
+let danmakuTrackCursor = 0
+const danmakuTrackStateMap = new Map()
 let lastDanmakuFetchTimestamp = 0
 const DANMAKU_FETCH_INTERVAL = 5000 // 每5秒拉取一次
 const DANMAKU_LOOKAHEAD_SEC = 20 // 每次拉取未来 20 秒的弹幕，降低"看不到"的概率
 const loadedDanmakuKeys = new Set() // 用于"本次播放过程"去重
 const pendingDanmakuQueue = ref([]) // 已拉取但未到展示时间的弹幕（按 time 升序）
 let lastVideoTimeSec = 0
+
+const miniProgressPercent = ref(0)
 const danmakuEnabled = ref(true) // 弹幕开关状态
 const watchingCount = ref(1)
 const loadedDanmakuCount = ref(0) // 已装填弹幕数
-const showDanmakuSettings = ref(false) // 弹幕设置弹窗
+
+// 显示区域四档：25/50/75/100（直接驱动百分比）
+const danmakuDisplayAreaPercent = ref(75)
+
+const danmakuOpacityPercent = ref(80) // 不透明度
+const danmakuFontSizePercent = ref(100) // 弹幕字号（百分比）
+
+const danmakuSpeedSlots = [
+  { label: '极慢', duration: 14 },
+  { label: '较慢', duration: 11 },
+  { label: '适中', duration: 8 },
+  { label: '较快', duration: 6 },
+  { label: '极快', duration: 4 },
+] // 弹幕速度五档
+const danmakuSpeedSlotIndex = ref(2) // 默认适中
+
+const danmakuOpacity = computed(() => {
+  const v = Number(danmakuOpacityPercent.value)
+  return Math.max(0, Math.min(100, v)) / 100
+})
+
+// 当前 CSS 默认字号约 16px，以 100% = 16px 为基准
+const danmakuFontSizePx = computed(() => {
+  const base = 16
+  const v = Number(danmakuFontSizePercent.value)
+  const px = base * (v / 100)
+  return Math.max(8, Math.min(28, px))
+})
+
+const danmakuSpeedLabel = computed(() => {
+  return danmakuSpeedSlots[danmakuSpeedSlotIndex.value]?.label || '适中'
+})
+
+const danmakuAnimationDurationSec = computed(() => {
+  return danmakuSpeedSlots[danmakuSpeedSlotIndex.value]?.duration || 8
+})
+
+const visibleDanmakuTrackCount = computed(() => {
+  const displayPercent = Math.max(0, Math.min(100, Number(danmakuDisplayAreaPercent.value) || 0))
+  // 显示区域控制“可用轨道数”，而不是压缩每条弹幕的高度/字号
+  const trackCount = Math.ceil((displayPercent / 100) * DANMAKU_TRACK_COUNT)
+  return Math.max(1, Math.min(DANMAKU_TRACK_COUNT, trackCount))
+})
+
+const isDanmakuSettingsOpen = ref(false)
+let danmakuSettingsCloseTimer = null
+const danmakuDisplayAreaSlots = [10, 25, 50, 75, 100]
+const danmakuDisplayAreaSlotIndex = computed(() => {
+  const current = Number(danmakuDisplayAreaPercent.value)
+  const index = danmakuDisplayAreaSlots.findIndex(v => v === current)
+  return index === -1 ? 3 : index
+})
+
+const displayAreaTrackPercent = computed(() => {
+  return (danmakuDisplayAreaSlotIndex.value / 4) * 100
+})
+
+const speedTrackPercent = computed(() => {
+  return (Number(danmakuSpeedSlotIndex.value) / 4) * 100
+})
+
+const fontSizeTrackPercent = computed(() => {
+  const value = Number(danmakuFontSizePercent.value)
+  return Math.max(0, Math.min(100, value - 50))
+})
+
+const getSliderTrackStyle = (activePercent) => {
+  const p = Math.max(0, Math.min(100, Number(activePercent) || 0))
+  return {
+    background: `linear-gradient(to right, #18b8ff 0%, #18b8ff ${p}%, rgba(255,255,255,0.28) ${p}%, rgba(255,255,255,0.28) 100%)`
+  }
+}
+
+const onDisplayAreaInput = (event) => {
+  const index = Math.max(0, Math.min(4, Number(event?.target?.value || 0)))
+  danmakuDisplayAreaPercent.value = danmakuDisplayAreaSlots[index]
+}
+
+const onDanmakuSettingsEnter = () => {
+  if (!danmakuEnabled.value) return
+  if (danmakuSettingsCloseTimer) {
+    window.clearTimeout(danmakuSettingsCloseTimer)
+    danmakuSettingsCloseTimer = null
+  }
+  isDanmakuSettingsOpen.value = true
+}
+
+const onDanmakuSettingsLeave = () => {
+  if (danmakuSettingsCloseTimer) {
+    window.clearTimeout(danmakuSettingsCloseTimer)
+    danmakuSettingsCloseTimer = null
+  }
+  danmakuSettingsCloseTimer = window.setTimeout(() => {
+    isDanmakuSettingsOpen.value = false
+    danmakuSettingsCloseTimer = null
+  }, 80)
+}
 
 // “在看人数”心跳（轻量实现：TTL 计数）
 const WATCH_CLIENT_ID_KEY = 'videohub_watch_client_id'
@@ -414,6 +639,8 @@ const resetDanmakuRuntime = () => {
   loadedDanmakuKeys.clear()
   lastDanmakuFetchTimestamp = 0
   lastVideoTimeSec = 0
+  danmakuTrackCursor = 0
+  danmakuTrackStateMap.clear()
 }
 
 const loadVideo = async () => {
@@ -1264,27 +1491,82 @@ const submitReply = async (parentComment) => {
 }
 
 // 将一条弹幕加入本地展示层，并在动画结束后移除
-const addDanmakuToLayer = (content, time, color = '#ffffff', mode = 'scroll') => {
+const getPlayerWidthPx = () => {
+  const width = Number(playerRef.value?.clientWidth || videoPlayer.value?.clientWidth || 0)
+  return Math.max(1, width)
+}
+
+const measureDanmakuTextWidthPx = (content) => {
+  const text = (content || '').toString()
+  if (!text) return 0
+  const canvas = measureDanmakuTextWidthPx._canvas || (measureDanmakuTextWidthPx._canvas = document.createElement('canvas'))
+  const ctx = canvas.getContext('2d')
+  if (!ctx) return text.length * 16
+  ctx.font = `600 ${danmakuFontSizePx.value}px sans-serif`
+  return Math.ceil(ctx.measureText(text).width)
+}
+
+const canLaunchOnTrack = (track, nowSec, textWidthPx, durationSec, travelDistancePx) => {
+  const state = danmakuTrackStateMap.get(track)
+  if (!state) return true
+  const elapsed = Math.max(0, nowSec - state.launchAtSec)
+  const prevSpeedPxPerSec = state.travelDistancePx / Math.max(0.001, state.durationSec)
+  const movedPx = prevSpeedPxPerSec * elapsed
+  return movedPx >= (state.textWidthPx + DANMAKU_TRACK_GAP_PX)
+}
+
+const findAvailableDanmakuTrack = (nowSec, textWidthPx, durationSec, travelDistancePx) => {
+  const trackCount = visibleDanmakuTrackCount.value
+  for (let i = 0; i < trackCount; i += 1) {
+    const candidate = (danmakuTrackCursor + i) % trackCount
+    if (canLaunchOnTrack(candidate, nowSec, textWidthPx, durationSec, travelDistancePx)) {
+      return candidate
+    }
+  }
+  return -1
+}
+
+const addDanmakuToLayer = (
+  content,
+  time,
+  color = '#ffffff',
+  mode = 'scroll',
+  forcedTrack = null,
+  textWidthPx = null,
+  travelDistancePx = null
+) => {
   const id = danmakuIdCounter++
-  const track = id % DANMAKU_TRACK_COUNT
+  const trackCount = visibleDanmakuTrackCount.value
+  const track = Number.isInteger(forcedTrack) ? forcedTrack : (danmakuTrackCursor % trackCount)
+  danmakuTrackCursor = (track + 1) % Math.max(1, trackCount)
+  const durationSec = Number(danmakuAnimationDurationSec.value) || DANMAKU_ANIM_DURATION_FALLBACK_SEC
+  const widthPx = Math.max(1, Number(textWidthPx ?? measureDanmakuTextWidthPx(content)) || 1)
+  const distancePx = Math.max(1, Number(travelDistancePx ?? (getPlayerWidthPx() + widthPx + 48)) || 1)
   const item = {
     id,
     content,
     time,
     track,
-    duration: DANMAKU_ANIM_DURATION,
+    duration: durationSec,
     color,
-    mode
+    mode,
+    travelDistancePx: distancePx
   }
   danmakuItems.value.push(item)
+  danmakuTrackStateMap.set(track, {
+    launchAtSec: Date.now() / 1000,
+    textWidthPx: widthPx,
+    durationSec,
+    travelDistancePx: distancePx
+  })
 
-  // 动画结束后移除，避免数组无限增长
-  setTimeout(() => {
-    const index = danmakuItems.value.findIndex(d => d.id === id)
-    if (index !== -1) {
-      danmakuItems.value.splice(index, 1)
-    }
-  }, DANMAKU_ANIM_DURATION * 1000 + 500)
+}
+
+const onDanmakuAnimationEnd = (id) => {
+  const index = danmakuItems.value.findIndex(d => d.id === id)
+  if (index !== -1) {
+    danmakuItems.value.splice(index, 1)
+  }
 }
 
 // 将后端返回的弹幕放入“待展示队列”，到点再显示
@@ -1329,8 +1611,15 @@ const flushDueDanmaku = (currentTimeSec) => {
       continue
     }
     if (next.time > dueTime) break
+    const contentWidthPx = measureDanmakuTextWidthPx(next.content)
+    const durationSec = Number(danmakuAnimationDurationSec.value) || DANMAKU_ANIM_DURATION_FALLBACK_SEC
+    const travelDistancePx = getPlayerWidthPx() + contentWidthPx + 48
+    const nowSec = Date.now() / 1000
+    const track = findAvailableDanmakuTrack(nowSec, contentWidthPx, durationSec, travelDistancePx)
+    // 所有轨道都暂不可发射时，保留队列头，等待更紧凑但不重叠的同轨续发
+    if (track === -1) break
     queue.shift()
-    addDanmakuToLayer(next.content, next.time, next.color, next.mode)
+    addDanmakuToLayer(next.content, next.time, next.color, next.mode, track, contentWidthPx, travelDistancePx)
   }
 }
 
@@ -1387,9 +1676,26 @@ const handleSendDanmaku = async () => {
 const toggleDanmaku = () => {
   danmakuEnabled.value = !danmakuEnabled.value
   if (!danmakuEnabled.value) {
+    isDanmakuSettingsOpen.value = false
     // 关闭弹幕时清空屏幕上的弹幕
     danmakuItems.value = []
+    danmakuTrackStateMap.clear()
+    danmakuTrackCursor = 0
   }
+}
+
+// 弹幕速度调整时：更新运行中的弹幕动画时长
+watch(danmakuSpeedSlotIndex, () => {
+  const newDurationSec = Number(danmakuAnimationDurationSec.value) || DANMAKU_ANIM_DURATION_FALLBACK_SEC
+  danmakuItems.value.forEach(item => {
+    if (!item) return
+    item.duration = newDurationSec
+  })
+})
+
+const getDanmakuTopPx = (track) => {
+  const safeTrack = Math.max(0, Math.floor(Number(track) || 0))
+  return DANMAKU_BASE_TOP_PX + safeTrack * DANMAKU_BASE_STEP_PX
 }
 
 // 视频时间更新事件
@@ -1397,6 +1703,10 @@ const onTimeUpdate = () => {
   if (!videoPlayer.value) return
 
   const currentTime = videoPlayer.value.currentTime || 0
+  const duration = videoPlayer.value.duration || 0
+  if (duration > 0) {
+    miniProgressPercent.value = Math.max(0, Math.min(100, (currentTime / duration) * 100))
+  }
   const now = Date.now()
 
   // seek 检测：拖动进度条/跳播时，重置队列与去重集合，保证弹幕能在新时间轴重新出现
@@ -1406,6 +1716,8 @@ const onTimeUpdate = () => {
     pendingDanmakuQueue.value = []
     loadedDanmakuKeys.clear()
     lastDanmakuFetchTimestamp = 0
+    danmakuTrackCursor = 0
+    danmakuTrackStateMap.clear()
   }
   lastVideoTimeSec = currentTime
 
@@ -1437,6 +1749,12 @@ const onTimeUpdate = () => {
 // 视频加载完成事件
 const onVideoLoaded = () => {
   if (!videoPlayer.value) return
+
+  const duration = videoPlayer.value.duration || 0
+  const currentTime = videoPlayer.value.currentTime || 0
+  if (duration > 0) {
+    miniProgressPercent.value = Math.max(0, Math.min(100, (currentTime / duration) * 100))
+  }
   
   // 尝试自动播放（如果浏览器策略允许）
   videoPlayer.value.play().catch(err => {
@@ -1506,6 +1824,10 @@ onUnmounted(() => {
     watchHeartbeatTimer = null
   }
   window.removeEventListener('resize', updateDanmakuListHeight)
+  if (danmakuSettingsCloseTimer) {
+    window.clearTimeout(danmakuSettingsCloseTimer)
+    danmakuSettingsCloseTimer = null
+  }
 })
 </script>
 
@@ -1545,6 +1867,23 @@ onUnmounted(() => {
              position: relative;
              aspect-ratio: 16 / 9;
 
+      .mini-progress {
+        position: absolute;
+        left: 0;
+        bottom: 0;
+        height: 2px;
+        background: #00aeec;
+        width: 0%;
+        z-index: 6;
+        pointer-events: none;
+        opacity: 1;
+      }
+
+      /* 仅当鼠标悬停在真正的 video 区域内时隐藏进度条 */
+      .video:hover ~ .mini-progress {
+        opacity: 0;
+      }
+
       .video {
         width: 100%;
                height: 100%;
@@ -1580,8 +1919,7 @@ onUnmounted(() => {
           transform: translateX(0);
         }
         to {
-          /* 确保能横穿整个播放器（% 是相对弹幕自身宽度，容易不够） */
-          transform: translateX(-120vw);
+          transform: translateX(calc(-1 * var(--danmaku-travel-distance, 1200px)));
         }
       }
     }
@@ -1628,6 +1966,7 @@ onUnmounted(() => {
           display: flex;
           align-items: center;
           gap: 8px;
+          position: relative;
 
           .danmaku-toggle-btn,
           .danmaku-settings-btn {
@@ -1691,6 +2030,116 @@ onUnmounted(() => {
           .danmaku-settings-btn.is-disabled:hover {
             background: transparent;
             color: #c9ccd0;
+          }
+
+          .danmaku-settings-wrap {
+            position: relative;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+          }
+
+          .danmaku-settings-panel {
+            position: absolute;
+            bottom: calc(100% + 10px);
+            left: 50%;
+            transform: translateX(-50%);
+            width: 300px;
+            padding: 14px 14px 10px;
+            background: rgba(0, 0, 0, 0.78);
+            border-radius: 0;
+            z-index: 20;
+            color: #fff;
+          }
+
+          .setting-row {
+            display: grid;
+            grid-template-columns: 68px 1fr auto;
+            align-items: center;
+            column-gap: 12px;
+            margin-bottom: 12px;
+          }
+
+          .setting-label {
+            font-size: 14px;
+            color: #fff;
+            white-space: nowrap;
+          }
+
+          .setting-value {
+            min-width: 46px;
+            text-align: right;
+            color: #fff;
+            font-size: 14px;
+          }
+
+          .setting-slider-wrap {
+            position: relative;
+            height: 16px;
+            display: flex;
+            align-items: center;
+          }
+
+          .setting-slider {
+            width: 100%;
+            -webkit-appearance: none;
+            appearance: none;
+            height: 4px;
+            border-radius: 999px;
+            outline: none;
+            margin: 0;
+          }
+
+          .setting-slider::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 14px;
+            height: 14px;
+            border-radius: 50%;
+            border: none;
+            background: #fff;
+            cursor: pointer;
+          }
+
+          .setting-slider::-moz-range-thumb {
+            width: 14px;
+            height: 14px;
+            border-radius: 50%;
+            border: none;
+            background: #fff;
+            cursor: pointer;
+          }
+
+          .setting-slider::-moz-range-track {
+            height: 4px;
+            border: none;
+            border-radius: 999px;
+            background: transparent;
+          }
+
+          .slider-with-marks {
+            position: relative;
+            z-index: 2;
+          }
+
+          .slider-marks {
+            position: absolute;
+            left: 2px;
+            right: 2px;
+            top: 50%;
+            transform: translateY(-50%);
+            pointer-events: none;
+            display: flex;
+            justify-content: space-between;
+            z-index: 3;
+          }
+
+          .slider-mark {
+            width: 5px;
+            height: 5px;
+            border-radius: 50%;
+            background: #fff;
+            opacity: 0.92;
           }
         }
       }
@@ -2496,25 +2945,27 @@ onUnmounted(() => {
       gap: 10px;
       .rec-item {
         display: grid;
-        grid-template-columns: 160px 1fr;
-        gap: 10px;
+        grid-template-columns: 140px 1fr;
+        gap: 6px;
+        align-items: center;
         background: #fff;
         border-radius: 8px;
-        padding: 8px;
-        .rec-cover { width: 160px; height: 90px; border-radius: 6px; object-fit: cover; }
+        padding: 6px 6px 6px 0;
+        .rec-cover { width: 140px; height: 80px; border-radius: 6px; object-fit: cover; }
         .rec-info {
           .rec-title {
-            font-size: 14px;
+            font-size: 15px;
             color: #18191c;
-            line-height: 1.4;
+            line-height: 1.3;
             display: -webkit-box;
             line-clamp: 2;
             -webkit-line-clamp: 2; /* WebKit 浏览器：最多两行 */
             -webkit-box-orient: vertical;
             overflow: hidden;
             word-break: break-all;
+            flex-shrink: 0; // 防止被 rec-info 固定高度压缩后裁掉底部
           }
-          .rec-meta { color: #8a8a8a; display: flex; gap: 12px; margin-top: 6px; font-size: 12px; }
+          .rec-meta { color: #8a8a8a; display: flex; gap: 12px; margin-top: 0; font-size: 13px; flex-shrink: 0; }
         }
       }
     }
