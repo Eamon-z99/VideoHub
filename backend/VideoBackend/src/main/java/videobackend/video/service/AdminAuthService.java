@@ -1,6 +1,5 @@
 package videobackend.video.service;
 
-import io.jsonwebtoken.Claims;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
@@ -8,8 +7,7 @@ import org.springframework.util.StringUtils;
 import videobackend.video.util.JwtUtil;
 
 /**
- * 管理端鉴权：从 JWT 取 userId，并校验 users.is_admin=1。
- * 管理端逻辑集中在此，避免散落在各个 controller。
+ * 管理端鉴权：仅接受 {@link JwtUtil#PRINCIPAL_TYPE_ADMIN} 的 JWT，并校验 {@code admins} 表启用状态。
  */
 @Service
 public class AdminAuthService {
@@ -23,40 +21,45 @@ public class AdminAuthService {
     }
 
     /**
-     * 返回管理员 userId；非管理员或未登录返回 null。
+     * 返回管理员 admins.id；非管理端 Token 或未启用返回 null。
      */
     public Long requireAdmin(HttpServletRequest request) {
-        Long userId = getUserIdFromRequest(request);
-        if (userId == null) {
+        Long adminId = getAdminIdFromRequest(request);
+        if (adminId == null) {
             return null;
         }
-        Integer isAdmin = jdbcTemplate.queryForObject(
-                "SELECT is_admin FROM users WHERE id = ?",
-                Integer.class,
-                userId
-        );
-        return (isAdmin != null && isAdmin == 1) ? userId : null;
+        return isActiveAdmin(adminId) ? adminId : null;
     }
 
-    private Long getUserIdFromRequest(HttpServletRequest request) {
+    public boolean isActiveAdmin(Long adminId) {
+        if (adminId == null) {
+            return false;
+        }
+        try {
+            Integer n = jdbcTemplate.queryForObject(
+                    """
+                    SELECT COUNT(*) FROM admins
+                    WHERE id = ?
+                      AND (status IS NULL OR status = 1)
+                    """,
+                    Integer.class,
+                    adminId
+            );
+            return n != null && n > 0;
+        } catch (org.springframework.dao.EmptyResultDataAccessException e) {
+            return false;
+        }
+    }
+
+    private Long getAdminIdFromRequest(HttpServletRequest request) {
         String bearerToken = request.getHeader("Authorization");
         if (bearerToken != null && bearerToken.startsWith("Bearer ")) {
             String token = bearerToken.substring(7);
-            Claims claims = jwtUtil.getClaimsFromToken(token);
-            if (claims != null) {
-                Object userIdObj = claims.get("userId");
-                if (userIdObj instanceof Number) {
-                    return ((Number) userIdObj).longValue();
-                }
-                if (userIdObj instanceof String && StringUtils.hasText((String) userIdObj)) {
-                    try {
-                        return Long.parseLong((String) userIdObj);
-                    } catch (NumberFormatException ignore) {
-                    }
-                }
+            if (!StringUtils.hasText(token)) {
+                return null;
             }
+            return jwtUtil.getAdminIdFromToken(token);
         }
         return null;
     }
 }
-

@@ -419,7 +419,9 @@ CREATE TABLE `transcode_tasks`  (
 
 -- ----------------------------
 -- Table structure for users
+-- （先删 admins：外键依赖 users）
 -- ----------------------------
+DROP TABLE IF EXISTS `admins`;
 DROP TABLE IF EXISTS `users`;
 CREATE TABLE `users`  (
   `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '用户ID',
@@ -446,6 +448,29 @@ INSERT INTO `users` VALUES (1, '阿巴阿巴儿', 'test', '$2a$10$/UbxnmyC1Gh7X0
 INSERT INTO `users` VALUES (2, '有来学酱', 'testuser', '$2a$10$/UbxnmyC1Gh7X0K.S90DgOZerW8.gUP2jHXCEyMRwu4Qe0dWHvMzO', 'testuser@example.com', '/avatars/2026/02/2-25c476e0aa50462ea7ef6c80295902c8.png', NULL, 1, 0, '2025-12-13 23:27:48', '2026-02-04 20:52:28');
 INSERT INTO `users` VALUES (3, '西部斑尾蛇', 'newuser', '$2a$10$/UbxnmyC1Gh7X0K.S90DgOZerW8.gUP2jHXCEyMRwu4Qe0dWHvMzO', 'newuser@example.com', '/avatars/2026/02/3-8a9aacc74b2f424cb1c97fdeaebbb9de.png', NULL, 1, 0, '2025-12-13 23:30:33', '2026-02-04 20:53:18');
 INSERT INTO `users` VALUES (4, '大雪舞刀十八停', 'admin', '$2a$10$/UbxnmyC1Gh7X0K.S90DgOZerW8.gUP2jHXCEyMRwu4Qe0dWHvMzO', 'admin@example.com', '/avatars/2026/02/4-b5916f26b2404dc7ac2576befc09c344.png', NULL, 1, 1, '2025-12-13 23:30:33', '2026-02-04 20:53:39');
+
+-- ----------------------------
+-- Table structure for admins（独立后台账号，不关联 users；登录 /api/admin/auth/login）
+-- ----------------------------
+CREATE TABLE `admins`  (
+  `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '主键',
+  `account` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL COMMENT '登录账号',
+  `password` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL COMMENT '密码（BCrypt）',
+  `display_name` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL DEFAULT NULL COMMENT '展示名',
+  `remark` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL DEFAULT NULL COMMENT '备注',
+  `status` tinyint NOT NULL DEFAULT 1 COMMENT '1启用 0禁用',
+  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`) USING BTREE,
+  UNIQUE INDEX `uk_admins_account`(`account` ASC) USING BTREE,
+  INDEX `idx_admins_status`(`status` ASC) USING BTREE
+) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = utf8mb4_unicode_ci COMMENT = '后台管理员（独立账号）' ROW_FORMAT = Dynamic;
+
+-- ----------------------------
+-- Records of admins（默认账号 admin；密码哈希与下方种子用户相同算法，生产请务必修改）
+-- ----------------------------
+INSERT INTO `admins` (`id`, `account`, `password`, `display_name`, `remark`, `status`, `created_at`, `updated_at`) VALUES
+(1, 'admin', '$2a$10$/UbxnmyC1Gh7X0K.S90DgOZerW8.gUP2jHXCEyMRwu4Qe0dWHvMzO', '系统管理员', '默认', 1, '2025-12-13 23:30:33', '2026-02-04 20:53:39');
 
 -- ----------------------------
 -- Table structure for video_likes

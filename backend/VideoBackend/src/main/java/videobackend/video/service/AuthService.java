@@ -65,12 +65,13 @@ public class AuthService {
         // 生成JWT token
         String token = jwtUtil.generateToken(user.getId(), user.getUsername(), user.getAccount());
 
-        // 返回登录响应
+        // 管理端使用独立 admins 账号与 /api/admin/auth/login，普通登录不再标记 isAdmin
         return new LoginResponse(
                 token,
                 user.getId(),
                 user.getUsername(),
-                user.getAccount()
+                user.getAccount(),
+                false
         );
     }
 

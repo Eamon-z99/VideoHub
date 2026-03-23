@@ -6,6 +6,7 @@
   "workspaces": [
     "main-app",
     "VideoHub_web",
+    "VideoHub_admin",
     "*"
   ],
   "scripts": {
@@ -13,6 +14,7 @@
     "dev": "node dev.js",
     "dev:main": "cd main-app && npm run dev",
     "dev:sub": "cd VideoHub_web && npm run dev",
+    "dev:admin": "cd VideoHub_admin && npm run dev",
     "build": "npm run build --workspaces",
     "build:main": "cd main-app && npm run build",
     "build:sub": "cd VideoHub_web && npm run build",

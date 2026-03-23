@@ -35,6 +35,61 @@ public class AdminVideoSubmissionController {
         ));
     }
 
+    @GetMapping("/approved-unpublished")
+    public ResponseEntity<?> listApprovedUnpublished(HttpServletRequest request,
+                                                     @RequestParam(defaultValue = "1") int page,
+                                                     @RequestParam(defaultValue = "20") int pageSize) {
+        Long adminId = adminAuthService.requireAdmin(request);
+        if (adminId == null) {
+            return ResponseEntity.status(403).body(Map.of("success", false, "message", "无权限"));
+        }
+        return ResponseEntity.ok(Map.of(
+                "success", true,
+                "data", videoSubmissionService.listApprovedUnpublished(page, pageSize)
+        ));
+    }
+
+    /**
+     * 单条投稿播放地址（管理端观看按钮兜底）。
+     */
+    @GetMapping("/{submissionId}/play-url")
+    public ResponseEntity<?> getPlayUrl(HttpServletRequest request,
+                                        @PathVariable String submissionId) {
+        Long adminId = adminAuthService.requireAdmin(request);
+        if (adminId == null) {
+            return ResponseEntity.status(403).body(Map.of("success", false, "message", "无权限"));
+        }
+        try {
+            return ResponseEntity.ok(Map.of(
+                    "success", true,
+                    "data", videoSubmissionService.getSubmissionPlayInfo(submissionId)
+            ));
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(Map.of("success", false, "message", e.getMessage()));
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(Map.of("success", false, "message", "投稿不存在或地址不可用"));
+        }
+    }
+
+    /**
+     * 管理端：发布校验（帮助判断是否写入 videos 表 & 文件是否存在）
+     */
+    @GetMapping("/{submissionId}/published-check")
+    public ResponseEntity<?> publishedCheck(HttpServletRequest request,
+                                              @PathVariable String submissionId) {
+        Long adminId = adminAuthService.requireAdmin(request);
+        if (adminId == null) {
+            return ResponseEntity.status(403).body(Map.of("success", false, "message", "无权限"));
+        }
+        try {
+            return ResponseEntity.ok(videoSubmissionService.getPublishedVideoCheck(submissionId));
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(Map.of("success", false, "message", e.getMessage()));
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(Map.of("success", false, "message", "校验失败"));
+        }
+    }
+
     @PostMapping("/{submissionId}/approve")
     public ResponseEntity<?> approve(HttpServletRequest request,
                                      @PathVariable String submissionId,

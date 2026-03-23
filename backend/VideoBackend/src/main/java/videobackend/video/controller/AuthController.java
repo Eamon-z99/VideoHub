@@ -39,7 +39,8 @@ public class AuthController {
                     "token", response.getToken(),
                     "userId", response.getUserId(),
                     "username", response.getUsername(),
-                    "loginAccount", response.getLoginAccount()
+                    "loginAccount", response.getLoginAccount(),
+                    "isAdmin", Boolean.TRUE.equals(response.getIsAdmin())
             ));
         } catch (RuntimeException e) {
             return ResponseEntity.status(401)

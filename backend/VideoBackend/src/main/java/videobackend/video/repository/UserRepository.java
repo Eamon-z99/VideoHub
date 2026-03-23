@@ -21,7 +21,8 @@ public class UserRepository {
 
     public Optional<User> findByAccount(String account) {
         String sql = """
-                SELECT id, username, account, password, email, avatar, bio, status, create_time, update_time
+                SELECT id, username, account, password, email, avatar, bio, status,
+                       create_time, update_time
                 FROM users
                 WHERE account = ?
                 """;
@@ -35,7 +36,8 @@ public class UserRepository {
 
     public Optional<User> findById(Long id) {
         String sql = """
-                SELECT id, username, account, password, email, avatar, bio, status, create_time, update_time
+                SELECT id, username, account, password, email, avatar, bio, status,
+                       create_time, update_time
                 FROM users
                 WHERE id = ?
                 """;
@@ -69,7 +71,7 @@ public class UserRepository {
             user.setAvatar(rs.getString("avatar"));
             user.setBio(rs.getString("bio"));
             user.setStatus(rs.getObject("status") != null ? rs.getInt("status") : null);
-            
+
             // 处理时间字段
             java.sql.Timestamp createTime = rs.getTimestamp("create_time");
             if (createTime != null) {

@@ -39,9 +39,10 @@ public class JwtInterceptor implements HandlerInterceptor {
                 // 搜索也允许公开（POST /api/db/videos/search）
                 || (path.equals("/api/db/videos/search"));
 
-        if (path.startsWith("/api/auth/login") || 
+        if (path.startsWith("/api/auth/login") ||
             path.startsWith("/api/auth/register") ||
             path.startsWith("/api/auth/logout") ||
+            path.startsWith("/api/admin/auth/login") ||
             // 弹幕列表允许未登录访问（发送仍需登录）
             (path.startsWith("/api/danmaku/") && "GET".equals(request.getMethod())) ||
             // 在看人数（心跳/查询）允许公开访问

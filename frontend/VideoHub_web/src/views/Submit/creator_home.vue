@@ -310,20 +310,15 @@ watch(creatorId, (id) => {
 .hero-scrim {
   position: absolute;
   inset: 0;
-  background: linear-gradient(
-    105deg,
-    rgba(15, 23, 42, 0.82) 0%,
-    rgba(15, 23, 42, 0.45) 45%,
-    rgba(15, 23, 42, 0.2) 100%
-  );
+  /* 改为纯色背景：去掉渐变，避免图片透出 */
+  background: #ffffff;
 }
 
 .hero-pattern {
   position: absolute;
   inset: 0;
-  opacity: 0.12;
-  background-image: radial-gradient(circle at 2px 2px, #fff 1px, transparent 0);
-  background-size: 22px 22px;
+  opacity: 0;
+  background-image: none;
 }
 
 .hero-content {
@@ -333,7 +328,7 @@ watch(creatorId, (id) => {
   flex-direction: column;
   justify-content: center;
   padding: 0 36px;
-  color: #fff;
+  color: #0f172a;
   gap: 8px;
 }
 
@@ -342,7 +337,7 @@ watch(creatorId, (id) => {
   font-size: 11px;
   letter-spacing: 0.22em;
   font-weight: 600;
-  color: rgba(255, 255, 255, 0.72);
+  color: rgba(15, 23, 42, 0.6);
 }
 
 .hero-title {
@@ -350,13 +345,13 @@ watch(creatorId, (id) => {
   font-size: 30px;
   font-weight: 800;
   letter-spacing: -0.02em;
-  text-shadow: 0 2px 24px rgba(0, 0, 0, 0.35);
+  text-shadow: 0 2px 18px rgba(15, 23, 42, 0.08);
 }
 
 .hero-sub {
   margin: 0;
   font-size: 15px;
-  color: rgba(255, 255, 255, 0.88);
+  color: rgba(15, 23, 42, 0.78);
   max-width: 420px;
   line-height: 1.5;
 }

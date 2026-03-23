@@ -368,6 +368,8 @@ public class VideoSubmissionService {
                        s.tags,
                        s.duration,
                        s.cover_url,
+                       s.storage_path,
+                       s.source_file,
                        s.create_time,
                        u.id AS uploader_id,
                        u.username AS uploader_name,
@@ -379,6 +381,7 @@ public class VideoSubmissionService {
                 LIMIT ? OFFSET ?
                 """;
         List<Map<String, Object>> list = jdbcTemplate.queryForList(sql, safeSize, offset);
+        list.forEach(this::attachPlayableUrl);
 
         Long total = jdbcTemplate.queryForObject(
                 "SELECT COUNT(*) FROM video_submissions WHERE review_status='PENDING'",
@@ -389,6 +392,150 @@ public class VideoSubmissionService {
                 "page", safePage,
                 "pageSize", safeSize,
                 "total", total == null ? 0 : total
+        );
+    }
+
+    /**
+     * 已通过审核、尚未发布到 videos 的投稿（待管理员点「发布」或等定时）
+     */
+    public Map<String, Object> listApprovedUnpublished(int page, int pageSize) {
+        int safeSize = Math.max(1, Math.min(pageSize, 100));
+        int safePage = Math.max(1, page);
+        int offset = (safePage - 1) * safeSize;
+
+        String sql = """
+                SELECT s.submission_id,
+                       s.title,
+                       s.`partition`,
+                       s.tags,
+                       s.duration,
+                       s.cover_url,
+                       s.storage_path,
+                       s.source_file,
+                       s.create_time,
+                       s.schedule_enabled,
+                       s.schedule_publish_at,
+                       u.id AS uploader_id,
+                       u.username AS uploader_name,
+                       u.avatar AS uploader_avatar
+                FROM video_submissions s
+                LEFT JOIN users u ON s.user_id = u.id
+                WHERE s.review_status = 'APPROVED'
+                  AND (s.published_video_id IS NULL OR TRIM(s.published_video_id) = '')
+                ORDER BY s.update_time DESC
+                LIMIT ? OFFSET ?
+                """;
+        List<Map<String, Object>> list = jdbcTemplate.queryForList(sql, safeSize, offset);
+        list.forEach(this::attachPlayableUrl);
+
+        Long total = jdbcTemplate.queryForObject(
+                """
+                SELECT COUNT(*) FROM video_submissions s
+                WHERE s.review_status = 'APPROVED'
+                  AND (s.published_video_id IS NULL OR TRIM(s.published_video_id) = '')
+                """,
+                Long.class
+        );
+        return Map.of(
+                "list", list,
+                "page", safePage,
+                "pageSize", safeSize,
+                "total", total == null ? 0 : total
+        );
+    }
+
+    /**
+     * 按 submissionId 查询单条投稿可播放地址（用于管理端点击观看兜底）。
+     */
+    public Map<String, Object> getSubmissionPlayInfo(String submissionId) {
+        if (!StringUtils.hasText(submissionId)) {
+            throw new IllegalArgumentException("投稿ID不能为空");
+        }
+        Map<String, Object> row = jdbcTemplate.queryForMap("""
+                SELECT submission_id, title, source_file, storage_path
+                FROM video_submissions
+                WHERE submission_id = ?
+                """, submissionId.trim());
+
+        String sourceFile = row.get("source_file") == null ? null : String.valueOf(row.get("source_file"));
+        String storagePath = row.get("storage_path") == null ? null : String.valueOf(row.get("storage_path"));
+        String playUrl = buildPlayableUrl(sourceFile, storagePath);
+
+        return Map.of(
+                "submissionId", row.get("submission_id"),
+                "title", row.get("title") == null ? "" : String.valueOf(row.get("title")),
+                "sourceFile", sourceFile == null ? "" : sourceFile,
+                "storagePath", storagePath == null ? "" : storagePath,
+                "playUrl", playUrl
+        );
+    }
+
+    /**
+     * 管理端发布校验：给定 submissionId，返回 published_video_id 是否存在，以及 videos 表是否有对应 video_id。
+     * 额外返回文件路径在磁盘上是否存在（帮助判断“搜不到/点开没内容”的根因）。
+     */
+    public Map<String, Object> getPublishedVideoCheck(String submissionId) {
+        if (!StringUtils.hasText(submissionId)) {
+            throw new IllegalArgumentException("投稿ID不能为空");
+        }
+
+        Map<String, Object> srow = jdbcTemplate.queryForMap("""
+                SELECT submission_id, title, published_video_id
+                FROM video_submissions
+                WHERE submission_id = ?
+                """, submissionId.trim());
+
+        Object publishedVideoIdObj = srow.get("published_video_id");
+        String publishedVideoId =
+                publishedVideoIdObj == null ? null : String.valueOf(publishedVideoIdObj);
+        if (!StringUtils.hasText(publishedVideoId)) {
+            return Map.of(
+                    "success", true,
+                    "data", Map.of(
+                            "submissionId", srow.get("submission_id"),
+                            "publishedVideoId", null,
+                            "videoFound", false,
+                            "fileExists", false,
+                            "playUrl", ""
+                    )
+            );
+        }
+
+        Map<String, Object> vrow = jdbcTemplate.queryForMap("""
+                SELECT video_id, title, storage_path, source_file, status
+                FROM videos
+                WHERE video_id = ?
+                """, publishedVideoId);
+
+        String storagePath = vrow.get("storage_path") == null ? null : String.valueOf(vrow.get("storage_path"));
+        String sourceFile = vrow.get("source_file") == null ? null : String.valueOf(vrow.get("source_file"));
+        String playUrl = buildPlayableUrl(sourceFile, storagePath);
+
+        boolean fileExists = false;
+        try {
+            Path root = Paths.get(mediaStorageRoot);
+            if (StringUtils.hasText(sourceFile)) {
+                Path p = root.resolve(sourceFile.replace("\\", "/")).normalize();
+                fileExists = Files.exists(p);
+            }
+            if (!fileExists && StringUtils.hasText(storagePath)) {
+                Path p = root.resolve(storagePath.replace("\\", "/")).normalize();
+                fileExists = Files.exists(p);
+            }
+        } catch (Exception ignore) {
+            fileExists = false;
+        }
+
+        return Map.of(
+                "success", true,
+                "data", Map.of(
+                        "submissionId", srow.get("submission_id"),
+                        "publishedVideoId", vrow.get("video_id"),
+                        "videoFound", true,
+                        "status", vrow.get("status"),
+                        "fileExists", fileExists,
+                        "playUrl", playUrl
+                )
         );
     }
 
@@ -460,7 +607,7 @@ public class VideoSubmissionService {
             throw new IllegalArgumentException("该投稿已发布，无需重复发布");
         }
 
-        int scheduleEnabled = ((Number) row.getOrDefault("schedule_enabled", 0)).intValue();
+        int scheduleEnabled = toInt01(row.get("schedule_enabled"));
         Timestamp publishAt = (Timestamp) row.get("schedule_publish_at");
         if (!force && scheduleEnabled == 1 && publishAt != null) {
             Timestamp now = new Timestamp(System.currentTimeMillis());
@@ -610,6 +757,46 @@ public class VideoSubmissionService {
             name = name.substring(0, dot);
         }
         return name;
+    }
+
+    /**
+     * 兼容 MySQL tinyint(1) 在不同驱动/配置下返回 Boolean / Number / String。
+     */
+    private int toInt01(Object v) {
+        if (v == null) {
+            return 0;
+        }
+        if (v instanceof Boolean) {
+            return (Boolean) v ? 1 : 0;
+        }
+        if (v instanceof Number) {
+            return ((Number) v).intValue() != 0 ? 1 : 0;
+        }
+        String s = String.valueOf(v).trim().toLowerCase();
+        if (s.isEmpty()) {
+            return 0;
+        }
+        return (s.equals("1") || s.equals("true") || s.equals("yes") || s.equals("on")) ? 1 : 0;
+    }
+
+    /**
+     * 为管理端列表补充预览地址（优先 source_file，回退 storage_path）。
+     */
+    private void attachPlayableUrl(Map<String, Object> row) {
+        if (row == null) {
+            return;
+        }
+        String sourceFile = row.get("source_file") == null ? null : String.valueOf(row.get("source_file"));
+        String storagePath = row.get("storage_path") == null ? null : String.valueOf(row.get("storage_path"));
+        row.put("play_url", buildPlayableUrl(sourceFile, storagePath));
+    }
+
+    private String buildPlayableUrl(String sourceFile, String storagePath) {
+        String file = StringUtils.hasText(sourceFile) ? sourceFile : storagePath;
+        if (!StringUtils.hasText(file)) {
+            return "";
+        }
+        return "/local-videos/" + file.replace("\\", "/");
     }
 }
 
