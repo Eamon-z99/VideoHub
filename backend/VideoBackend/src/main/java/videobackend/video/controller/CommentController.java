@@ -150,6 +150,18 @@ public class CommentController {
         );
     }
 
+    /**
+     * 获取某个视频的评论总数（包含回复）
+     */
+    @GetMapping("/count-with-replies")
+    public Map<String, Object> countWithReplies(@RequestParam String videoId) {
+        long total = commentService.countCommentsWithReplies(videoId);
+        return Map.of(
+                "success", true,
+                "total", total
+        );
+    }
+
     private Long getUserIdFromRequest(HttpServletRequest request) {
         String bearerToken = request.getHeader("Authorization");
         if (bearerToken != null && bearerToken.startsWith("Bearer ")) {

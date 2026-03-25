@@ -68,6 +68,21 @@ public class CommentService {
     }
 
     /**
+     * 统计视频的评论总数（包含回复）
+     * 说明：comments 表中的“回复”也是一条 comments 记录，通过 parent_id!=NULL 区分。
+     */
+    public long countCommentsWithReplies(String videoId) {
+        String sql = """
+                SELECT COUNT(*)
+                FROM comments
+                WHERE video_id = ?
+                  AND status = 1
+                """;
+        Long total = jdbcTemplate.queryForObject(sql, Long.class, videoId);
+        return total == null ? 0L : total;
+    }
+
+    /**
      * 新增评论（支持顶层评论或回复）
      */
     @Transactional

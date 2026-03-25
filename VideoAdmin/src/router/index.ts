@@ -28,6 +28,12 @@ const router = createRouter({
           component: () => import('@/views/ApprovedUnpublishedView.vue'),
           meta: { title: '待发布' },
         },
+        {
+          path: 'complaints',
+          name: 'complaints',
+          component: () => import('@/views/VideoComplaintsView.vue'),
+          meta: { title: '举报处理' },
+        },
       ],
     },
   ],

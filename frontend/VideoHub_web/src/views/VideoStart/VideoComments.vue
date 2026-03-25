@@ -2,7 +2,7 @@
   <div class="comments">
     <div class="comment-header">
       <div class="left">
-        <span class="title">评论 {{ commentTotal }}</span>
+        <span class="title">评论 {{ visibleCommentTotalWithReplies }}</span>
       </div>
       <div class="sort-tabs">
         <span
@@ -147,7 +147,7 @@
 <script setup>
 import { ref, computed, watch } from 'vue'
 import { ElMessage } from 'element-plus'
-import { getComments, addComment, likeComment, unlikeComment, getCommentReplies } from '@/api/comment'
+import { getComments, addComment, likeComment, unlikeComment, getCommentReplies, getCommentCountWithReplies } from '@/api/comment'
 import { useUserStore } from '@/stores/user'
 
 const props = defineProps({
@@ -157,6 +157,8 @@ const props = defineProps({
   }
 })
 
+const emit = defineEmits(['comment-total-change'])
+
 const userStore = useUserStore()
 
 const commentText = ref('')
@@ -164,6 +166,7 @@ const comments = ref([])
 const commentPage = ref(1)
 const commentPageSize = ref(20)
 const commentTotal = ref(0)
+const commentTotalWithReplies = ref(0)
 const loadingComments = ref(false)
 const submittingComment = ref(false)
 const activeCommentSort = ref('time')
@@ -171,6 +174,29 @@ const replyTarget = ref(null)
 const replyText = ref('')
 const replyCache = ref({})
 const replyPlaceholderName = ref('')
+
+// “评论数包含回复”展示口径：统计当前已加载的顶层评论 + 这些顶层评论下已加载的回复数
+// 说明：top 分页仍然用 commentTotal（接口返回的顶层评论总数），这里用于顶部 meta/推荐同步显示。
+const emitCommentTotalWithReplies = () => {
+  emit('comment-total-change', commentTotalWithReplies.value)
+}
+
+const visibleCommentTotalWithReplies = computed(() => commentTotalWithReplies.value)
+
+const loadCommentTotalWithReplies = async () => {
+  const videoId = props.videoId
+  if (!videoId) return
+
+  try {
+    const { data } = await getCommentCountWithReplies(videoId)
+    const total = data?.total ?? 0
+    commentTotalWithReplies.value = Number.isFinite(Number(total)) ? Number(total) : 0
+    emitCommentTotalWithReplies()
+  } catch (e) {
+    // 如果接口失败，保持为 0（不影响顶层分页加载）
+    console.warn('加载评论总数（含回复）失败:', e)
+  }
+}
 
 const normalizeAvatarUrl = (url) => {
   if (!url) return ''
@@ -202,6 +228,7 @@ const loadComments = async (reset = true) => {
     if (data && data.success) {
       const list = Array.isArray(data.list) ? data.list : []
       commentTotal.value = data.total ?? list.length
+      // 顶层评论数用于分页；“包含回复”的展示数由 replies 加载完成后再发出
       const cache = replyCache.value || {}
       const mapped = list.map(item => ({
         id: item.id,
@@ -336,12 +363,81 @@ const submitComment = async () => {
       commentTotal.value += 1
       commentText.value = ''
       ElMessage.success('评论成功')
+      // 重新拉取“评论总数（含回复）”，避免口径与后端不一致
+      await loadCommentTotalWithReplies()
     } else {
       ElMessage.error(data?.message || '评论失败，请稍后重试')
     }
   } catch (error) {
     console.error('发表评论失败:', error)
     ElMessage.error('评论失败，请稍后重试')
+  } finally {
+    submittingComment.value = false
+  }
+}
+
+// 提交回复（模板使用了 @click="submitReply(item)"）
+const submitReply = async (parentComment) => {
+  if (!userStore.isAuthenticated) {
+    ElMessage.warning('请先登录')
+    return
+  }
+  if (!parentComment || !parentComment.id) return
+  const videoId = props.videoId
+  if (!videoId) return
+
+  const content = replyText.value.trim()
+  if (!content) {
+    ElMessage.warning('回复内容不能为空')
+    return
+  }
+
+  submittingComment.value = true
+  try {
+    // 使用 addComment(videoId, content, parentId) 作为“回复”提交
+    const { data } = await addComment(videoId, content, parentComment.id)
+    if (data && data.success && data.data) {
+      const r = data.data
+
+      const target = comments.value.find(c => c.id === parentComment.id)
+      if (target) {
+        const replyItem = {
+          id: r.id,
+          name: r.username || '用户',
+          time: r.createTime || '',
+          text: r.content || content,
+          likes: r.likeCount || 0,
+          avatar: r.avatar ? normalizeAvatarUrl(r.avatar) : '',
+          raw: r
+        }
+        if (!Array.isArray(target.replies)) target.replies = []
+        target.replies.push(replyItem)
+      }
+
+      const old = replyCache.value[parentComment.id] || []
+      replyCache.value[parentComment.id] = [...old, {
+        id: r.id,
+        name: r.username || '用户',
+        time: r.createTime || '',
+        text: r.content || content,
+        likes: r.likeCount || 0,
+        avatar: r.avatar ? normalizeAvatarUrl(r.avatar) : '',
+        raw: r
+      }]
+
+      // 回复也计入“评论总数（含回复）”
+      replyTarget.value = null
+      replyText.value = ''
+      replyPlaceholderName.value = ''
+      ElMessage.success('回复成功')
+      // 重新拉取“评论总数（含回复）”，避免口径与后端不一致
+      await loadCommentTotalWithReplies()
+    } else {
+      ElMessage.error(data?.message || '回复失败，请稍后重试')
+    }
+  } catch (error) {
+    console.error('回复失败:', error)
+    ElMessage.error('回复失败，请稍后重试')
   } finally {
     submittingComment.value = false
   }
@@ -395,9 +491,10 @@ const toggleCommentLike = async (comment) => {
 
 watch(
   () => props.videoId,
-  () => {
+  async () => {
     if (props.videoId) {
-      loadComments(true)
+      await loadCommentTotalWithReplies()
+      await loadComments(true)
     }
   },
   { immediate: true }
@@ -405,7 +502,243 @@ watch(
 </script>
 
 <style scoped lang="scss">
+.comments {
+  background: #fff;
+  border-radius: 8px;
+  padding: 16px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
 
+  .comment-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding-bottom: 12px;
+    border-bottom: 1px solid #f1f2f3;
+
+    .title {
+      font-size: 16px;
+      font-weight: 600;
+      color: #18191c;
+    }
+
+    .sort-tabs {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      font-size: 13px;
+
+      .sort-item {
+        color: #61666d;
+        cursor: pointer;
+        padding-bottom: 2px;
+
+        &.is-active {
+          color: #00a1d6;
+          font-weight: 500;
+        }
+      }
+    }
+  }
+
+  .comment-editor {
+    display: flex;
+    align-items: flex-start;
+    margin-top: 8px;
+
+    .editor-avatar {
+      margin-right: 12px;
+
+      img,
+      .avatar-placeholder {
+        width: 40px;
+        height: 40px;
+        border-radius: 50%;
+        object-fit: cover;
+        background: #e3e5e7;
+      }
+    }
+
+    .editor-main {
+      flex: 1 1 auto;
+
+      .editor-input {
+        width: 100%;
+      }
+
+      :deep(.el-textarea__inner) {
+        background-color: #f4f5f7;
+        border-radius: 6px;
+        border-color: transparent;
+        padding: 8px 12px;
+
+        &:focus {
+          border-color: #00a1d6;
+          background-color: #fff;
+        }
+      }
+
+      .editor-actions {
+        display: flex;
+        justify-content: flex-end;
+        align-items: center;
+        margin-top: 8px;
+        gap: 12px;
+
+        .login-hint {
+          font-size: 12px;
+          color: #9499a0;
+          margin-right: auto;
+        }
+      }
+    }
+  }
+
+  .comment-list {
+    margin-top: 8px;
+
+    .no-comment {
+      padding: 24px 0;
+      text-align: center;
+      color: #9499a0;
+      font-size: 13px;
+    }
+
+    .comment-item {
+      display: flex;
+      gap: 12px;
+      padding: 16px 0;
+      border-bottom: 1px solid #f1f2f3;
+
+      .avatar {
+        width: 40px;
+        height: 40px;
+        border-radius: 50%;
+        flex: 0 0 40px;
+        object-fit: cover;
+        background: #e3e5e7;
+      }
+
+      .content {
+        flex: 1 1 auto;
+
+        .header {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          margin-bottom: 4px;
+
+          .name {
+            font-weight: 600;
+            font-size: 13px;
+            color: #18191c;
+          }
+
+          .time {
+            color: #9499a0;
+            font-size: 12px;
+          }
+        }
+
+        .text {
+          margin: 4px 0 6px;
+          color: #18191c;
+          font-size: 14px;
+          line-height: 1.6;
+        }
+
+        .comment-footer {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          margin-top: 4px;
+
+          .reply-summary {
+            font-size: 12px;
+            color: #9499a0;
+          }
+
+          .comment-actions {
+            display: inline-flex;
+            gap: 4px;
+          }
+        }
+
+        .reply-list {
+          margin-top: 8px;
+          padding-left: 48px;
+
+          .reply-item {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 8px;
+
+            .reply-avatar {
+              width: 24px;
+              height: 24px;
+              border-radius: 50%;
+            }
+
+            .reply-content {
+              .reply-header {
+                display: flex;
+                align-items: center;
+                gap: 8px;
+                margin-bottom: 2px;
+
+                .name {
+                  font-size: 13px;
+                  color: #18191c;
+                }
+
+                .time {
+                  font-size: 12px;
+                  color: #9499a0;
+                }
+              }
+
+              .text {
+                margin: 0;
+                font-size: 14px;
+                color: #222;
+              }
+            }
+          }
+        }
+
+        .reply-editor {
+          margin-top: 8px;
+          padding-left: 48px;
+
+          .reply-actions {
+            margin-top: 6px;
+            display: flex;
+            justify-content: flex-end;
+            gap: 8px;
+          }
+        }
+      }
+    }
+
+    .loading-more,
+    .load-more {
+      padding: 12px 0;
+      text-align: center;
+      font-size: 13px;
+      color: #9499a0;
+      cursor: default;
+    }
+
+    .load-more {
+      cursor: pointer;
+
+      &:hover {
+        color: #00a1d6;
+      }
+    }
+  }
+}
 </style>
 
 

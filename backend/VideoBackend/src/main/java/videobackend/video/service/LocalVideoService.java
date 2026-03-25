@@ -69,7 +69,6 @@ public class LocalVideoService {
                         FROM comments c
                         WHERE c.video_id = v.video_id
                           AND c.status = 1
-                          AND c.parent_id IS NULL
                        ) AS comment_count,
                        v.like_count,
                        v.favorite_count,
@@ -80,6 +79,7 @@ public class LocalVideoService {
                        v.create_time
                 FROM videos v
                 LEFT JOIN users u ON v.user_id = u.id
+                WHERE v.status IS NULL OR v.status <> 'DOWN'
                 ORDER BY RAND()
                 LIMIT ? OFFSET ?
                 """;
@@ -109,6 +109,7 @@ public class LocalVideoService {
                        v.create_time
                 FROM videos v
                 LEFT JOIN users u ON v.user_id = u.id
+                WHERE v.status IS NULL OR v.status <> 'DOWN'
                 ORDER BY v.view_count DESC
                 LIMIT ?
                 """;
@@ -116,7 +117,8 @@ public class LocalVideoService {
     }
 
     public long count() {
-        Long total = jdbcTemplate.queryForObject("SELECT COUNT(*) FROM videos", Long.class);
+        Long total = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM videos WHERE status IS NULL OR status <> 'DOWN'", Long.class);
         return total == null ? 0 : total;
     }
 
@@ -150,9 +152,10 @@ public class LocalVideoService {
                        v.create_time
                 FROM videos v
                 LEFT JOIN users u ON v.user_id = u.id
-                WHERE v.title LIKE ?
+                WHERE (v.title LIKE ?
                    OR v.description LIKE ?
-                   OR u.username LIKE ?
+                   OR u.username LIKE ?)
+                  AND (v.status IS NULL OR v.status <> 'DOWN')
                 ORDER BY v.create_time DESC
                 LIMIT ? OFFSET ?
                 """;
@@ -169,9 +172,10 @@ public class LocalVideoService {
                 SELECT COUNT(*)
                 FROM videos v
                 LEFT JOIN users u ON v.user_id = u.id
-                WHERE v.title LIKE ?
+                WHERE (v.title LIKE ?
                    OR v.description LIKE ?
-                   OR u.username LIKE ?
+                   OR u.username LIKE ?)
+                  AND (v.status IS NULL OR v.status <> 'DOWN')
                 """;
         Long total = jdbcTemplate.queryForObject(sql, Long.class, like, like, like);
         return total == null ? 0 : total;
@@ -206,6 +210,7 @@ public class LocalVideoService {
                 LEFT JOIN users u ON v.user_id = u.id
                 WHERE f.follower_id = ?
                   AND (? IS NULL OR f.following_id = ?)
+                  AND (v.status IS NULL OR v.status <> 'DOWN')
                 ORDER BY v.create_time DESC
                 LIMIT ? OFFSET ?
                 """;
@@ -222,6 +227,7 @@ public class LocalVideoService {
                 INNER JOIN fans f ON v.user_id = f.following_id
                 WHERE f.follower_id = ?
                   AND (? IS NULL OR f.following_id = ?)
+                  AND (v.status IS NULL OR v.status <> 'DOWN')
                 """;
         Long total = jdbcTemplate.queryForObject(sql, Long.class, userId, followingId, followingId);
         return total == null ? 0 : total;
@@ -247,6 +253,7 @@ public class LocalVideoService {
                 FROM videos v
                 LEFT JOIN users u ON v.user_id = u.id
                 WHERE v.video_id = ?
+                  AND (v.status IS NULL OR v.status <> 'DOWN')
                 """;
         List<VideoItem> list = jdbcTemplate.query(sql, (rs, i) -> mapToVideo(rs), videoId);
         return list.stream().findFirst();
@@ -266,6 +273,11 @@ public class LocalVideoService {
                        v.storage_path,
                        v.source_file,
                        v.view_count,
+                       (SELECT COUNT(*)
+                        FROM comments c
+                        WHERE c.video_id = v.video_id
+                          AND c.status = 1
+                       ) AS comment_count,
                        v.like_count,
                        v.favorite_count,
                        v.file_size,
@@ -277,6 +289,7 @@ public class LocalVideoService {
                 LEFT JOIN users u ON v.user_id = u.id
                 WHERE v.user_id = ?
                   AND (? IS NULL OR v.video_id <> ?)
+                  AND (v.status IS NULL OR v.status <> 'DOWN')
                 ORDER BY v.create_time DESC
                 LIMIT ?
                 """;

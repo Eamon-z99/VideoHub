@@ -33,4 +33,11 @@ export const getCommentReplies = (videoId, parentId) => {
   })
 }
 
+// 获取视频评论总数（包含回复）
+export const getCommentCountWithReplies = (videoId) => {
+  return request.get('/api/comments/count-with-replies', {
+    params: { videoId }
+  })
+}
+
 

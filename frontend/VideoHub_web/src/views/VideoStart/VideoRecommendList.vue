@@ -142,6 +142,7 @@ const loadRecommends = async () => {
   try {
     const { data } = await fetchVideosByUploader(uploaderId, MAX_RECOMMENDS, currentVideoId)
     const list = Array.isArray(data?.list) ? data.list : []
+
     const mapped = list.map(item => ({
       id: item.videoId || item.id,
       videoId: item.videoId || item.id,
@@ -149,7 +150,8 @@ const loadRecommends = async () => {
       author: item.uploaderName || '未知UP主',
       authorId: item.uploaderId || item.uploader_id || null,
       plays: item.viewCount ? formatCount(item.viewCount) : '0',
-      comments: item.commentCount ? formatCount(item.commentCount) : '0',
+      // 后端已统一返回 commentCount（包含回复）
+      comments: formatCount(item.commentCount ?? item.comments ?? 0),
       duration: formatDuration(item.duration),
       playUrl: item.playUrl || '',
       cover: (item.coverUrl && item.coverUrl.trim()) ? item.coverUrl : props.fallbackCover

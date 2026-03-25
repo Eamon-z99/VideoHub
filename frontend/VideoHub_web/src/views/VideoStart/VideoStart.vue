@@ -3,12 +3,31 @@
     <div class="header-wrapper">
       <TopHeader :fixed-on-scroll="false" :transparent-at-top="false" />
     </div>
-    <div class="video-page">
-    <!-- 主视频区域 -->
-    <section class="player-area">
-      <!-- 标题与信息 / 互动条 -->
+    <div class="video-page" :class="{ 'is-widescreen': isWidescreen, 'is-web-fullscreen': isWebFullscreen }">
+    <!-- 播放器主区 -->
+    <section class="player-main">
+      <!-- 标题与作者 -->
       <div class="video-meta">
-        <h1 class="title">{{ title }}</h1>
+        <div class="title-row">
+          <h1 class="title">{{ title }}</h1>
+          <div v-if="isWidescreen" class="uploader-inline">
+            <img v-if="uploader.avatar" class="u-avatar" :src="uploader.avatar" :alt="uploader.name || '作者'" />
+            <div v-else class="u-avatar-placeholder"></div>
+            <div class="u-info">
+              <div class="u-name">{{ uploader.name || '用户上传' }}</div>
+            </div>
+            <el-button 
+              type="primary" 
+              size="small" 
+              round
+              :loading="followLoading"
+              :disabled="!uploader.id || !userStore.isAuthenticated"
+              @click="toggleFollow"
+            >
+              {{ isFollowing ? '已关注' : '+ 关注' }}
+            </el-button>
+          </div>
+        </div>
         <div class="meta-row">
           <div class="meta-left">
             <span class="meta-item">
@@ -41,39 +60,183 @@
         </div>
       </div>
 
-      <div
-        class="player"
-        ref="playerRef"
-      >
-        <video
-          ref="videoPlayer"
-          class="video"
-          :src="videoSrc"
-          :controls="nativeControlsEnabled"
-          autoplay
-          :poster="posterUrl"
-          disablePictureInPicture
-          disableRemotePlayback
-          controlsList="nodownload noplaybackrate nofullscreen noremoteplayback"
-          @contextmenu.prevent
-          @dblclick.prevent
-          @mouseenter="isVideoHovered = true"
-          @mouseleave="isVideoHovered = false"
-          @timeupdate="onTimeUpdate"
-          @loadedmetadata="onVideoLoaded"
-          @play="onVideoPlay"
-          @pause="onVideoPause"
-        />
-
-        <!-- 未悬停时显示极简进度条（2px） -->
+      <div class="player-shell">
         <div
-          class="mini-progress"
-          :style="{ width: miniProgressPercent + '%' }"
-          aria-hidden="true"
-        />
+          class="player"
+          :class="{ 'is-web-fullscreen': isWebFullscreen, 'is-mini-player': isMiniPlayer, 'is-paused': !isVideoPlaying }"
+          :style="miniPlayerStyle"
+          ref="playerRef"
+          @mouseenter="onPlayerEnter"
+          @mouseleave="onPlayerLeave"
+        >
+          <video
+            ref="videoPlayer"
+            class="video"
+            :src="videoSrc"
+            :controls="false"
+            autoplay
+            :poster="posterUrl"
+            disableRemotePlayback
+            controlsList="nodownload noplaybackrate nofullscreen noremoteplayback"
+            @contextmenu.prevent
+            @dblclick.prevent
+            @timeupdate="onTimeUpdate"
+            @loadedmetadata="onVideoLoaded"
+            @play="onVideoPlay"
+            @pause="onVideoPause"
+          />
 
-        <!-- 弹幕展示层 -->
-        <div class="danmaku-layer" v-if="danmakuEnabled">
+          <button
+            v-if="isMiniPlayer"
+            class="mini-close-btn"
+            type="button"
+            title="退出画中画"
+            @click="togglePiP"
+          >
+            ×
+          </button>
+          <div
+            v-if="isMiniPlayer"
+            class="mini-drag-handle"
+            title="拖动悬浮窗"
+            @mousedown.prevent="onMiniDragStart"
+          />
+
+        <div class="player-controls" @click.stop>
+          <div
+            class="progress-bar-wrap"
+            ref="progressBarRef"
+            @mousemove="onPlayerMouseMove"
+            @mouseleave="onPlayerMouseLeave"
+            @click="onProgressBarClick"
+            @mousedown="onProgressBarMouseDown"
+          >
+            <div class="progress-bar-bg"></div>
+            <div class="progress-bar-fill" :style="{ width: miniProgressPercent + '%' }"></div>
+            <div class="progress-bar-thumb" :style="{ left: miniProgressPercent + '%' }"></div>
+            <div
+              v-show="previewVisible"
+              class="hover-preview-box"
+              :style="{ left: previewLeftPx + 'px' }"
+            >
+              <video
+                ref="previewVideoPlayer"
+                class="hover-preview-video"
+                :src="videoSrc"
+                muted
+                playsinline
+                preload="metadata"
+              />
+              <div class="hover-preview-time">{{ formatVideoTime(previewTimeSec) }}</div>
+            </div>
+          </div>
+
+          <div class="controls-bottom-row">
+            <button class="control-play-btn" @click="togglePlayPause" title="播放/暂停">
+              <svg v-if="isVideoPlaying" viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M6 5h4v14H6zM14 5h4v14h-4z"></path>
+              </svg>
+              <svg v-else viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M8 5v14l11-7z"></path>
+              </svg>
+            </button>
+            <span class="control-time">{{ currentTimeText }} / {{ durationText }}</span>
+            <div class="controls-spacer"></div>
+            <!-- 右下角控件（参考图） -->
+            <div class="ctrl-group" ref="ctrlGroupRef">
+              <!-- 清晰度 -->
+              <div class="ctrl-icon-wrap">
+                <button class="ctrl-text-btn" type="button" @click="togglePanel('quality')">
+                  {{ qualityLabel }}
+                </button>
+                <div v-show="openPanel === 'quality'" class="ctrl-panel ctrl-panel-quality">
+                  <button
+                    v-for="q in qualityOptions"
+                    :key="q.key"
+                    class="ctrl-panel-item"
+                    :class="{ 'is-active': q.key === selectedQualityKey }"
+                    type="button"
+                    @click="selectQuality(q.key)"
+                  >
+                    <span class="label">{{ q.label }}</span>
+                    <span v-if="q.vip" class="vip-tag">大会员</span>
+                  </button>
+                </div>
+              </div>
+
+              <!-- 倍速 -->
+              <div class="ctrl-icon-wrap">
+                <button class="ctrl-text-btn" type="button" @click="togglePanel('speed')">
+                  倍速
+                </button>
+                <div v-show="openPanel === 'speed'" class="ctrl-panel ctrl-panel-speed">
+                  <button
+                    v-for="s in speedOptions"
+                    :key="s"
+                    class="ctrl-panel-item"
+                    :class="{ 'is-active': playbackRate === s }"
+                    type="button"
+                    @click="setPlaybackRate(s)"
+                  >
+                    {{ s.toFixed(2).replace(/\.00$/, '.0') }}x
+                  </button>
+                </div>
+              </div>
+
+              <!-- 音量 -->
+              <div class="ctrl-icon-wrap">
+                <button class="ctrl-icon-btn" type="button" title="音量" @click="togglePanel('volume')">
+                  <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M3 10v4h4l5 4V6L7 10H3zm13.5 2c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89 1 5 3.77 5 6.71s-2.11 5.71-5 6.71v2.06c4.01-1.1 7-4.78 7-8.77s-2.99-7.67-7-8.77z"></path>
+                  </svg>
+                </button>
+                <div v-show="openPanel === 'volume'" class="ctrl-panel ctrl-panel-volume" @mousedown.stop>
+                  <div class="volume-value">{{ Math.round(volume * 100) }}</div>
+                  <input
+                    class="volume-slider"
+                    type="range"
+                    min="0"
+                    max="100"
+                    step="1"
+                    :value="Math.round(volume * 100)"
+                    @input="onVolumeInput"
+                  />
+                </div>
+              </div>
+
+              <!-- 画中画 -->
+              <button class="ctrl-icon-btn has-tooltip" type="button" :data-tip="pipTipText" @click="togglePiP">
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M19 7H5v10h14V7zm-1.5 1.5v7h-11v-7h11zM14 10h3v3h-3v-3z"></path>
+                </svg>
+              </button>
+
+              <!-- 宽屏 -->
+              <button class="ctrl-icon-btn has-tooltip" type="button" :data-tip="widescreenTipText" @click="toggleWidescreen">
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M3 7h18v10H3V7zm2 2v6h14V9H5z"></path>
+                </svg>
+              </button>
+
+              <!-- 网页全屏 -->
+              <button class="ctrl-icon-btn has-tooltip" type="button" :data-tip="webFullscreenTipText" @click="toggleWebFullscreen">
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M4 9V4h5v2H6v3H4zm10-5h5v5h-2V6h-3V4zM4 15h2v3h3v2H4v-5zm13 3v-3h2v5h-5v-2h3z"></path>
+                </svg>
+              </button>
+
+              <!-- 进入全屏 -->
+              <button class="ctrl-icon-btn has-tooltip" type="button" :data-tip="fullscreenTipText" @click="enterFullscreen">
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M4 9V4h5v2H6v3H4zm10-5h5v5h-2V6h-3V4zM4 15h2v3h3v2H4v-5zm13 3v-3h2v5h-5v-2h3z"></path>
+                </svg>
+              </button>
+            </div>
+          </div>
+        </div>
+
+          <!-- 弹幕展示层 -->
+          <div class="danmaku-layer" v-if="danmakuEnabled && !isMiniPlayer">
           <div
             v-for="item in danmakuItems"
             :key="item.id"
@@ -84,12 +247,15 @@
               animationDuration: item.duration + 's',
               color: item.color || '#ffffff',
               opacity: danmakuOpacity,
-              fontSize: danmakuFontSizePx + 'px',
+              fontSize: (item.fontSizePx || danmakuFontSizePx) + 'px',
+              border: item.isSelf ? '1.5px solid currentColor' : 'none',
+              borderRadius: '0',
               '--danmaku-travel-distance': (item.travelDistancePx || 0) + 'px',
               animationPlayState: isVideoPlaying ? 'running' : 'paused'
             }"
           >
             {{ item.content }}
+          </div>
           </div>
         </div>
       </div>
@@ -232,17 +398,71 @@
           </div>
         </div>
         <div class="danmaku-input-wrapper">
-          <input
-            v-model="danmakuInput"
-            class="danmaku-input"
-            type="text"
-            :disabled="!danmakuEnabled"
-            :placeholder="danmakuEnabled ? '发个友善的弹幕见证当下' : '已关闭弹幕'"
-            @keyup.enter="handleSendDanmaku"
-          />
-          <button class="danmaku-etiquette-btn" @click="ElMessage.info('请遵守弹幕礼仪，文明发言')">
-            弹幕礼仪 >
-          </button>
+          <div class="danmaku-input-box">
+            <div class="sender-settings-wrap" ref="senderSettingsWrapRef">
+              <button
+                class="sender-settings-btn"
+                :disabled="!danmakuEnabled"
+                :class="{ 'is-disabled': !danmakuEnabled, 'is-active': isSenderSettingsOpen }"
+                title="发送弹幕设置"
+                @click="toggleSenderSettingsPanel"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" xml:space="preserve" viewBox="0 0 22 22">
+                  <path d="M17 16H5c-.55 0-1 .45-1 1s.45 1 1 1h12c.55 0 1-.45 1-1s-.45-1-1-1zM6.96 15c.39 0 .74-.24.89-.6l.65-1.6h5l.66 1.6c.15.36.5.6.89.6.69 0 1.15-.71.88-1.34l-3.88-8.97C11.87 4.27 11.46 4 11 4s-.87.27-1.05.69l-3.88 8.97c-.27.63.2 1.34.89 1.34zM11 5.98 12.87 11H9.13L11 5.98z"></path>
+                </svg>
+              </button>
+              <div v-if="isSenderSettingsOpen && danmakuEnabled" class="sender-settings-panel">
+                <div class="sender-setting-row">
+                  <span class="sender-setting-label">字号</span>
+                  <div class="sender-size-options">
+                    <button
+                      v-for="opt in senderDanmakuSizeOptions"
+                      :key="opt.key"
+                      class="sender-size-btn"
+                      :class="{ 'is-active': senderDanmakuSizeKey === opt.key }"
+                      @click="senderDanmakuSizeKey = opt.key"
+                    >
+                      {{ opt.label }}
+                    </button>
+                  </div>
+                </div>
+                <div class="sender-setting-row">
+                  <span class="sender-setting-label">颜色</span>
+                  <div class="sender-color-wrap">
+                    <input
+                      v-model="senderDanmakuColor"
+                      class="sender-color-input"
+                      type="text"
+                      maxlength="7"
+                      @blur="normalizeSenderDanmakuColor"
+                    />
+                    <span class="sender-color-preview" :style="{ backgroundColor: senderDanmakuColor }"></span>
+                  </div>
+                  <div class="sender-color-grid">
+                    <button
+                      v-for="color in senderDanmakuColorOptions"
+                      :key="color"
+                      class="sender-color-btn"
+                      :style="{ backgroundColor: color }"
+                      :class="{ 'is-active': senderDanmakuColor.toLowerCase() === color.toLowerCase() }"
+                      @click="senderDanmakuColor = color"
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+            <input
+              v-model="danmakuInput"
+              class="danmaku-input"
+              type="text"
+              :disabled="!danmakuEnabled"
+              :placeholder="danmakuEnabled ? '发个友善的弹幕见证当下' : '已关闭弹幕'"
+              @keyup.enter="handleSendDanmaku"
+            />
+            <span class="danmaku-etiquette-text" @click="ElMessage.info('请遵守弹幕礼仪，文明发言')">
+              弹幕礼仪 &gt;
+            </span>
+          </div>
           <button class="danmaku-send-btn" :disabled="!danmakuEnabled" @click="handleSendDanmaku">
             发送
           </button>
@@ -329,12 +549,87 @@
                  </div>
 
                  <div class="action-right">
-                   <button class="action-link" @click="ElMessage.info('开发中')">稿件举报</button>
-                   <button class="action-link" @click="ElMessage.info('开发中')">记笔记</button>
+                  <button class="action-link" @click="openReportDialog">
+                    <svg
+                      class="video-complaint-icon video-toolbar-item-icon"
+                      width="20"
+                      height="20"
+                      viewBox="0 0 24 24"
+                      xmlns="http://www.w3.org/2000/svg"
+                      fill="currentColor"
+                    >
+                      <path
+                        fill-rule="evenodd"
+                        clip-rule="evenodd"
+                        d="M9.40194 3.75C10.5566 1.74999 13.4434 1.75001 14.5981 3.75L21.7428 16.125C22.8975 18.125 21.4541 20.625 19.1447 20.625H4.8553C2.5459 20.625 1.10253 18.125 2.25723 16.125L9.40194 3.75ZM12.866 4.75C12.4811 4.08333 11.5189 4.08333 11.134 4.75L3.98928 17.125C3.60438 17.7917 4.08551 18.625 4.8553 18.625H19.1447C19.9145 18.625 20.3957 17.7917 20.0108 17.125L12.866 4.75Z"
+                      ></path>
+                      <path
+                        fill-rule="evenodd"
+                        clip-rule="evenodd"
+                        d="M12 8C12.4142 8 12.75 8.33579 12.75 8.75V13.75C12.75 14.1642 12.4142 14.5 12 14.5C11.5858 14.5 11.25 14.1642 11.25 13.75V8.75C11.25 8.33579 11.5858 8 12 8Z"
+                      ></path>
+                      <path
+                        fill-rule="evenodd"
+                        clip-rule="evenodd"
+                        d="M12 15.5C12.4142 15.5 12.75 15.8358 12.75 16.25V16.75C12.75 17.1642 12.4142 17.5 12 17.5C11.5858 17.5 11.25 17.1642 11.25 16.75V16.25C11.25 15.8358 11.5858 15.5 12 15.5Z"
+                      ></path>
+                    </svg>
+                    <span class="action-link-text">稿件举报</span>
+                  </button>
+                  <button class="action-link" @click="openNoteDialog">
+                    <svg
+                      class="video-note-icon video-toolbar-item-icon"
+                      width="20"
+                      height="20"
+                      viewBox="0 0 24 24"
+                      xmlns="http://www.w3.org/2000/svg"
+                      fill="currentColor"
+                    >
+                      <path
+                        fill-rule="evenodd"
+                        clip-rule="evenodd"
+                        d="M6.75 10C6.75 9.58579 7.08579 9.25 7.5 9.25H16.5C16.9142 9.25 17.25 9.58579 17.25 10C17.25 10.4142 16.9142 10.75 16.5 10.75H7.5C7.08579 10.75 6.75 10.4142 6.75 10Z"
+                      ></path>
+                      <path
+                        fill-rule="evenodd"
+                        clip-rule="evenodd"
+                        d="M6.75 14C6.75 13.5858 7.08579 13.25 7.5 13.25H13C13.4142 13.25 13.75 13.5858 13.75 14C13.75 14.4142 13.4142 14.75 13 14.75H7.5C7.08579 14.75 6.75 14.4142 6.75 14Z"
+                      ></path>
+                      <path
+                        fill-rule="evenodd"
+                        clip-rule="evenodd"
+                        d="M12 5.25C9.48998 5.25 7.29811 5.3777 5.75109 5.50315C4.79223 5.58091 4.05407 6.31053 3.96899 7.25687C3.85555 8.51874 3.75 10.1822 3.75 12C3.75 13.8178 3.85555 15.4813 3.96899 16.7431C4.05408 17.6895 4.79214 18.4191 5.75095 18.4968C7.17292 18.6122 9.14013 18.7294 11.3987 18.7476C11.951 18.752 12.3951 19.2033 12.3906 19.7556C12.3862 20.3079 11.9349 20.752 11.3826 20.7475C9.06584 20.7289 7.04905 20.6087 5.58929 20.4903C3.67182 20.3348 2.15034 18.8499 1.97703 16.9222C1.8597 15.6172 1.75 13.892 1.75 12C1.75 10.108 1.8597 8.38283 1.97703 7.07779C2.15034 5.15 3.67203 3.66518 5.58944 3.50969C7.17721 3.38094 9.42438 3.25 12 3.25C14.5759 3.25 16.8232 3.38096 18.411 3.50973C20.3281 3.6652 21.8497 5.14946 22.0231 7.07716C22.1127 8.07392 22.1977 9.31512 22.233 10.6888C22.2471 11.2409 21.811 11.6999 21.2589 11.7141C20.7068 11.7282 20.2478 11.2921 20.2336 10.74C20.1997 9.41683 20.1177 8.21901 20.0311 7.25626C19.946 6.31026 19.2081 5.58094 18.2494 5.50319C16.7023 5.37772 14.5103 5.25 12 5.25Z"
+                      ></path>
+                      <path
+                        fill-rule="evenodd"
+                        clip-rule="evenodd"
+                        d="M18.2557 13.3102C19.0368 12.5292 20.3031 12.5292 21.0841 13.3102L22.4983 14.7244C23.2794 15.5055 23.2794 16.7718 22.4983 17.5528L18.5486 21.5026C18.1735 21.8777 17.6648 22.0884 17.1344 22.0884L15.0702 22.0884C14.3246 22.0884 13.7202 21.484 13.7202 20.7384V18.6742C13.7202 18.1437 13.9309 17.635 14.306 17.26L18.2557 13.3102ZM21.0841 16.1386L19.6699 14.7244L15.7202 18.6742L15.7202 20.0884L17.1344 20.0884L21.0841 16.1386Z"
+                      ></path>
+                    </svg>
+                    <span class="action-link-text">记笔记</span>
+                  </button>
                    <button class="action-more" @click="ElMessage.info('开发中')">⋯</button>
                  </div>
                </div>
 
+      <!-- 简介与标签 -->
+      <div v-if="!isWidescreen" class="desc">
+        <div class="tags">
+          <el-tag v-for="t in tags" :key="t" size="small" effect="light">{{ t }}</el-tag>
+        </div>
+        <p class="intro">{{ description }}</p>
+      </div>
+
+      <!-- 评论区组件 -->
+      <VideoComments
+        v-if="!isWidescreen"
+        :video-id="videoData.videoId || route.params.id"
+        @comment-total-change="onCommentTotalChange"
+      />
+    </section>
+
+    <!-- 左下内容区（仅宽屏显示） -->
+    <section v-if="isWidescreen" class="content-main">
       <!-- 简介与标签 -->
       <div class="desc">
         <div class="tags">
@@ -344,12 +639,15 @@
       </div>
 
       <!-- 评论区组件 -->
-      <VideoComments :video-id="videoData.videoId || route.params.id" />
+      <VideoComments
+        :video-id="videoData.videoId || route.params.id"
+        @comment-total-change="onCommentTotalChange"
+      />
     </section>
 
     <!-- 右侧推荐区 -->
     <aside class="sidebar">
-      <div class="uploader-card">
+      <div v-if="!isWidescreen" class="uploader-card">
         <img v-if="uploader.avatar" class="u-avatar" :src="uploader.avatar" :alt="uploader.name || '作者'" />
         <div v-else class="u-avatar-placeholder"></div>
         <div class="u-info">
@@ -388,7 +686,10 @@
         :fallback-cover="fallbackCover"
       />
     </aside>
-    
+
+    <VideoComplaintDialog v-model="reportDialogVisible" :video-id="currentVideoId" />
+    <VideoNoteDialog v-model="noteDialogVisible" :video-id="currentVideoId" />
+
     </div>
   </div>
 </template>
@@ -412,6 +713,8 @@ import { heartbeatWatch } from '@/api/watch'
 import DanmakuList from './DanmakuList.vue'
 import VideoRecommendList from './VideoRecommendList.vue'
 import VideoComments from './VideoComments.vue'
+import VideoComplaintDialog from './components/VideoComplaintDialog.vue'
+import VideoNoteDialog from './components/VideoNoteDialogClean.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -440,8 +743,44 @@ const danmakuListStyle = computed(() => {
   return style
 })
 const isVideoPlaying = ref(true)
-const isVideoHovered = ref(false)
-const nativeControlsEnabled = computed(() => isVideoPlaying.value || isVideoHovered.value)
+const progressBarRef = ref(null)
+const currentVideoTimeSec = ref(0)
+
+// 右下角控件（清晰度/倍速/字幕/音量/设置）
+const ctrlGroupRef = ref(null)
+const openPanel = ref(null) // 'quality' | 'speed' | 'volume'
+const speedOptions = [2.0, 1.5, 1.25, 1.0, 0.75, 0.5]
+const playbackRate = ref(1.0)
+const volume = ref(1.0)
+const isWebFullscreen = ref(false)
+const isWidescreen = ref(false)
+const isMiniPlayer = ref(false)
+const isPictureInPicture = ref(false)
+const isFullscreenActive = ref(false)
+const miniPosX = ref(null)
+const miniPosY = ref(null)
+const miniDragging = ref(false)
+let miniDragOffsetX = 0
+let miniDragOffsetY = 0
+let miniDragMoveHandler = null
+let miniDragUpHandler = null
+const MINI_PLAYER_W = 360
+const MINI_PLAYER_H = 202
+
+const qualityOptions = [
+  { key: '4k', label: '4K 超高清', vip: true },
+  { key: '1080p_high_rate', label: '1080P 高码率', vip: true },
+  { key: '1080p', label: '1080P 高清', vip: false },
+  { key: '720p', label: '720P 准高清', vip: false },
+  { key: '480p', label: '480P 标清', vip: false },
+  { key: '360p', label: '360P 流畅', vip: false },
+]
+const selectedQualityKey = ref('auto')
+const qualityLabel = computed(() => {
+  if (selectedQualityKey.value === 'auto') return '自动'
+  const hit = qualityOptions.find(q => q.key === selectedQualityKey.value)
+  return hit ? hit.label.replace(/\s.*$/, '') : '自动'
+})
 const videoData = ref({
   id: '',
   title: '',
@@ -458,6 +797,13 @@ const danmakuCount = ref('0')
 const likeCount = ref(0)
 const favoriteCount = ref(0)
 const coinCount = ref(0)
+
+// 稿件举报 / 记笔记弹窗开关（表单逻辑在各自组件内）
+const reportDialogVisible = ref(false)
+const noteDialogVisible = ref(false)
+
+const currentVideoId = computed(() => videoData.value.videoId || route.params.id)
+
 const tags = ref(['本地视频', '离线播放'])
 const description = ref('播放来自 E:\\Videos 目录的本地视频。')
 const uploadTime = ref('')
@@ -504,6 +850,15 @@ const pendingDanmakuQueue = ref([]) // 已拉取但未到展示时间的弹幕�
 let lastVideoTimeSec = 0
 
 const miniProgressPercent = ref(0)
+const previewVideoPlayer = ref(null)
+const previewVisible = ref(false)
+const previewTimeSec = ref(0)
+const previewLeftPx = ref(0)
+const isPlayerHovered = ref(false)
+const isPlayerActive = computed(() => isPlayerHovered.value || openPanel.value !== null)
+let previewSeekTimer = null
+let previewSeekSeq = 0
+const PREVIEW_WIDTH_PX = 180
 const danmakuEnabled = ref(true) // 弹幕开关状态
 const watchingCount = ref(1)
 const loadedDanmakuCount = ref(0) // 已装填弹幕数
@@ -603,6 +958,46 @@ const onDanmakuSettingsLeave = () => {
     isDanmakuSettingsOpen.value = false
     danmakuSettingsCloseTimer = null
   }, 80)
+}
+
+const senderSettingsWrapRef = ref(null)
+const isSenderSettingsOpen = ref(false)
+const senderDanmakuColor = ref('#FE0302')
+const senderDanmakuColorOptions = [
+  '#FE0302', '#FF7A00', '#FFB300', '#FFD200', '#F7F71C', '#8DEB00', '#00C800',
+  '#00A2A5', '#3E67C4', '#75BDF0', '#E3008C', '#1A1A1A', '#9B9B9B', '#FFFFFF'
+]
+const senderDanmakuSizeOptions = [
+  { key: 'small', label: '小', px: 14 },
+  { key: 'normal', label: '标准', px: 16 }
+]
+const senderDanmakuSizeKey = ref('small')
+
+const senderDanmakuFontSizePx = computed(() => {
+  const option = senderDanmakuSizeOptions.find(opt => opt.key === senderDanmakuSizeKey.value)
+  return option?.px || 14
+})
+
+const normalizeSenderDanmakuColor = () => {
+  const raw = (senderDanmakuColor.value || '').trim()
+  const color = raw.startsWith('#') ? raw : `#${raw}`
+  if (/^#[0-9a-fA-F]{6}$/.test(color)) {
+    senderDanmakuColor.value = color.toUpperCase()
+  } else {
+    senderDanmakuColor.value = '#FE0302'
+  }
+}
+
+const toggleSenderSettingsPanel = () => {
+  if (!danmakuEnabled.value) return
+  isSenderSettingsOpen.value = !isSenderSettingsOpen.value
+}
+
+const onGlobalClickCloseSenderSettings = (event) => {
+  const target = event?.target
+  if (!target) return
+  if (senderSettingsWrapRef.value && senderSettingsWrapRef.value.contains(target)) return
+  isSenderSettingsOpen.value = false
 }
 
 // “在看人数”心跳（轻量实现：TTL 计数）
@@ -736,8 +1131,8 @@ const loadVideo = async () => {
       }
     }
 
-    // 加载评论
-    await loadComments(true)
+    // 顶部 meta 的评论数由 `VideoComments.vue` 通过事件同步，
+    // 这里不再额外加载，避免“顶层/包含回复口径不同”导致不一致
 
     // 加载相关推荐（同UP其他视频）
     await loadRecommends()
@@ -830,6 +1225,14 @@ onMounted(() => {
   // 在看人数：立即心跳一次，并周期上报
   sendWatchHeartbeat()
   watchHeartbeatTimer = setInterval(sendWatchHeartbeat, 10_000)
+  window.addEventListener('mousedown', onGlobalClickCloseSenderSettings)
+  window.addEventListener('mousedown', onGlobalClickCloseCtrlPanels)
+  const v = videoPlayer.value
+  if (v) {
+    v.addEventListener('enterpictureinpicture', onEnterPictureInPicture)
+    v.addEventListener('leavepictureinpicture', onLeavePictureInPicture)
+  }
+  window.addEventListener('fullscreenchange', onFullscreenChange)
 })
 
 watch(() => route.params.id, () => {
@@ -854,6 +1257,30 @@ const commentTotal = ref(0)
 const loadingComments = ref(false)
 const submittingComment = ref(false)
 const activeCommentSort = ref('time')
+
+// 用于同步顶部 meta 区“评论数量”，确保与右侧评论区一致
+const onCommentTotalChange = (val) => {
+  const n = Number(val)
+  commentTotal.value = Number.isFinite(n) && n >= 0 ? n : 0
+}
+
+// ========== 稿件举报 / 记笔记 ==========
+const openReportDialog = () => {
+  if (!userStore.isAuthenticated) {
+    ElMessage.warning('请先登录')
+    return
+  }
+  reportDialogVisible.value = true
+}
+
+const openNoteDialog = () => {
+  if (!userStore.isAuthenticated) {
+    ElMessage.warning('请先登录')
+    return
+  }
+  noteDialogVisible.value = true
+}
+
 const replyTarget = ref(null) // 当前正在回复的评论
 const replyText = ref('')
 const replyCache = ref({}) // key: commentId, value: replies 数组
@@ -1202,6 +1629,36 @@ const formatVideoTime = (seconds) => {
   return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`
 }
 
+const parseDurationToSeconds = (value) => {
+  if (value == null) return 0
+  if (typeof value === 'number') {
+    return Number.isFinite(value) && value > 0 ? value : 0
+  }
+  const text = String(value).trim()
+  if (!text) return 0
+  if (/^\d+(\.\d+)?$/.test(text)) {
+    const n = Number(text)
+    return Number.isFinite(n) && n > 0 ? n : 0
+  }
+  const parts = text.split(':').map(part => Number(part))
+  if (parts.some(n => !Number.isFinite(n) || n < 0)) return 0
+  if (parts.length === 2) {
+    return parts[0] * 60 + parts[1]
+  }
+  if (parts.length === 3) {
+    return parts[0] * 3600 + parts[1] * 60 + parts[2]
+  }
+  return 0
+}
+
+const getVideoDurationSec = () => {
+  const playerDuration = Number(videoPlayer.value?.duration)
+  if (Number.isFinite(playerDuration) && playerDuration > 0) {
+    return playerDuration
+  }
+  return parseDurationToSeconds(videoData.value?.duration)
+}
+
 // 格式化发送时间（显示到“年-月-日 时:分”）
 const formatSendTime = (timestamp) => {
   if (!timestamp) return ''
@@ -1496,13 +1953,14 @@ const getPlayerWidthPx = () => {
   return Math.max(1, width)
 }
 
-const measureDanmakuTextWidthPx = (content) => {
+const measureDanmakuTextWidthPx = (content, fontSizePx = null) => {
   const text = (content || '').toString()
   if (!text) return 0
   const canvas = measureDanmakuTextWidthPx._canvas || (measureDanmakuTextWidthPx._canvas = document.createElement('canvas'))
   const ctx = canvas.getContext('2d')
   if (!ctx) return text.length * 16
-  ctx.font = `600 ${danmakuFontSizePx.value}px sans-serif`
+  const size = Number(fontSizePx ?? danmakuFontSizePx.value) || 16
+  ctx.font = `600 ${size}px sans-serif`
   return Math.ceil(ctx.measureText(text).width)
 }
 
@@ -1533,14 +1991,17 @@ const addDanmakuToLayer = (
   mode = 'scroll',
   forcedTrack = null,
   textWidthPx = null,
-  travelDistancePx = null
+  travelDistancePx = null,
+  fontSizePx = null,
+  isSelf = false
 ) => {
   const id = danmakuIdCounter++
   const trackCount = visibleDanmakuTrackCount.value
   const track = Number.isInteger(forcedTrack) ? forcedTrack : (danmakuTrackCursor % trackCount)
   danmakuTrackCursor = (track + 1) % Math.max(1, trackCount)
   const durationSec = Number(danmakuAnimationDurationSec.value) || DANMAKU_ANIM_DURATION_FALLBACK_SEC
-  const widthPx = Math.max(1, Number(textWidthPx ?? measureDanmakuTextWidthPx(content)) || 1)
+  const actualFontSizePx = Number(fontSizePx ?? danmakuFontSizePx.value) || 16
+  const widthPx = Math.max(1, Number(textWidthPx ?? measureDanmakuTextWidthPx(content, actualFontSizePx)) || 1)
   const distancePx = Math.max(1, Number(travelDistancePx ?? (getPlayerWidthPx() + widthPx + 48)) || 1)
   const item = {
     id,
@@ -1550,7 +2011,9 @@ const addDanmakuToLayer = (
     duration: durationSec,
     color,
     mode,
-    travelDistancePx: distancePx
+    travelDistancePx: distancePx,
+    fontSizePx: actualFontSizePx,
+    isSelf: Boolean(isSelf)
   }
   danmakuItems.value.push(item)
   danmakuTrackStateMap.set(track, {
@@ -1619,7 +2082,9 @@ const flushDueDanmaku = (currentTimeSec) => {
     // 所有轨道都暂不可发射时，保留队列头，等待更紧凑但不重叠的同轨续发
     if (track === -1) break
     queue.shift()
-    addDanmakuToLayer(next.content, next.time, next.color, next.mode, track, contentWidthPx, travelDistancePx)
+    const currentUserId = userStore.user?.userId || userStore.user?.id
+    const isSelfDanmaku = currentUserId != null && next.userId != null && String(currentUserId) === String(next.userId)
+    addDanmakuToLayer(next.content, next.time, next.color, next.mode, track, contentWidthPx, travelDistancePx, null, isSelfDanmaku)
   }
 }
 
@@ -1655,14 +2120,17 @@ const handleSendDanmaku = async () => {
   const currentTime = videoPlayer.value.currentTime || 0
 
   try {
+    normalizeSenderDanmakuColor()
+    const sendColor = senderDanmakuColor.value || '#FE0302'
+    const sendFontSizePx = senderDanmakuFontSizePx.value
     await sendDanmaku(videoId, {
       time: currentTime,
       content: text,
-      color: '#ffffff',
+      color: sendColor,
       mode: 'scroll'
     })
     // 本地立即显示一条（更有反馈感）
-    addDanmakuToLayer(text, currentTime, '#ffffff', 'scroll')
+    addDanmakuToLayer(text, currentTime, sendColor, 'scroll', null, null, null, sendFontSizePx, true)
     danmakuInput.value = ''
     // 更新弹幕总数
     loadedDanmakuCount.value += 1
@@ -1677,6 +2145,7 @@ const toggleDanmaku = () => {
   danmakuEnabled.value = !danmakuEnabled.value
   if (!danmakuEnabled.value) {
     isDanmakuSettingsOpen.value = false
+    isSenderSettingsOpen.value = false
     // 关闭弹幕时清空屏幕上的弹幕
     danmakuItems.value = []
     danmakuTrackStateMap.clear()
@@ -1698,11 +2167,292 @@ const getDanmakuTopPx = (track) => {
   return DANMAKU_BASE_TOP_PX + safeTrack * DANMAKU_BASE_STEP_PX
 }
 
+const clampValue = (value, min, max) => Math.max(min, Math.min(max, value))
+
+const updatePreviewFrame = (timeSec) => {
+  const pv = previewVideoPlayer.value
+  if (!pv) return
+
+  const token = ++previewSeekSeq
+  if (previewSeekTimer) window.clearTimeout(previewSeekTimer)
+  previewSeekTimer = window.setTimeout(() => {
+    if (token !== previewSeekSeq || !previewVideoPlayer.value) return
+    try {
+      const v = previewVideoPlayer.value
+      v.pause()
+      const duration = Number(videoPlayer.value?.duration || 0) || 0
+      const target = clampValue(timeSec, 0, Math.max(0, duration - 0.01))
+      v.currentTime = target
+    } catch {
+      // 预览失败不影响主播放
+    }
+  }, 80)
+}
+
+const onPlayerMouseMove = (event) => {
+  if (!progressBarRef.value || !videoPlayer.value) return
+  const duration = getVideoDurationSec()
+  if (!duration) return
+
+  const rect = progressBarRef.value.getBoundingClientRect()
+  if (!rect.width) return
+
+  const x = clampValue(event.clientX - rect.left, 0, rect.width)
+  const ratio = x / rect.width
+  const t = duration * ratio
+
+  previewTimeSec.value = t
+  previewLeftPx.value = clampValue(x - PREVIEW_WIDTH_PX / 2, 6, rect.width - PREVIEW_WIDTH_PX - 6)
+  previewVisible.value = true
+  updatePreviewFrame(t)
+}
+
+const onPlayerMouseLeave = () => {
+  previewVisible.value = false
+}
+
+const onPlayerEnter = () => {
+  isPlayerHovered.value = true
+}
+
+const onPlayerLeave = () => {
+  isPlayerHovered.value = false
+  previewVisible.value = false
+}
+
+const togglePanel = (key) => {
+  openPanel.value = (openPanel.value === key) ? null : key
+}
+
+const selectQuality = (key) => {
+  selectedQualityKey.value = key
+  openPanel.value = null
+}
+
+const setPlaybackRate = (rate) => {
+  const v = videoPlayer.value
+  if (!v) return
+  playbackRate.value = rate
+  v.playbackRate = rate
+  openPanel.value = null
+}
+
+const onVolumeInput = (event) => {
+  const v = videoPlayer.value
+  if (!v) return
+  const val = Number(event?.target?.value || 0)
+  const vol = Math.max(0, Math.min(100, val)) / 100
+  volume.value = vol
+  v.volume = vol
+  v.muted = vol === 0
+}
+
+const togglePiP = async () => {
+  // 浏览器原生画中画（可跨应用悬浮置顶）
+  const v = videoPlayer.value
+  if (!v) return
+  try {
+    // @ts-ignore
+    if (document.pictureInPictureElement) {
+      // @ts-ignore
+      await document.exitPictureInPicture()
+      isPictureInPicture.value = false
+    } else {
+      // @ts-ignore
+      await v.requestPictureInPicture()
+      isPictureInPicture.value = true
+    }
+  } catch {
+    // ignore: 不支持/无权限/未满足用户手势等
+  } finally {
+    openPanel.value = null
+  }
+}
+
+const miniPlayerStyle = computed(() => {
+  if (!isMiniPlayer.value) return {}
+  const x = Number(miniPosX.value)
+  const y = Number(miniPosY.value)
+  if (!Number.isFinite(x) || !Number.isFinite(y)) return {}
+  return {
+    left: `${x}px`,
+    top: `${y}px`,
+    right: 'auto',
+    bottom: 'auto'
+  }
+})
+
+const clampToViewport = (x, y) => {
+  const vw = window.innerWidth || 0
+  const vh = window.innerHeight || 0
+  const maxX = Math.max(0, vw - MINI_PLAYER_W)
+  const maxY = Math.max(0, vh - MINI_PLAYER_H)
+  return {
+    x: Math.max(0, Math.min(maxX, x)),
+    y: Math.max(0, Math.min(maxY, y)),
+  }
+}
+
+const onMiniDragStart = (event) => {
+  if (!isMiniPlayer.value) return
+  const rect = playerRef.value?.getBoundingClientRect()
+  if (!rect) return
+  miniDragging.value = true
+  const startX = event.clientX
+  const startY = event.clientY
+  miniDragOffsetX = startX - rect.left
+  miniDragOffsetY = startY - rect.top
+
+  miniDragMoveHandler = (e) => {
+    if (!miniDragging.value) return
+    const nextX = e.clientX - miniDragOffsetX
+    const nextY = e.clientY - miniDragOffsetY
+    const clamped = clampToViewport(nextX, nextY)
+    miniPosX.value = clamped.x
+    miniPosY.value = clamped.y
+  }
+  miniDragUpHandler = () => {
+    miniDragging.value = false
+    if (miniDragMoveHandler) {
+      window.removeEventListener('mousemove', miniDragMoveHandler)
+      miniDragMoveHandler = null
+    }
+    if (miniDragUpHandler) {
+      window.removeEventListener('mouseup', miniDragUpHandler)
+      miniDragUpHandler = null
+    }
+  }
+
+  window.addEventListener('mousemove', miniDragMoveHandler)
+  window.addEventListener('mouseup', miniDragUpHandler)
+}
+
+const toggleWidescreen = () => {
+  const next = !isWidescreen.value
+  // 三种显示状态互斥：宽屏 / 网页全屏 / 全屏
+  isWebFullscreen.value = false
+  if (document.fullscreenElement) {
+    document.exitFullscreen().catch(() => {})
+  }
+  isFullscreenActive.value = false
+  isWidescreen.value = next
+  openPanel.value = null
+}
+
+const toggleWebFullscreen = () => {
+  const next = !isWebFullscreen.value
+  // 三种显示状态互斥：宽屏 / 网页全屏 / 全屏
+  isWidescreen.value = false
+  if (document.fullscreenElement) {
+    document.exitFullscreen().catch(() => {})
+  }
+  isFullscreenActive.value = false
+  isWebFullscreen.value = next
+  openPanel.value = null
+}
+
+const enterFullscreen = async () => {
+  const el = playerRef.value
+  if (!el) return
+  try {
+    if (document.fullscreenElement) {
+      await document.exitFullscreen()
+      isFullscreenActive.value = false
+    } else {
+      // 三种显示状态互斥：进入全屏前先退出宽屏/网页全屏
+      isWidescreen.value = false
+      isWebFullscreen.value = false
+      await el.requestFullscreen()
+      isFullscreenActive.value = true
+    }
+  } catch {
+    // ignore
+  } finally {
+    openPanel.value = null
+  }
+}
+
+const pipTipText = computed(() => `${isPictureInPicture.value ? '退出' : ''}开启画中画`)
+const widescreenTipText = computed(() => `${isWidescreen.value ? '退出' : ''}宽屏模式`)
+const webFullscreenTipText = computed(() => `${isWebFullscreen.value ? '退出' : ''}网页全屏`)
+const fullscreenTipText = computed(() => `${isFullscreenActive.value ? '退出' : ''}进入全屏（f）`)
+
+const onGlobalClickCloseCtrlPanels = (event) => {
+  const target = event?.target
+  if (!target) return
+  if (ctrlGroupRef.value && ctrlGroupRef.value.contains(target)) return
+  openPanel.value = null
+}
+
+const onEnterPictureInPicture = () => {
+  isPictureInPicture.value = true
+}
+
+const onLeavePictureInPicture = () => {
+  isPictureInPicture.value = false
+}
+
+const onFullscreenChange = () => {
+  isFullscreenActive.value = Boolean(document.fullscreenElement)
+}
+
+const currentTimeText = computed(() => formatVideoTime(currentVideoTimeSec.value))
+const durationText = computed(() => {
+  return formatVideoTime(getVideoDurationSec())
+})
+
+const togglePlayPause = () => {
+  if (!videoPlayer.value) return
+  if (videoPlayer.value.paused) {
+    videoPlayer.value.play().catch(() => {})
+  } else {
+    videoPlayer.value.pause()
+  }
+}
+
+const seekByClientX = (clientX) => {
+  if (!videoPlayer.value || !progressBarRef.value) return
+  const duration = getVideoDurationSec()
+  if (!duration) return
+  const rect = progressBarRef.value.getBoundingClientRect()
+  if (!rect.width) return
+  const ratio = clampValue((clientX - rect.left) / rect.width, 0, 1)
+  const t = duration * ratio
+  videoPlayer.value.currentTime = t
+  currentVideoTimeSec.value = t
+  miniProgressPercent.value = Math.max(0, Math.min(100, ratio * 100))
+}
+
+const onProgressBarClick = (event) => {
+  seekByClientX(event.clientX)
+}
+
+let progressDragMoveHandler = null
+let progressDragUpHandler = null
+const onProgressBarMouseDown = (event) => {
+  event.preventDefault()
+  seekByClientX(event.clientX)
+  progressDragMoveHandler = (e) => seekByClientX(e.clientX)
+  progressDragUpHandler = () => {
+    if (progressDragMoveHandler) {
+      window.removeEventListener('mousemove', progressDragMoveHandler)
+      progressDragMoveHandler = null
+    }
+    if (progressDragUpHandler) {
+      window.removeEventListener('mouseup', progressDragUpHandler)
+      progressDragUpHandler = null
+    }
+  }
+  window.addEventListener('mousemove', progressDragMoveHandler)
+  window.addEventListener('mouseup', progressDragUpHandler)
+}
+
 // 视频时间更新事件
 const onTimeUpdate = () => {
   if (!videoPlayer.value) return
 
   const currentTime = videoPlayer.value.currentTime || 0
+  currentVideoTimeSec.value = currentTime
   const duration = videoPlayer.value.duration || 0
   if (duration > 0) {
     miniProgressPercent.value = Math.max(0, Math.min(100, (currentTime / duration) * 100))
@@ -1752,6 +2502,9 @@ const onVideoLoaded = () => {
 
   const duration = videoPlayer.value.duration || 0
   const currentTime = videoPlayer.value.currentTime || 0
+  currentVideoTimeSec.value = currentTime
+  playbackRate.value = Number(videoPlayer.value.playbackRate || 1) || 1
+  volume.value = Number(videoPlayer.value.volume ?? 1) || 1
   if (duration > 0) {
     miniProgressPercent.value = Math.max(0, Math.min(100, (currentTime / duration) * 100))
   }
@@ -1828,6 +2581,34 @@ onUnmounted(() => {
     window.clearTimeout(danmakuSettingsCloseTimer)
     danmakuSettingsCloseTimer = null
   }
+  if (previewSeekTimer) {
+    window.clearTimeout(previewSeekTimer)
+    previewSeekTimer = null
+  }
+  if (progressDragMoveHandler) {
+    window.removeEventListener('mousemove', progressDragMoveHandler)
+    progressDragMoveHandler = null
+  }
+  if (progressDragUpHandler) {
+    window.removeEventListener('mouseup', progressDragUpHandler)
+    progressDragUpHandler = null
+  }
+  if (miniDragMoveHandler) {
+    window.removeEventListener('mousemove', miniDragMoveHandler)
+    miniDragMoveHandler = null
+  }
+  if (miniDragUpHandler) {
+    window.removeEventListener('mouseup', miniDragUpHandler)
+    miniDragUpHandler = null
+  }
+  window.removeEventListener('mousedown', onGlobalClickCloseSenderSettings)
+  window.removeEventListener('mousedown', onGlobalClickCloseCtrlPanels)
+  const v = videoPlayer.value
+  if (v) {
+    v.removeEventListener('enterpictureinpicture', onEnterPictureInPicture)
+    v.removeEventListener('leavepictureinpicture', onLeavePictureInPicture)
+  }
+  window.removeEventListener('fullscreenchange', onFullscreenChange)
 })
 </script>
 
@@ -1847,48 +2628,539 @@ onUnmounted(() => {
 }
 
   .video-page {
+  box-sizing: border-box;
   display: grid;
   grid-template-columns: minmax(0, 1fr) 360px;
+  grid-template-rows: auto auto;
   gap: 16px;
   width: 86%;
   max-width: 1800px;
   margin: 0 auto;
   padding: 32px 16px 16px;
 
-  .player-area {
+  .player-main {
+    grid-column: 1;
+    grid-row: 1;
+  }
+
+  .content-main {
+    grid-column: 1;
+    grid-row: 2;
+  }
+
+  .sidebar {
+    grid-column: 2;
+    grid-row: 1 / span 2;
+  }
+
+  &.is-widescreen {
+    width: 80%;
+    max-width: 80%;
+    grid-template-columns: minmax(0, 1fr) 360px;
+    grid-template-rows: auto auto;
+
+    .player-main {
+      grid-column: 1 / -1;
+      grid-row: 1;
+    }
+
+    .content-main {
+      grid-column: 1;
+      grid-row: 2;
+    }
+
+    .sidebar {
+      grid-column: 2;
+      grid-row: 2;
+    }
+  }
+
+  &.is-web-fullscreen {
+    width: 100%;
+    max-width: none;
+    padding: 0;
+  }
+
+  .player-main {
     display: flex;
     flex-direction: column;
     // gap: 12px;
+
+    .player-shell {
+      position: relative;
+      width: 100%;
+      max-width: 100%;
+      aspect-ratio: 16 / 9;
+      background: #000;
+      overflow: hidden;
+    }
+
+    .player-shell > .player {
+      position: absolute;
+      inset: 0;
+    }
 
     .player {
       background: #000;
       // border-radius: 8px;
       overflow: hidden;
              position: relative;
-             aspect-ratio: 16 / 9;
+             aspect-ratio: auto;
 
-      .mini-progress {
-        position: absolute;
-        left: 0;
-        bottom: 0;
-        height: 2px;
-        background: #00aeec;
-        width: 0%;
-        z-index: 6;
-        pointer-events: none;
-        opacity: 1;
+      &.is-web-fullscreen {
+        position: fixed;
+        inset: 0;
+        width: 100vw;
+        height: 100vh;
+        aspect-ratio: auto;
+        z-index: 9999;
+        background: #000;
       }
 
-      /* 仅当鼠标悬停在真正的 video 区域内时隐藏进度条 */
-      .video:hover ~ .mini-progress {
-        opacity: 0;
+      .player-controls {
+        position: absolute;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        z-index: 10;
+        padding: 8px 14px 10px;
+        background: linear-gradient(to top, rgba(0, 0, 0, 0.8), rgba(0, 0, 0, 0));
+      }
+
+      // 鼠标移出时：隐藏底部控件区，但保留蓝色进度条
+      &:not(:hover) .controls-bottom-row {
+        display: none;
+      }
+
+      &:not(:hover) .player-controls {
+        padding: 0;
+        background: transparent;
+      }
+
+      &:not(:hover) .progress-bar-wrap {
+        position: absolute;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        height: 2px;
+      }
+
+      &:not(:hover) .progress-bar-thumb,
+      &:not(:hover) .hover-preview-box {
+        display: none;
+      }
+
+      .player-controls.is-idle {
+        padding: 8px 14px 10px;
+        background: linear-gradient(to top, rgba(0, 0, 0, 0.8), rgba(0, 0, 0, 0));
+      }
+
+      .player-controls.is-idle .controls-bottom-row {
+        display: none;
+      }
+
+      .player-controls.is-idle .progress-bar-wrap {
+        position: absolute;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        height: 2px;
+      }
+
+      .player-controls.is-idle .progress-bar-bg {
+        background: rgba(255, 255, 255, 0.32);
+      }
+
+      .player-controls.is-idle .progress-bar-fill {
+        background: #409eff;
+      }
+
+      .player-controls.is-idle .progress-bar-thumb,
+      .player-controls.is-idle .hover-preview-box {
+        display: none;
+      }
+
+      .progress-bar-wrap {
+        position: relative;
+        height: 3px;
+        cursor: pointer;
+      }
+
+      .progress-bar-bg {
+        position: absolute;
+        inset: 0;
+        border-radius: 0;
+        background: rgba(255, 255, 255, 0.24);
+      }
+
+      .progress-bar-fill {
+        position: absolute;
+        left: 0;
+        top: 0;
+        bottom: 0;
+        border-radius: 0;
+        background: #00aeec;
+      }
+
+      .progress-bar-thumb {
+        position: absolute;
+        top: 50%;
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+        background: #fff;
+        border: 1px solid rgba(0, 174, 236, 0.86);
+        transform: translate(-50%, -50%);
+      }
+
+      .controls-bottom-row {
+        margin-top: 8px;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        color: #fff;
+        font-size: 14px;
+        line-height: 1;
+      }
+
+      .control-play-btn {
+        border: none;
+        background: transparent;
+        color: #fff;
+        cursor: pointer;
+        padding: 0;
+        width: 22px;
+        height: 22px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+      }
+
+      .control-play-btn svg {
+        width: 18px;
+        height: 18px;
+        fill: currentColor;
+        display: block;
+      }
+
+      .control-time {
+        font-size: 14px;
+        color: #fff;
+      }
+
+      .controls-spacer {
+        flex: 1;
+      }
+
+      .control-item {
+        color: #fff;
+        opacity: 0.9;
+        font-size: 14px;
+      }
+
+      .ctrl-group {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        position: relative;
+      }
+
+      .ctrl-text-btn {
+        width: 32px;
+        height: 22px;
+        border: 1px solid transparent;
+        background: transparent;
+        color: rgba(255, 255, 255, 0.92);
+        font-size: 14px;
+        cursor: pointer;
+        padding: 0;
+        line-height: 22px;
+        text-align: center;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+      }
+
+      .ctrl-icon-wrap {
+        position: relative;
+        display: inline-flex;
+        align-items: center;
+      }
+
+      .ctrl-icon-btn {
+        width: 32px;
+        height: 22px;
+        border: none;
+        background: transparent;
+        color: rgba(255, 255, 255, 0.92);
+        cursor: pointer;
+        padding: 0;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+      }
+
+      .ctrl-icon-btn svg {
+        width: 18px;
+        height: 18px;
+        fill: currentColor;
+        display: block;
+      }
+
+      .ctrl-icon-btn.has-tooltip {
+        position: relative;
+      }
+
+      .ctrl-icon-btn.has-tooltip:hover::after {
+        content: attr(data-tip);
+        position: absolute;
+        left: 50%;
+        bottom: calc(100% + 8px);
+        transform: translateX(-50%);
+        white-space: nowrap;
+        padding: 6px 10px;
+        font-size: 13px;
+        color: #fff;
+        background: rgba(0, 0, 0, 0.86);
+        border-radius: 0;
+        line-height: 1;
+        pointer-events: none;
+        z-index: 40;
+      }
+
+      .ctrl-icon-btn.has-tooltip:hover::before {
+        content: '';
+        position: absolute;
+        left: 50%;
+        bottom: calc(100% + 2px);
+        transform: translateX(-50%);
+        width: 0;
+        height: 0;
+        border-left: 5px solid transparent;
+        border-right: 5px solid transparent;
+        border-top: 6px solid rgba(0, 0, 0, 0.86);
+        pointer-events: none;
+        z-index: 40;
+      }
+
+      .ctrl-panel {
+        position: absolute;
+        bottom: calc(100% + 10px);
+        left: 50%;
+        transform: translateX(-50%);
+        background: rgba(0, 0, 0, 0.78);
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        color: #fff;
+        padding: 10px 0;
+        min-width: 160px;
+        z-index: 30;
+      }
+
+      .ctrl-panel-item {
+        width: 100%;
+        padding: 10px 14px;
+        border: none;
+        background: transparent;
+        color: rgba(255, 255, 255, 0.92);
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        font-size: 14px;
+      }
+
+      .ctrl-panel-item:hover {
+        background: rgba(255, 255, 255, 0.08);
+      }
+
+      .ctrl-panel-item.is-active {
+        color: #00aeec;
+      }
+
+      .vip-tag {
+        background: #ff5c88;
+        color: #fff;
+        border-radius: 999px;
+        padding: 2px 8px;
+        font-size: 12px;
+      }
+
+      .ctrl-panel-speed {
+        min-width: 110px;
+      }
+
+      .ctrl-panel-volume {
+        min-width: 30px;
+        width: 30px;
+        height: 122px;
+        padding: 6px 0 4px;
+        left: 50%;
+        transform: translateX(-50%);
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: flex-start;
+      }
+
+      .volume-value {
+        text-align: center;
+        font-size: 11px;
+        line-height: 1;
+        margin: 0 0 4px;
+        font-weight: 500;
+      }
+
+      .volume-slider {
+        -webkit-appearance: none;
+        appearance: none;
+        width: 92px;
+        height: 2px;
+        transform: rotate(-90deg);
+        transform-origin: 50% 50%;
+        margin: 50px 0 0;
+        cursor: pointer;
+        background: transparent;
+      }
+
+      .volume-slider:focus,
+      .volume-slider:active {
+        outline: none;
+        box-shadow: none;
+      }
+
+      .volume-slider::-webkit-slider-runnable-track {
+        height: 2px;
+        background: #ffffff;
+        border: none;
+      }
+
+      .volume-slider::-webkit-slider-thumb {
+        -webkit-appearance: none;
+        width: 12px;
+        height: 12px;
+        border-radius: 50%;
+        background: #ffffff;
+        border: none;
+        margin-top: -5px;
+      }
+
+      .volume-slider:active::-webkit-slider-thumb {
+        background: #ffffff;
+      }
+
+      .volume-slider::-moz-range-track {
+        height: 2px;
+        background: #ffffff;
+        border: none;
+      }
+
+      .volume-slider::-moz-range-progress {
+        height: 2px;
+        background: #ffffff;
+        border: none;
+      }
+
+      .volume-slider::-moz-range-thumb {
+        width: 12px;
+        height: 12px;
+        border-radius: 50%;
+        background: #ffffff;
+        border: none;
       }
 
       .video {
         width: 100%;
-               height: 100%;
+        height: 100%;
         display: block;
         background: #000;
+        accent-color: #00aeec;
+      }
+
+      &.is-mini-player {
+        position: fixed !important;
+        right: auto;
+        bottom: auto;
+        width: 360px;
+        height: 202px;
+        inset: auto;
+        z-index: 10000;
+        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.45);
+        border: 1px solid rgba(255, 255, 255, 0.12);
+      }
+
+      .mini-close-btn {
+        position: absolute;
+        right: 8px;
+        top: 8px;
+        width: 26px;
+        height: 26px;
+        border: none;
+        border-radius: 0;
+        background: rgba(0, 0, 0, 0.55);
+        color: #fff;
+        cursor: pointer;
+        z-index: 10001;
+        line-height: 26px;
+        text-align: center;
+        font-size: 18px;
+      }
+
+      .mini-close-btn:hover {
+        background: rgba(0, 0, 0, 0.75);
+      }
+
+      .mini-drag-handle {
+        position: absolute;
+        left: 0;
+        top: 0;
+        right: 0;
+        height: 34px;
+        cursor: move;
+        z-index: 10000;
+        background: linear-gradient(to bottom, rgba(0, 0, 0, 0.35), rgba(0, 0, 0, 0));
+      }
+
+      .video::-webkit-media-controls-timeline {
+        accent-color: #00aeec;
+      }
+
+      .video::-webkit-media-controls-current-time-display,
+      .video::-webkit-media-controls-time-remaining-display {
+        color: #fff;
+      }
+
+      .hover-preview-box {
+        position: absolute;
+        bottom: calc(100% + 10px);
+        width: 180px;
+        height: 102px;
+        border-radius: 2px;
+        border: 1px solid rgba(255, 255, 255, 0.22);
+        background: #000;
+        overflow: hidden;
+        pointer-events: none;
+        z-index: 9;
+      }
+
+      .hover-preview-video {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+      }
+
+      .hover-preview-time {
+        position: absolute;
+        left: 50%;
+        bottom: 8px;
+        transform: translateX(-50%);
+        min-width: 50px;
+        text-align: center;
+        padding: 2px 8px;
+        border-radius: 2px;
+        font-size: 14px;
+        line-height: 1.2;
+        color: #fff;
+        background: rgba(0, 0, 0, 0.62);
       }
 
       .danmaku-layer {
@@ -1906,6 +3178,8 @@ onUnmounted(() => {
         position: absolute;
         left: 100%;
         white-space: nowrap;
+        box-sizing: border-box;
+        padding: 0 4px;
         color: #ffffff;
         font-size: 16px;
         text-shadow: 0 0 2px #000, 0 0 4px #000;
@@ -1943,6 +3217,8 @@ onUnmounted(() => {
         justify-content: flex-start;
         gap: 12px;
         white-space: nowrap;
+        flex: 0 1 auto;
+        min-width: 0;
 
         .danmaku-stats {
           display: flex;
@@ -1950,6 +3226,8 @@ onUnmounted(() => {
           gap: 16px;
           font-size: 13px;
           color: #61666d;
+          min-width: 0;
+          overflow: hidden;
 
           .watching-count,
           .danmaku-count {
@@ -2147,29 +3425,166 @@ onUnmounted(() => {
       .danmaku-input-wrapper {
         display: flex;
         align-items: center;
-        gap: 8px;
+        gap: 0;
         flex: 1;
+        min-width: 0;
+        max-width: 100%;
+
+        .sender-settings-wrap {
+          position: absolute;
+          // left: 8px;
+          top: 50%;
+          transform: translateY(-50%);
+          z-index: 2;
+        }
+
+        .sender-settings-btn {
+          width: 32px;
+          height: 32px;
+          border-radius: 8px;
+          border: none;
+          background: transparent;
+          color: #61666d;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          cursor: pointer;
+          transition: all 0.2s;
+
+          &:hover {
+            color: #00a1d6;
+          }
+
+          &.is-active {
+            color: #00a1d6;
+          }
+
+          &.is-disabled {
+            color: #c9ccd0;
+            background: transparent;
+            cursor: not-allowed;
+          }
+
+          svg {
+            width: 18px;
+            height: 18px;
+            fill: currentColor;
+          }
+        }
+
+        .sender-settings-panel {
+          position: absolute;
+          left: 0;
+          bottom: calc(100% + 6px);
+          width: 300px;
+          padding: 12px;
+          border-radius: 8px;
+          background: rgba(0, 0, 0, 0.82);
+          z-index: 21;
+          color: #fff;
+        }
+
+        .sender-setting-row + .sender-setting-row {
+          margin-top: 12px;
+        }
+
+        .sender-setting-label {
+          display: block;
+          margin-bottom: 8px;
+          font-size: 14px;
+          font-weight: 600;
+        }
+
+        .sender-size-options {
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          gap: 8px;
+        }
+
+        .sender-size-btn {
+          height: 32px;
+          border: none;
+          border-radius: 4px;
+          color: #fff;
+          background: rgba(255, 255, 255, 0.18);
+          cursor: pointer;
+          font-size: 15px;
+          font-weight: 600;
+
+          &.is-active {
+            background: #18b8ff;
+          }
+        }
+
+        .sender-color-wrap {
+          display: grid;
+          grid-template-columns: 1fr 58px;
+          gap: 8px;
+          align-items: center;
+          margin-bottom: 8px;
+        }
+
+        .sender-color-input {
+          height: 30px;
+          border-radius: 4px;
+          border: 1px solid rgba(255, 255, 255, 0.2);
+          background: rgba(0, 0, 0, 0.25);
+          color: #fff;
+          padding: 0 10px;
+          font-size: 14px;
+          outline: none;
+        }
+
+        .sender-color-preview {
+          height: 30px;
+          border-radius: 4px;
+          border: 1px solid rgba(255, 255, 255, 0.22);
+        }
+
+        .sender-color-grid {
+          display: grid;
+          grid-template-columns: repeat(7, 1fr);
+          gap: 8px;
+        }
+
+        .sender-color-btn {
+          width: 100%;
+          aspect-ratio: 1 / 1;
+          border-radius: 4px;
+          border: 1px solid rgba(255, 255, 255, 0.2);
+          cursor: pointer;
+          padding: 0;
+
+          &.is-active {
+            box-shadow: 0 0 0 2px #18b8ff inset;
+          }
+        }
+
+        .danmaku-input-box {
+          position: relative;
+          flex: 1;
+          min-width: 0;
+        }
 
         .danmaku-input {
-          flex: 1;
+          width: 95%;
           height: 32px;
-          padding: 0 12px;
-          border-radius: 4px;
+          padding: 0 0px 0 30px;
+          border-radius: 8px 0 0 8px;
           border: 1px solid #e3e5e7;
           background: #f6f7f8;
           outline: none;
           font-size: 14px;
           color: #18191c;
-          transition: all 0.2s;
 
           &::placeholder {
             color: #9499a0;
           }
 
           &:focus {
-            background: #fff;
-            border-color: #00a1d6;
-            box-shadow: 0 0 0 2px rgba(0, 161, 214, 0.1);
+            background: #f6f7f8;
+            border-color: #e3e5e7;
+            box-shadow: none;
           }
 
           &:disabled {
@@ -2178,20 +3593,18 @@ onUnmounted(() => {
           }
         }
 
-        .danmaku-etiquette-btn {
-          height: 32px;
-          padding: 0 12px;
-          border-radius: 4px;
-          border: 1px solid #e3e5e7;
-          background: #fff;
+        .danmaku-etiquette-text {
+          position: absolute;
+          right: 12px;
+          top: 50%;
+          transform: translateY(-50%);
           color: #61666d;
           cursor: pointer;
           font-size: 13px;
           white-space: nowrap;
-          transition: all 0.2s;
+          user-select: none;
 
           &:hover {
-            border-color: #00a1d6;
             color: #00a1d6;
           }
         }
@@ -2200,10 +3613,14 @@ onUnmounted(() => {
           flex-shrink: 0;
           height: 32px;
           padding: 0 20px;
-          border-radius: 4px;
+          margin-left: -1px;
+          border-radius: 0 8px 8px 0;
           border: none;
           background: #00a1d6;
           color: #fff;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
           cursor: pointer;
           font-size: 14px;
           font-weight: 500;
@@ -2220,6 +3637,8 @@ onUnmounted(() => {
           &:disabled {
             opacity: 0.45;
             cursor: not-allowed;
+            background: #00a1d6;
+            color: #fff;
           }
         }
       }
@@ -2300,9 +3719,12 @@ onUnmounted(() => {
         padding: 6px 8px;
         border-radius: 8px;
         transition: all 0.15s ease;
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        user-select: none;
 
         &:hover {
-          background: #f6f7f8;
           color: #00a1d6;
         }
       }
@@ -2321,7 +3743,6 @@ onUnmounted(() => {
         transition: all 0.15s ease;
 
         &:hover {
-          background: #f6f7f8;
           color: #00a1d6;
         }
       }
@@ -2329,24 +3750,68 @@ onUnmounted(() => {
 
     .video-meta {
       margin-bottom: 18px;
+      .title-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+        margin-bottom: 6px;
+      }
       .title {
-        margin: 0 0 4px;
+        margin: 0;
         font-size: 20px;
         color: #18191c;
         font-weight: 500;
+      }
+      .uploader-inline {
+        display: inline-grid;
+        grid-template-columns: 36px minmax(0, 1fr) auto;
+        gap: 10px;
+        align-items: center;
+        min-width: 0;
+        max-width: 420px;
+
+        .u-avatar {
+          width: 36px;
+          height: 36px;
+          border-radius: 50%;
+          object-fit: cover;
+        }
+
+        .u-avatar-placeholder {
+          width: 36px;
+          height: 36px;
+          border-radius: 50%;
+          background: #d8d8d8;
+        }
+
+        .u-info {
+          min-width: 0;
+        }
+
+        .u-name {
+          font-weight: 600;
+          color: #18191c;
+          font-size: 14px;
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+        }
       }
       .meta-row {
         display: flex;
         align-items: center;
         justify-content: space-between;
         gap: 12px;
+        flex-wrap: nowrap;
 
         .meta-left {
           display: flex;
-          flex-wrap: wrap;
+          flex-wrap: nowrap;
           gap: 12px;
           font-size: 13px;
           color: #9499a0;
+          white-space: nowrap;
 
           .meta-item {
             display: inline-flex;
@@ -2668,6 +4133,31 @@ onUnmounted(() => {
     }
   }
 
+  .content-main {
+    min-width: 0;
+
+    .desc {
+      background: #fff;
+      border-radius: 8px;
+      padding: 12px 0;
+      border-bottom: 1px solid var(--line_regular, #E3E5E7);
+
+      .tags {
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+        margin-bottom: 8px;
+      }
+
+      .intro {
+        margin: 0;
+        color: #333;
+        line-height: 1.6;
+        font-size: 14px;
+      }
+    }
+  }
+
   .sidebar {
     display: flex;
     flex-direction: column;
@@ -2684,15 +4174,13 @@ onUnmounted(() => {
       gap: 10px;
       align-items: center;
 
-      .u-avatar { 
-        width: 48px; 
-        height: 48px; 
-        border-radius: 50%; 
+      .u-avatar {
+        width: 48px;
+        height: 48px;
+        border-radius: 50%;
         object-fit: cover;
-        position: relative;
-        z-index: 99999;
       }
-      
+
       .u-avatar-placeholder {
         width: 48px;
         height: 48px;
@@ -2700,26 +4188,27 @@ onUnmounted(() => {
         background: #d8d8d8;
         flex-shrink: 0;
       }
-      
+
       .u-info {
         min-width: 0;
-        
-        .u-name { 
-          font-weight: 600; 
-          color: #18191c;
-          font-size: 14px;
-          white-space: nowrap;
-          overflow: hidden;
-          text-overflow: ellipsis;
-        }
-        .u-stats { 
-          color: #61666d; 
-          font-size: 12px; 
-          margin-top: 4px;
-          white-space: nowrap;
-          overflow: hidden;
-          text-overflow: ellipsis;
-        }
+      }
+
+      .u-name {
+        font-weight: 600;
+        color: #18191c;
+        font-size: 14px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+
+      .u-stats {
+        color: #61666d;
+        font-size: 12px;
+        margin-top: 4px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
       }
     }
 
@@ -2992,8 +4481,19 @@ onUnmounted(() => {
 @media (max-width: 1100px) {
   .video-page {
     grid-template-columns: 1fr;
-    .sidebar { order: 2; }
-    .player-area { order: 1; }
+    grid-template-rows: auto auto auto;
+    .player-main {
+      grid-column: 1;
+      grid-row: 1;
+    }
+    .content-main {
+      grid-column: 1;
+      grid-row: 2;
+    }
+    .sidebar {
+      grid-column: 1;
+      grid-row: 3;
+    }
   }
 }
 </style>
