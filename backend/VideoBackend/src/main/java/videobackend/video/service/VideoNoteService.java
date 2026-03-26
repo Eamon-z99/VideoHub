@@ -193,5 +193,21 @@ public class VideoNoteService {
 
         return jdbcTemplate.update(sql, normalizedContent, noteId, authorUserId);
     }
+
+    /**
+     * 删除笔记（软删除：status=0）
+     */
+    @Transactional
+    public int deleteNote(Long authorUserId, Long noteId) {
+        String sql = """
+                UPDATE video_notes
+                SET status = 0,
+                    update_time = NOW()
+                WHERE id = ?
+                  AND author_user_id = ?
+                  AND status = 1
+                """;
+        return jdbcTemplate.update(sql, noteId, authorUserId);
+    }
 }
 

@@ -18,6 +18,8 @@ public record VideoItem(
         String uploadDate,
         String uploaderAvatar,
         Long uploaderId,
+        String tags,
+        String partition,
         String createTime
 ) {
 }

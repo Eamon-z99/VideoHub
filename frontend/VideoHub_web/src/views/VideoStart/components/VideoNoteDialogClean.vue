@@ -1,9 +1,9 @@
 <script setup>
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import { computed, nextTick, onUnmounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useUserStore } from '@/stores/user'
-import { createVideoNote, fetchAllVideoNotesHistory, updateVideoNote } from '@/api/videoNote'
+import { createVideoNote, deleteVideoNote, fetchAllVideoNotesHistory, updateVideoNote } from '@/api/videoNote'
 import { fetchVideoDetail } from '@/api/video'
 
 const props = defineProps({
@@ -293,6 +293,38 @@ function goToVideo(videoId) {
   router.push({ name: 'video', params: { id: videoId } })
 }
 
+async function removeHistoryNote(note) {
+  const noteId = note?.id
+  if (!noteId || submitting.value) return
+  try {
+    await ElMessageBox.confirm('确认删除这条笔记吗？', '删除笔记', {
+      confirmButtonText: '删除',
+      cancelButtonText: '取消',
+      type: 'warning',
+    })
+  } catch {
+    return
+  }
+
+  try {
+    submitting.value = true
+    const resp = await deleteVideoNote(noteId)
+    if (resp?.data?.success) {
+      ElMessage.success('删除成功')
+      if (selectedHistoryNote.value?.id === noteId) {
+        selectedHistoryNote.value = null
+      }
+      await fetchHistory()
+    } else {
+      ElMessage.error(resp?.data?.message || '删除失败')
+    }
+  } catch (e) {
+    ElMessage.error(e?.response?.data?.message || e?.message || '删除失败')
+  } finally {
+    submitting.value = false
+  }
+}
+
 async function submit() {
   if (!userStore.isAuthenticated) {
     ElMessage.warning('请先登录')
@@ -492,6 +524,14 @@ onUnmounted(() => {
                 </div>
 
                 <div class="history-video-meta">
+                  <button
+                    class="history-delete-btn"
+                    type="button"
+                    @click.stop="removeHistoryNote(n)"
+                    :disabled="submitting"
+                  >
+                    删除
+                  </button>
                   <div class="history-video-title" @click.stop="goToVideo(n.videoId)">
                     {{ n.videoTitle || '-' }}
                   </div>
@@ -832,6 +872,30 @@ onUnmounted(() => {
 .history-video-meta {
   flex: 1;
   min-width: 0;
+  position: relative;
+  padding-right: 46px;
+}
+
+.history-delete-btn {
+  position: absolute;
+  top: 0;
+  right: 0;
+  border: none;
+  background: transparent;
+  color: #94a3b8;
+  font-size: 12px;
+  line-height: 1;
+  padding: 0;
+  cursor: pointer;
+}
+
+.history-delete-btn:hover {
+  color: #ef4444;
+}
+
+.history-delete-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
 }
 
 .history-video-title {

@@ -153,6 +153,7 @@ const submit = async () => {
   >
     <template #header>
       <div class="modal-header">
+        <div class="modal-header-spacer" aria-hidden="true"></div>
         <div class="modal-title">举报</div>
         <el-button type="info" circle @click="onClose" class="modal-close-el-btn">×</el-button>
       </div>
@@ -246,11 +247,23 @@ const submit = async () => {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  min-height: 36px;
+  gap: 10px;
+}
+
+.modal-header-spacer {
+  width: 30px;
+  height: 30px;
+  flex: 0 0 auto;
 }
 
 .modal-title {
   font-weight: 700;
   font-size: 18px;
+  flex: 1;
+  text-align: center;
+  color: #111827;
+  line-height: 36px;
 }
 
 .modal-close-btn {

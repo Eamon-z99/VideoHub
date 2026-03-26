@@ -34,3 +34,8 @@ export const updateVideoNote = (noteId, payload = {}) => {
   })
 }
 
+// 删除笔记（仅作者可用）
+export const deleteVideoNote = (noteId) => {
+  return request.delete(`/api/video-notes/${encodeURIComponent(noteId)}`)
+}
+

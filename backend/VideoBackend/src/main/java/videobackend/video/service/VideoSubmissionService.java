@@ -592,6 +592,7 @@ public class VideoSubmissionService {
         Map<String, Object> row = jdbcTemplate.queryForMap("""
                 SELECT submission_id, user_id, title, description, duration,
                        cover_url, storage_path, source_file, file_size,
+                       `partition`, tags,
                        schedule_enabled, schedule_publish_at,
                        review_status, published_video_id
                 FROM video_submissions
@@ -608,7 +609,7 @@ public class VideoSubmissionService {
         }
 
         int scheduleEnabled = toInt01(row.get("schedule_enabled"));
-        Timestamp publishAt = (Timestamp) row.get("schedule_publish_at");
+        Timestamp publishAt = toTimestamp(row.get("schedule_publish_at"));
         if (!force && scheduleEnabled == 1 && publishAt != null) {
             Timestamp now = new Timestamp(System.currentTimeMillis());
             if (publishAt.after(now)) {
@@ -616,18 +617,22 @@ public class VideoSubmissionService {
             }
         }
 
-        String videoId = "uv_" + row.get("user_id") + "_" + System.currentTimeMillis();
+        // video_id 需要全局唯一：批量发布可能在同一毫秒内多次触发，避免重复 key
+        String randomSuffix = UUID.randomUUID().toString().replace("-", "").substring(0, 12);
+        String videoId = "uv_" + row.get("user_id") + "_" + randomSuffix;
 
         // 为兼容旧 videos 表结构，这里只写入基础字段
         jdbcTemplate.update("""
                         INSERT INTO videos
-                        (video_id, title, description, duration, cover_url, storage_path, source_file,
+                        (video_id, title, description, `partition`, `tags`, duration, cover_url, storage_path, source_file,
                          view_count, like_count, favorite_count, file_size, user_id, create_time)
-                        VALUES (?, ?, ?, ?, ?, ?, ?, 0, 0, 0, ?, ?, NOW())
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0, 0, ?, ?, NOW())
                         """,
                 videoId,
                 row.get("title"),
                 row.get("description"),
+                row.get("partition"),
+                row.get("tags"),
                 row.get("duration"),
                 row.get("cover_url"),
                 row.get("storage_path"),
@@ -649,6 +654,25 @@ public class VideoSubmissionService {
         return videoId;
     }
 
+    private Timestamp toTimestamp(Object v) {
+        if (v == null) return null;
+        if (v instanceof Timestamp ts) return ts;
+        if (v instanceof LocalDateTime ldt) return Timestamp.valueOf(ldt);
+        if (v instanceof java.time.LocalDate d) return Timestamp.valueOf(d.atStartOfDay());
+        if (v instanceof java.util.Date dd) return new Timestamp(dd.getTime());
+        if (v instanceof String s) {
+            String str = s.trim();
+            if (str.isEmpty()) return null;
+            // 兼容可能格式：YYYY-MM-DD HH:mm:ss 或 YYYY-MM-DDTHH:mm:ss
+            return Timestamp.valueOf(str.replace('T', ' '));
+        }
+        try {
+            return Timestamp.valueOf(String.valueOf(v));
+        } catch (Exception ignore) {
+            return null;
+        }
+    }
+
     /**
      * 批量发布到点的定时投稿（以及非定时但未发布的已通过投稿）。
      */
@@ -659,11 +683,14 @@ public class VideoSubmissionService {
                 SELECT submission_id
                 FROM video_submissions
                 WHERE review_status='APPROVED'
-                  AND (published_video_id IS NULL OR published_video_id = '')
+                  AND (published_video_id IS NULL OR TRIM(published_video_id) = '')
                   AND (
                         schedule_enabled = 0
-                        OR schedule_publish_at IS NULL
-                        OR schedule_publish_at <= NOW()
+                        OR (
+                          schedule_enabled = 1
+                          AND schedule_publish_at IS NOT NULL
+                          AND schedule_publish_at <= NOW()
+                        )
                   )
                 ORDER BY create_time ASC
                 LIMIT ?

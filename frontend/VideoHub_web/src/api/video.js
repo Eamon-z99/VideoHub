@@ -80,3 +80,12 @@ export const deleteVideoDraft = (submissionId) => {
   return request.delete(`/api/db/video-drafts/${encodeURIComponent(submissionId)}`)
 }
 
+// 内容管理：隐藏/取消隐藏已发布视频（仅作者）
+export const hideCreatorWorkVideo = (videoId) => {
+  return request.put(`/api/db/creator-works/videos/${encodeURIComponent(videoId)}/hide`)
+}
+
+export const unhideCreatorWorkVideo = (videoId) => {
+  return request.put(`/api/db/creator-works/videos/${encodeURIComponent(videoId)}/unhide`)
+}
+

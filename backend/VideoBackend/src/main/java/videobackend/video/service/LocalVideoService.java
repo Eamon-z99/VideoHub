@@ -79,7 +79,7 @@ public class LocalVideoService {
                        v.create_time
                 FROM videos v
                 LEFT JOIN users u ON v.user_id = u.id
-                WHERE v.status IS NULL OR v.status <> 'DOWN'
+                WHERE v.status IS NULL OR UPPER(TRIM(v.status)) NOT IN ('FAILED','DOWN')
                 ORDER BY RAND()
                 LIMIT ? OFFSET ?
                 """;
@@ -109,7 +109,7 @@ public class LocalVideoService {
                        v.create_time
                 FROM videos v
                 LEFT JOIN users u ON v.user_id = u.id
-                WHERE v.status IS NULL OR v.status <> 'DOWN'
+                WHERE v.status IS NULL OR UPPER(TRIM(v.status)) NOT IN ('FAILED','DOWN')
                 ORDER BY v.view_count DESC
                 LIMIT ?
                 """;
@@ -118,7 +118,7 @@ public class LocalVideoService {
 
     public long count() {
         Long total = jdbcTemplate.queryForObject(
-                "SELECT COUNT(*) FROM videos WHERE status IS NULL OR status <> 'DOWN'", Long.class);
+                "SELECT COUNT(*) FROM videos WHERE status IS NULL OR UPPER(TRIM(status)) NOT IN ('FAILED','DOWN')", Long.class);
         return total == null ? 0 : total;
     }
 
@@ -155,7 +155,7 @@ public class LocalVideoService {
                 WHERE (v.title LIKE ?
                    OR v.description LIKE ?
                    OR u.username LIKE ?)
-                  AND (v.status IS NULL OR v.status <> 'DOWN')
+                  AND (v.status IS NULL OR UPPER(TRIM(v.status)) NOT IN ('FAILED','DOWN'))
                 ORDER BY v.create_time DESC
                 LIMIT ? OFFSET ?
                 """;
@@ -175,7 +175,7 @@ public class LocalVideoService {
                 WHERE (v.title LIKE ?
                    OR v.description LIKE ?
                    OR u.username LIKE ?)
-                  AND (v.status IS NULL OR v.status <> 'DOWN')
+                  AND (v.status IS NULL OR UPPER(TRIM(v.status)) NOT IN ('FAILED','DOWN'))
                 """;
         Long total = jdbcTemplate.queryForObject(sql, Long.class, like, like, like);
         return total == null ? 0 : total;
@@ -210,7 +210,7 @@ public class LocalVideoService {
                 LEFT JOIN users u ON v.user_id = u.id
                 WHERE f.follower_id = ?
                   AND (? IS NULL OR f.following_id = ?)
-                  AND (v.status IS NULL OR v.status <> 'DOWN')
+                  AND (v.status IS NULL OR UPPER(TRIM(v.status)) NOT IN ('FAILED','DOWN'))
                 ORDER BY v.create_time DESC
                 LIMIT ? OFFSET ?
                 """;
@@ -227,7 +227,7 @@ public class LocalVideoService {
                 INNER JOIN fans f ON v.user_id = f.following_id
                 WHERE f.follower_id = ?
                   AND (? IS NULL OR f.following_id = ?)
-                  AND (v.status IS NULL OR v.status <> 'DOWN')
+                  AND (v.status IS NULL OR UPPER(TRIM(v.status)) NOT IN ('FAILED','DOWN'))
                 """;
         Long total = jdbcTemplate.queryForObject(sql, Long.class, userId, followingId, followingId);
         return total == null ? 0 : total;
@@ -238,6 +238,8 @@ public class LocalVideoService {
                 SELECT v.video_id,
                        v.title,
                        v.description,
+                       v.`partition`,
+                       v.`tags`,
                        v.duration,
                        v.cover_url,
                        v.storage_path,
@@ -253,9 +255,53 @@ public class LocalVideoService {
                 FROM videos v
                 LEFT JOIN users u ON v.user_id = u.id
                 WHERE v.video_id = ?
-                  AND (v.status IS NULL OR v.status <> 'DOWN')
+                  AND (v.status IS NULL OR UPPER(TRIM(v.status)) NOT IN ('FAILED','DOWN'))
                 """;
         List<VideoItem> list = jdbcTemplate.query(sql, (rs, i) -> mapToVideo(rs), videoId);
+        return list.stream().findFirst();
+    }
+
+    public Optional<VideoItem> findByVideoIdIncludingTakedown(String videoId) {
+        String sql = """
+                SELECT v.video_id,
+                       v.title,
+                       v.description,
+                       v.`partition`,
+                       v.`tags`,
+                       v.duration,
+                       v.cover_url,
+                       v.storage_path,
+                       v.source_file,
+                       v.view_count,
+                       v.like_count,
+                       v.favorite_count,
+                       v.file_size,
+                       u.username AS uploader_name,
+                       u.avatar AS uploader_avatar,
+                       u.id AS uploader_id,
+                       v.create_time
+                FROM videos v
+                LEFT JOIN users u ON v.user_id = u.id
+                WHERE v.video_id = ?
+                """;
+        List<VideoItem> list = jdbcTemplate.query(sql, (rs, i) -> mapToVideo(rs), videoId);
+        return list.stream().findFirst();
+    }
+
+    public record VideoAccessInfo(Long ownerUserId, String status) {}
+
+    public Optional<VideoAccessInfo> getVideoAccessInfo(String videoId) {
+        String sql = """
+                SELECT user_id, status
+                FROM videos
+                WHERE video_id = ?
+                LIMIT 1
+                """;
+        List<VideoAccessInfo> list = jdbcTemplate.query(sql, (rs, i) ->
+                new VideoAccessInfo(
+                        rs.getObject("user_id") == null ? null : rs.getLong("user_id"),
+                        rs.getString("status")
+                ), videoId);
         return list.stream().findFirst();
     }
 
@@ -289,7 +335,7 @@ public class LocalVideoService {
                 LEFT JOIN users u ON v.user_id = u.id
                 WHERE v.user_id = ?
                   AND (? IS NULL OR v.video_id <> ?)
-                  AND (v.status IS NULL OR v.status <> 'DOWN')
+                  AND (v.status IS NULL OR UPPER(TRIM(v.status)) NOT IN ('FAILED','DOWN'))
                 ORDER BY v.create_time DESC
                 LIMIT ?
                 """;
@@ -345,6 +391,20 @@ public class LocalVideoService {
             // 旧查询未选择 comment_count 字段时兼容
         }
 
+        String tagsJson = null;
+        try {
+            tagsJson = rs.getString("tags");
+        } catch (SQLException ignore) {
+            // 旧查询未选择 tags 字段
+        }
+
+        String partition = null;
+        try {
+            partition = rs.getString("partition");
+        } catch (SQLException ignore) {
+            // 旧查询未选择 partition 字段
+        }
+
         return new VideoItem(
                 rs.getString("video_id"),
                 firstNonBlank(rs.getString("title"), "本地视频"),
@@ -363,6 +423,8 @@ public class LocalVideoService {
                 uploadDate,
                 uploaderAvatar,
                 uploaderId,
+                tagsJson,
+                partition,
                 createTimeStr
         );
     }

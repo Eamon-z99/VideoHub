@@ -12,6 +12,7 @@ import videobackend.video.service.VideoSubmissionService;
 import videobackend.video.util.JwtUtil;
 
 import java.io.IOException;
+import java.util.Locale;
 import java.util.List;
 import java.util.Map;
 
@@ -155,7 +156,26 @@ public class LocalVideoController {
     }
 
     @GetMapping("/{videoId}")
-    public ResponseEntity<VideoItem> detail(@PathVariable String videoId) {
+    public ResponseEntity<VideoItem> detail(HttpServletRequest request, @PathVariable String videoId) {
+        // 对于下架视频（FAILED/DOWN）：仅作者本人可查看；其他人一律 404
+        Long requesterUserId = getUserIdFromRequestIfValid(request);
+        var accessOpt = localVideoService.getVideoAccessInfo(videoId);
+        if (accessOpt.isEmpty()) {
+            return ResponseEntity.notFound().build();
+        }
+
+        LocalVideoService.VideoAccessInfo access = accessOpt.get();
+        String st = access.status() == null ? "" : access.status().trim().toUpperCase(Locale.ROOT);
+        boolean isTakedown = "FAILED".equals(st) || "DOWN".equals(st);
+        if (isTakedown) {
+            if (requesterUserId == null || access.ownerUserId() == null || !requesterUserId.equals(access.ownerUserId())) {
+                return ResponseEntity.notFound().build();
+            }
+            return localVideoService.findByVideoIdIncludingTakedown(videoId)
+                    .map(ResponseEntity::ok)
+                    .orElse(ResponseEntity.notFound().build());
+        }
+
         return localVideoService.findByVideoId(videoId)
                 .map(ResponseEntity::ok)
                 .orElse(ResponseEntity.notFound().build());
@@ -177,6 +197,32 @@ public class LocalVideoController {
                     } catch (NumberFormatException ignore) {
                     }
                 }
+            }
+        }
+        return null;
+    }
+
+    private Long getUserIdFromRequestIfValid(HttpServletRequest request) {
+        String bearerToken = request.getHeader("Authorization");
+        if (bearerToken == null || !bearerToken.startsWith("Bearer ")) {
+            return null;
+        }
+        String token = bearerToken.substring(7);
+        if (token.isBlank() || !jwtUtil.validateToken(token)) {
+            return null;
+        }
+        Claims claims = jwtUtil.getClaimsFromToken(token);
+        if (claims == null) {
+            return null;
+        }
+        Object userIdObj = claims.get("userId");
+        if (userIdObj instanceof Number) {
+            return ((Number) userIdObj).longValue();
+        }
+        if (userIdObj instanceof String) {
+            try {
+                return Long.parseLong((String) userIdObj);
+            } catch (NumberFormatException ignore) {
             }
         }
         return null;

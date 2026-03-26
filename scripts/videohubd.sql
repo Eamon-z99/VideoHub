@@ -427,6 +427,8 @@ CREATE TABLE `videos`  (
   `video_id` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL COMMENT '视频唯一标识（如video_0001）',
   `title` varchar(200) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL COMMENT '视频标题',
   `description` text CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL COMMENT '视频描述',
+  `partition` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL DEFAULT NULL COMMENT '分区',
+  `tags` varchar(2000) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL DEFAULT '[]' COMMENT '标签（JSON数组字符串）',
   `duration` int UNSIGNED NOT NULL COMMENT '时长（秒）',
   `width` int UNSIGNED NULL DEFAULT NULL COMMENT '视频宽度',
   `height` int UNSIGNED NULL DEFAULT NULL COMMENT '视频高度',

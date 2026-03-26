@@ -146,5 +146,34 @@ public class VideoNoteController {
         }
     }
 
+    /**
+     * 删除笔记（仅作者可删除）
+     * DELETE /api/video-notes/{noteId}
+     */
+    @DeleteMapping("/{noteId}")
+    public ResponseEntity<?> delete(
+            HttpServletRequest request,
+            @PathVariable Long noteId
+    ) {
+        Long userId = jwtUtil.getUserIdFromRequest(request);
+        if (userId == null) {
+            return ResponseEntity.status(401).body(Map.of("success", false, "message", "未登录或登录已过期"));
+        }
+
+        VideoNoteItem item = videoNoteService.getNoteById(noteId);
+        if (item == null) {
+            return ResponseEntity.badRequest().body(Map.of("success", false, "message", "笔记不存在"));
+        }
+        if (!item.authorUserId().equals(userId)) {
+            return ResponseEntity.status(403).body(Map.of("success", false, "message", "无权限"));
+        }
+
+        int deleted = videoNoteService.deleteNote(userId, noteId);
+        if (deleted <= 0) {
+            return ResponseEntity.status(400).body(Map.of("success", false, "message", "笔记删除失败"));
+        }
+        return ResponseEntity.ok(Map.of("success", true));
+    }
+
 }
 

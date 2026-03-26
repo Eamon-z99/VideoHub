@@ -21,6 +21,12 @@
       <div class="sub-tab" :class="{ active: status === 'approved' }" @click="selectTab('approved')">
         已通过 <span class="num">{{ stats.approved }}</span>
       </div>
+      <div class="sub-tab" :class="{ active: status === 'hidden' }" @click="selectTab('hidden')">
+        已隐藏 <span class="num">{{ stats.hidden }}</span>
+      </div>
+      <div class="sub-tab" :class="{ active: status === 'takedown' }" @click="selectTab('takedown')">
+        已下架 <span class="num">{{ stats.takedown }}</span>
+      </div>
       <div class="sub-tab" :class="{ active: status === 'rejected' }" @click="selectTab('rejected')">
         未通过 <span class="num">{{ stats.rejected }}</span>
       </div>
@@ -52,6 +58,12 @@
                 <el-tag :type="statusTagType(it)" size="small" class="status-tag">{{ statusLabel(it) }}</el-tag>
               </div>
               <div class="desc">{{ it.description || '-' }}</div>
+              <div v-if="isTakedownRow(it)" class="takedown-reason">
+                <span class="reason-title">下架原因：</span>
+                <span class="reason-text">
+                  {{ buildTakedownReason(it) }}
+                </span>
+              </div>
               <div class="time-row">
                 <span class="time">更新：{{ formatDate(it.update_time) }}</span>
                 <span v-if="isPublishedRow(it)" class="mini-stat">
@@ -62,6 +74,24 @@
             <div class="actions">
               <el-button v-if="isPublishedRow(it)" size="small" type="primary" plain @click="openVideo(it.video_id)">
                 查看视频
+              </el-button>
+              <el-button
+                v-if="isHiddenRow(it)"
+                size="small"
+                type="primary"
+                plain
+                @click="unhidePublishedVideo(it)"
+              >
+                取消隐藏
+              </el-button>
+              <el-button
+                v-else-if="isPublishedRow(it) && !isTakedownRow(it)"
+                size="small"
+                type="danger"
+                plain
+                @click="hidePublishedVideo(it)"
+              >
+                隐藏
               </el-button>
               <template v-if="isDraftRow(it)">
                 <el-button size="small" @click="continueEdit(it)">继续编辑</el-button>
@@ -89,7 +119,12 @@
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { deleteVideoDraft, listCreatorWorks } from '@/api/video'
+import {
+  deleteVideoDraft,
+  listCreatorWorks,
+  hideCreatorWorkVideo,
+  unhideCreatorWorkVideo
+} from '@/api/video'
 
 const emit = defineEmits(['continue-edit'])
 const router = useRouter()
@@ -105,12 +140,36 @@ const pageSize = 20
 const total = ref(0)
 const list = ref([])
 
+const getScrollEl = () => {
+  // 该项目滚动使用 App 根级 .scroll-container
+  return document.querySelector('.scroll-container') || null
+}
+
+const getScrollTop = () => {
+  const sc = getScrollEl()
+  if (sc) return sc.scrollTop || 0
+  return window.scrollY || document.documentElement.scrollTop || document.body.scrollTop || 0
+}
+
+const restoreScrollTop = (y) => {
+  requestAnimationFrame(() => {
+    const sc = getScrollEl()
+    if (sc) {
+      sc.scrollTo({ top: y, behavior: 'auto' })
+      return
+    }
+    window.scrollTo(0, y)
+  })
+}
+
 const stats = ref({
   all: 0,
   draft: 0,
   reviewing: 0,
   approved: 0,
-  rejected: 0
+  rejected: 0,
+  takedown: 0,
+  hidden: 0
 })
 
 const totalPages = computed(() => Math.ceil((total.value || 0) / pageSize))
@@ -126,8 +185,27 @@ const rowKey = (it) => {
 
 const isPublishedRow = (it) => (it.kind || it.KIND) === 'published' && (it.video_id || it.videoId)
 const isDraftRow = (it) => (it.kind || it.KIND) === 'draft'
+const safeStr = (v) => (v === null || v === undefined ? '' : String(v))
+const getTakedownTime = (it) => safeStr(it.takedown_time || it.takedownTime).trim()
+const getTakedownNote = (it) => safeStr(it.takedown_note || it.takedownNote).trim()
+const hasTakedownReason = (it) => Boolean(getTakedownTime(it) || getTakedownNote(it))
+
+const isTakedownRow = (it) => {
+  if (!isPublishedRow(it)) return false
+  const st = String(it.video_status || it.videoStatus || '').toUpperCase()
+  return (st === 'FAILED' || st === 'DOWN') && hasTakedownReason(it)
+}
+
+const isHiddenRow = (it) => {
+  if (!isPublishedRow(it)) return false
+  const st = String(it.video_status || it.videoStatus || '').toUpperCase()
+  // 隐藏：DOWN 但没有“投诉/下架处理”的原因记录
+  return st === 'DOWN' && !hasTakedownReason(it)
+}
 
 const statusLabel = (it) => {
+  if (isHiddenRow(it)) return '已隐藏'
+  if (isTakedownRow(it)) return '已下架'
   if (isPublishedRow(it)) return '已发布'
   if (isDraftRow(it)) return '草稿'
   const rs = String(it.review_status || it.reviewStatus || '').toUpperCase()
@@ -138,6 +216,8 @@ const statusLabel = (it) => {
 }
 
 const statusTagType = (it) => {
+  if (isHiddenRow(it)) return 'warning'
+  if (isTakedownRow(it)) return 'danger'
   if (isPublishedRow(it)) return 'success'
   if (isDraftRow(it)) return 'info'
   const rs = String(it.review_status || it.reviewStatus || '').toUpperCase()
@@ -145,6 +225,12 @@ const statusTagType = (it) => {
   if (rs === 'APPROVED') return 'primary'
   if (rs === 'REJECTED') return 'danger'
   return ''
+}
+
+const buildTakedownReason = (it) => {
+  const note = String(it.takedown_note || it.takedownNote || '').trim()
+  // 需求：下架原因取 handler_note（即 takedown_note）
+  return note || '暂无（可能是手动标记/历史数据）'
 }
 
 const formatNum = (v) => {
@@ -207,7 +293,9 @@ const fetchList = async () => {
           draft: Number(payload.stats.draft) || 0,
           reviewing: Number(payload.stats.reviewing) || 0,
           approved: Number(payload.stats.approved) || 0,
-          rejected: Number(payload.stats.rejected) || 0
+          rejected: Number(payload.stats.rejected) || 0,
+              takedown: Number(payload.stats.takedown) || 0,
+              hidden: Number(payload.stats.hidden) || 0
         }
       }
     } else {
@@ -239,6 +327,101 @@ const openVideo = (videoId) => {
   const id = videoId || ''
   if (!id) return
   router.push({ path: `/video/${encodeURIComponent(id)}` })
+}
+
+const hidePublishedVideo = async (it) => {
+  const vid = it.video_id || it.videoId
+  if (!vid) return
+  try {
+    await ElMessageBox.confirm('确认隐藏该已发布视频？隐藏后将不可在公开列表中看到。', '隐藏视频', {
+      type: 'warning'
+    })
+  } catch (e) {
+    return
+  }
+
+  const scrollY = getScrollTop()
+  loading.value = true
+  try {
+    const { data } = await hideCreatorWorkVideo(vid)
+    if (data?.success) {
+      ElMessage.success('已隐藏')
+      // 不刷新整页：本地更新列表/计数
+      // approved tab 下隐藏后该条应从列表消失；all tab 则切换为“已隐藏”
+      if (status.value === 'approved') {
+        list.value = list.value.filter((x) => (x.video_id || x.videoId) !== vid)
+      } else {
+        const it2 = list.value.find((x) => (x.video_id || x.videoId) === vid)
+        if (it2) {
+          it2.video_status = 'DOWN'
+          it2.videoStatus = 'DOWN'
+          it2.takedown_category = null
+          it2.takedownCategory = null
+          it2.takedown_note = null
+          it2.takedownNote = null
+          it2.takedown_time = null
+          it2.takedownTime = null
+        }
+      }
+
+      stats.value.approved = Math.max(0, Number(stats.value.approved) - 1)
+      stats.value.hidden = Number(stats.value.hidden) + 1
+    } else {
+      ElMessage.error(data?.message || '隐藏失败')
+    }
+  } catch (e) {
+    ElMessage.error(e?.response?.data?.message || '隐藏失败')
+  } finally {
+    loading.value = false
+    restoreScrollTop(scrollY)
+  }
+}
+
+const unhidePublishedVideo = async (it) => {
+  const vid = it.video_id || it.videoId
+  if (!vid) return
+  try {
+    await ElMessageBox.confirm('确认取消隐藏？取消后将恢复可见。', '取消隐藏', {
+      type: 'info'
+    })
+  } catch (e) {
+    return
+  }
+
+  const scrollY = getScrollTop()
+  loading.value = true
+  try {
+    const { data } = await unhideCreatorWorkVideo(vid)
+    if (data?.success) {
+      ElMessage.success('已取消隐藏')
+      // 不刷新整页：本地更新列表/计数
+      if (status.value === 'hidden') {
+        list.value = list.value.filter((x) => (x.video_id || x.videoId) !== vid)
+      } else {
+        const it2 = list.value.find((x) => (x.video_id || x.videoId) === vid)
+        if (it2) {
+          it2.video_status = 'DONE'
+          it2.videoStatus = 'DONE'
+          it2.takedown_category = null
+          it2.takedownCategory = null
+          it2.takedown_note = null
+          it2.takedownNote = null
+          it2.takedown_time = null
+          it2.takedownTime = null
+        }
+      }
+
+      stats.value.hidden = Math.max(0, Number(stats.value.hidden) - 1)
+      stats.value.approved = Number(stats.value.approved) + 1
+    } else {
+      ElMessage.error(data?.message || '取消隐藏失败')
+    }
+  } catch (e) {
+    ElMessage.error(e?.response?.data?.message || '取消隐藏失败')
+  } finally {
+    loading.value = false
+    restoreScrollTop(scrollY)
+  }
 }
 
 const continueEdit = (it) => {
@@ -417,6 +600,21 @@ const removeDraft = async (it) => {
   -webkit-box-orient: vertical;
   line-clamp: 2;
   overflow: hidden;
+}
+
+.takedown-reason {
+  margin-top: 6px;
+  font-size: 12px;
+  color: #b91c1c;
+  background: #fef2f2;
+  border: 1px solid #fee2e2;
+  border-radius: 8px;
+  padding: 8px 10px;
+  line-height: 1.4;
+}
+
+.reason-title {
+  font-weight: 700;
 }
 .time-row {
   margin-top: 6px;

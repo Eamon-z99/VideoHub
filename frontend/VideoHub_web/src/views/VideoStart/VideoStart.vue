@@ -1063,10 +1063,28 @@ const loadVideo = async () => {
     posterUrl.value = data.coverUrl || fallbackCover
     // 视频描述：现在完全使用数据库中的 description 字段
     description.value = data.description || ''
-    tags.value = [
-      data.sourceFile || '本地视频',
-      data.storagePath || '',
-    ].filter(Boolean)
+
+    // 标签：优先使用后端返回的 videos.tags（JSON 数组字符串）
+    const parseTags = (v) => {
+      if (!v) return []
+      if (Array.isArray(v)) return v.map(String).filter(Boolean)
+      if (typeof v === 'string') {
+        const s = v.trim()
+        if (!s) return []
+        try {
+          const arr = JSON.parse(s)
+          if (Array.isArray(arr)) return arr.map(String).filter(Boolean)
+        } catch {}
+        // 兜底：如果不是 JSON 数组，就当作单个标签文本
+        return [s]
+      }
+      return []
+    }
+
+    const parsedTags = parseTags(data.tags)
+    tags.value = parsedTags.length
+      ? parsedTags
+      : [data.sourceFile || '本地视频', data.storagePath || ''].filter(Boolean)
     
     // 更新右侧边栏作者信息
     uploader.value = {
@@ -1270,6 +1288,7 @@ const openReportDialog = () => {
     ElMessage.warning('请先登录')
     return
   }
+  noteDialogVisible.value = false
   reportDialogVisible.value = true
 }
 
