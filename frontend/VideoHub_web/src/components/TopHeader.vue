@@ -4,7 +4,8 @@
     :class="{ 
       scrolled: isScrolled || (!transparentAtTop && !fixedOnScroll),
       fixed: isFixed,
-      'always-opaque': !transparentAtTop && !isScrolled
+      'always-opaque': !transparentAtTop && !isScrolled,
+      'avatar-overlay-active': showUserDropdown
     }"
     :style="headerStyle"
   >
@@ -43,6 +44,17 @@
           @input="onSearchInput"
           @blur="hideSuggestSoon"
         />
+        <button
+          v-show="showSuggest || !!searchText.trim()"
+          class="search-clear-btn"
+          :class="{ disabled: !searchText.trim() }"
+          type="button"
+          aria-label="清空搜索"
+          @mousedown.prevent
+          @click="clearSearchText"
+        >
+          ×
+        </button>
         <button class="search-btn" @click="doSearch">
           <img src="/assets/search-button.png" class="search-btn-img"/>
         </button>
@@ -60,7 +72,8 @@
     </div>
     <div class="actions">
       <div 
-        class="user-area" 
+        class="user-area"
+        :class="{ 'is-dropdown-open': showUserDropdown }"
         @click="handleUserClick"
         @mouseenter="showUserDropdown = true"
         @mouseleave="handleUserAreaLeave"
@@ -69,7 +82,6 @@
         <div class="avatar">
           <img v-if="userAvatar" :src="userAvatar" :alt="displayName" />
         </div>
-        <span class="user-name">{{ displayName }}</span>
         <UserDropdown 
           v-model:visible="showUserDropdown"
           @close="showUserDropdown = false"
@@ -259,6 +271,11 @@ const onSelectSuggestion = (kw: string) => {
   showSuggest.value = false
   searchText.value = kw
   doSearchWithKeyword(kw)
+}
+
+const clearSearchText = () => {
+  if (!searchText.value.trim()) return
+  searchText.value = ''
 }
 
 function hideSuggestSoon() {
@@ -560,6 +577,10 @@ onUnmounted(() => {
   &.always-opaque {
     background-color: #ffffff !important;
   }
+
+  &.avatar-overlay-active {
+    z-index: 200000 !important;
+  }
 }
 
 // 确保背景色优先级足够高
@@ -699,6 +720,11 @@ onUnmounted(() => {
   transition: border-radius 0.2s ease, background-color 0.2s ease, box-shadow 0.2s ease;
 }
 
+.top-header.scrolled .search {
+  /* 下滑悬浮状态：略缩短搜索框，给头像放大预留空间 */
+  max-width: 520px;
+}
+
 .search-input-row {
   position: relative;
   display: flex;
@@ -713,7 +739,7 @@ onUnmounted(() => {
 
 .search-input {
   height: 32px;
-  padding: 0 48px 0 12px;
+  padding: 0 38px 0 12px;
   border: 0;
   outline: none;
   font-size: 14px;
@@ -723,6 +749,37 @@ onUnmounted(() => {
   width: 93%;
   box-sizing: border-box;
   transition: background-color 0.2s ease;
+}
+
+.search-clear-btn {
+  position: absolute;
+  right: 32px;
+  top: 50%;
+  transform: translateY(-50%);
+  border: none;
+  background: #c7cbd1;
+  color: #ffffff;
+  cursor: pointer;
+  font-size: 12px;
+  line-height: 1;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  margin-right: 13px;
+}
+
+.search-clear-btn:hover {
+  background: #c7cbd1;
+  color: #ffffff;
+}
+
+.search-clear-btn.disabled {
+  opacity: 0.65;
+  cursor: default;
 }
 
 /* 输入时背景色变深一点 */
@@ -794,33 +851,88 @@ onUnmounted(() => {
   padding: 4px 8px;
   border-radius: 20px;
   transition: background 0.2s;
+  overflow: visible;
 }
 
 .avatar {
-  width: 32px;
-  height: 32px;
+  width: 38px;
+  height: 38px;
   border-radius: 50%;
-  background: #d8d8d8;
-  border: 2px solid rgba(255, 255, 255, .8);
+  background: transparent;
   flex-shrink: 0;
-  overflow: hidden;
+  overflow: visible;
   display: flex;
   align-items: center;
   justify-content: center;
   position: relative;
-  z-index: 99999;
+  /* 只移动头像视觉位置：不影响 header grid 布局，从而保证搜索框长度不被拉长/缩短 */
+  transform: translateX(10px);
+  /* 头像需要永远压在下拉弹窗之上，因此使用一个远高于下拉层的全局 z-index */
+  z-index: 999990;
   
   img {
-    width: 100%;
-    height: 100%;
+    width: 38px;
+    height: 38px;
+    border-radius: 50%;
     object-fit: cover;
-    position: relative;
-    z-index: 99999;
+    position: absolute;
+    top: 0;
+    right: 0;
+    z-index: 999991;
+    transition: width 0.2s ease, height 0.2s ease, box-shadow 0.2s ease;
+  }
+
+  &::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    right: 0;
+    width: 38px;
+    height: 38px;
+    border-radius: 50%;
+    border: 2px solid rgba(255, 255, 255, .8);
+    box-sizing: border-box;
+    pointer-events: none;
+    z-index: 999992;
+    transition: width 0.2s ease, height 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
   }
 }
 
 .top-header.scrolled .avatar {
-  border-color: #ddd;
+  /* 下滑悬浮状态：头像整体再向右移动一些，避免放大后遮挡搜索框右侧 */
+  transform: translateX(13x);
+}
+
+.user-area.is-dropdown-open .avatar,
+.user-area:hover .avatar {
+  z-index: 100100;
+  /* 下拉/放大时：头像向左收一点，避免贴近右侧图标 */
+  transform: translateX(4px);
+}
+
+.top-header.scrolled .user-area.is-dropdown-open .avatar,
+.top-header.scrolled .user-area:hover .avatar {
+  /* 下滑悬浮 + 下拉/放大时：同样向左收一点，别贴近右侧图标 */
+  transform: translateX(12px);
+}
+
+.user-area.is-dropdown-open .avatar img,
+.user-area:hover .avatar img {
+  width: 82px;
+  height: 82px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.18);
+}
+
+.user-area.is-dropdown-open .avatar::after,
+.user-area:hover .avatar::after {
+  width: 82px;
+  height: 82px;
+}
+
+.top-header.scrolled .avatar {
+  &::after {
+    border-color: #ddd;
+  }
 }
 
 .user-name {

@@ -20,3 +20,8 @@ export const getCoinCount = (videoId) => {
   return request.get('/api/video-coins/count', { params: { videoId } })
 }
 
+// 获取当前登录用户硬币余额
+export const getCoinBalance = () => {
+  return request.get('/api/video-coins/balance')
+}
+

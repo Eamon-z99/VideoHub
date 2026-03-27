@@ -14,13 +14,9 @@
       <div class="user-dropdown">
         <!-- 用户信息头部 -->
         <div class="user-header">
-          <div class="user-avatar">
-            <img v-if="userAvatar" :src="userAvatar" :alt="username" />
-          </div>
           <div class="user-name">{{ username }}</div>
           <div class="user-coins">
             <span>硬币: {{ coins }}</span>
-            <span>B币: {{ bCoins }}</span>
           </div>
           
           <!-- 等级进度条 -->
@@ -98,6 +94,9 @@ import { useRouter } from 'vue-router'
 import { useUserStore } from '@/stores/user'
 import { ElMessage } from 'element-plus'
 import { User, VideoCamera, Star, Moon, RefreshLeft, ArrowRight } from '@element-plus/icons-vue'
+import { getUserStats } from '@/api/follow'
+import { getCoinBalance } from '@/api/coin'
+import { fetchFeeds } from '@/api/feed'
 
 const props = defineProps({
   visible: {
@@ -112,40 +111,21 @@ const router = useRouter()
 const userStore = useUserStore()
 
 const wrapperRef = ref(null)
-
-// 规范化头像 URL
-const normalizeAvatarUrl = (url) => {
-  if (!url) return ''
-  // 如果已经是完整 URL（http/https），直接返回
-  if (url.startsWith('http://') || url.startsWith('https://')) {
-    return url
-  }
-  // 如果是相对路径（以 / 开头），直接返回
-  if (url.startsWith('/')) {
-    return url
-  }
-  // 其他情况，当作相对路径处理
-  return '/' + url
-}
+const BASE_AVATAR_SIZE = 32
+const EXPANDED_AVATAR_SIZE = 82
+const DROPDOWN_BRIDGE_HEIGHT = 8
 
 // 用户信息
 const user = computed(() => userStore.user || {})
 const username = computed(() => user.value.username || user.value.loginAccount || '未登录')
-const userAvatar = computed(() => {
-  const avatar = user.value.avatar || user.value.avatarUrl || ''
-  if (!avatar) return ''
-  return normalizeAvatarUrl(avatar)
-})
 
-// 虚拟数据（后续可以从后端获取）
-const coins = ref(1206)
-const bCoins = ref(0)
+const coins = ref(0)
 const currentLevel = ref(5)
 const nextLevel = ref(6)
 const currentExp = ref(12690)
 const needExp = ref(16110)
-const following = ref(25)
-const fans = ref(3)
+const following = ref(0)
+const fans = ref(0)
 const dynamics = ref(0)
 
 const progressPercent = computed(() => {
@@ -157,6 +137,47 @@ const themeText = ref('浅色')
 
 let leaveTimer = null
 const dropdownStyle = ref({})
+let loadingStats = false
+
+const toNumber = (value) => {
+  if (value === null || value === undefined || value === '') return 0
+  const n = Number(value)
+  return Number.isFinite(n) ? n : 0
+}
+
+const loadRealtimeStats = async () => {
+  const userId = user.value?.id || user.value?.userId
+  if (!userId || loadingStats) return
+
+  loadingStats = true
+  try {
+    const [coinResp, followResp, feedResp] = await Promise.all([
+      getCoinBalance(),
+      getUserStats(userId),
+      fetchFeeds(1, 1, userId, true, userId)
+    ])
+
+    const coinData = coinResp?.data || {}
+    if (coinData.success) {
+      coins.value = toNumber(coinData.coinBalance)
+    }
+
+    const followData = followResp?.data || {}
+    if (followData.success) {
+      const stats = followData.stats || {}
+      following.value = toNumber(stats.followingCount)
+      fans.value = toNumber(stats.followerCount)
+    }
+
+    const feedData = feedResp?.data || {}
+    dynamics.value = toNumber(feedData.total)
+  } catch (error) {
+    // 保持静默，避免影响下拉显示
+    console.warn('加载用户下拉统计失败:', error)
+  } finally {
+    loadingStats = false
+  }
+}
 
 // 计算下拉菜单的位置
 const updatePosition = async () => {
@@ -174,15 +195,14 @@ const updatePosition = async () => {
     }
   }
   
-  // 查找所有 .user-area 元素，选择已登录的那个（包含用户名和下拉菜单的）
+  // 查找所有 .user-area 元素，选择已登录的那个（包含头像图片）
   const userAreas = document.querySelectorAll('.user-area')
   let userArea = null
   
-  // 优先选择包含用户名的区域（已登录用户区域）
+  // 优先选择包含头像图片的区域（已登录用户区域）
   for (const area of userAreas) {
-    // 检查这个区域是否包含用户名（已登录用户区域）
-    const userName = area.querySelector('.user-name')
-    if (userName) {
+    const avatarImg = area.querySelector('.avatar img')
+    if (avatarImg) {
       userArea = area
       break
     }
@@ -199,9 +219,30 @@ const updatePosition = async () => {
   }
   
   const rect = userArea.getBoundingClientRect()
+  const avatarEl = userArea.querySelector('.avatar')
+  const avatarImg = userArea.querySelector('.avatar img')
+  const avatarElRect = avatarEl ? avatarEl.getBoundingClientRect() : null
+  const avatarRect = avatarImg ? avatarImg.getBoundingClientRect() : null
+
+  // 目标效果：头像“下半部分”压在弹窗上边中间。
+  // 头像从右上角锚定向左下放大，基于 .avatar 的右边和上边计算放大后的中心更稳定，
+  // 避免在 32->82 过渡过程中发生偏移。
+  const anchorCenterX = avatarElRect
+    ? avatarElRect.right - EXPANDED_AVATAR_SIZE / 2
+    : (avatarRect ? avatarRect.left + EXPANDED_AVATAR_SIZE / 2 : rect.left + rect.width / 2)
+  const anchorCenterY = avatarElRect
+    ? avatarElRect.top + EXPANDED_AVATAR_SIZE / 2
+    : (avatarRect ? avatarRect.top + EXPANDED_AVATAR_SIZE / 2 : rect.top + EXPANDED_AVATAR_SIZE / 2)
+
+  const dropdownWidth = 320
+  const desiredLeft = anchorCenterX - dropdownWidth / 2
+  const minLeft = 8
+  const maxLeft = Math.max(minLeft, window.innerWidth - dropdownWidth - 8)
+  const left = Math.min(Math.max(desiredLeft, minLeft), maxLeft)
   dropdownStyle.value = {
-    top: `${rect.bottom + 8}px`,
-    right: `${window.innerWidth - rect.right}px`
+    // wrapper 顶部还有 bridge 高度，因此减去 bridge，让卡片上边正好过头像中心线
+    top: `${anchorCenterY - DROPDOWN_BRIDGE_HEIGHT}px`,
+    left: `${left}px`
   }
 }
 
@@ -211,6 +252,7 @@ watch(() => props.visible, async (val) => {
     // 确保组件完全渲染后再更新位置
     await nextTick()
     updatePosition()
+    loadRealtimeStats()
     // 监听窗口滚动和大小变化
     window.addEventListener('scroll', updatePosition, true)
     window.addEventListener('resize', updatePosition)
@@ -229,6 +271,7 @@ watch(() => props.visible, async (val) => {
 onMounted(() => {
   if (props.visible) {
     updatePosition()
+    loadRealtimeStats()
   }
 })
 
@@ -273,6 +316,16 @@ const handleMouseLeave = (e) => {
   if (relatedTarget && wrapperRef.value.contains(relatedTarget)) {
     // 鼠标移动到了下拉菜单内部的另一个元素，不关闭
     return
+  }
+
+  // 如果 relatedTarget 在头像所在的 .user-area 内部，认为是“从弹窗回到头像”，不关闭
+  if (relatedTarget) {
+    const userAreas = document.querySelectorAll('.top-header .user-area')
+    for (const area of userAreas) {
+      if (area.contains(relatedTarget)) {
+        return
+      }
+    }
   }
   
   // 如果 relatedTarget 为 null 或不在 wrapper 内，说明鼠标真的离开了组件
@@ -353,7 +406,7 @@ const handleLogout = async () => {
 <style lang="scss" scoped>
 .user-dropdown-wrapper {
   position: fixed; /* 使用 fixed 定位，确保不受父元素影响 */
-  z-index: 99999; /* 设置最高层级，确保悬浮窗在所有元素之上 */
+  z-index: 10; /* 由头像负责在更高层级上方展示 */
   /* 确保宽度足够覆盖用户区域 */
   min-width: 320px;
   /* 确保整个区域都能捕获鼠标事件 */
@@ -397,6 +450,11 @@ const handleLogout = async () => {
   overflow: hidden;
   /* 确保整个下拉菜单区域都能捕获鼠标事件 */
   pointer-events: auto;
+
+  /* 顶部中间挖半圆缺口：让下方头像能透出来 */
+  /* radius=40 => 80px 直径；圆心在元素顶部边界 => 正好是半圆缺口 */
+  -webkit-mask-image: radial-gradient(circle 40px at 50% 0, transparent 38px, #000 40px);
+  mask-image: radial-gradient(circle 40px at 50% 0, transparent 38px, #000 40px);
 }
 
 .dropdown-fade-enter-active,
@@ -416,31 +474,12 @@ const handleLogout = async () => {
 
 .user-header {
     padding: 20px;
+    padding-top: 50px;
     padding-bottom: 20px; /* 确保底部有足够的 padding */
     text-align: center;
     background: linear-gradient(135deg, #f5f7fa 0%, #ffffff 100%);
     /* 确保整个区域都能捕获鼠标事件 */
     min-height: 100%;
-    
-    .user-avatar {
-      width: 80px;
-      height: 80px;
-      margin: 0 auto 12px;
-      border-radius: 50%;
-      overflow: hidden;
-      border: 3px solid #fff;
-      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-      position: relative;
-      z-index: 99999;
-      
-      img {
-        width: 100%;
-        height: 100%;
-        object-fit: cover;
-        position: relative;
-        z-index: 99999;
-      }
-    }
     
     .user-name {
       font-size: 18px;
