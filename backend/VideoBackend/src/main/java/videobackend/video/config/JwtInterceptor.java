@@ -39,6 +39,10 @@ public class JwtInterceptor implements HandlerInterceptor {
                 // 搜索也允许公开（POST /api/db/videos/search）
                 || (path.equals("/api/db/videos/search"));
 
+        boolean isPublicSearchRead =
+                path.startsWith("/api/db/search/") &&
+                (("GET".equals(request.getMethod())) || ("POST".equals(request.getMethod())));
+
         if (path.startsWith("/api/auth/login") ||
             path.startsWith("/api/auth/register") ||
             path.startsWith("/api/auth/logout") ||
@@ -52,7 +56,8 @@ public class JwtInterceptor implements HandlerInterceptor {
             path.startsWith("/local-videos/") ||
             path.startsWith("/avatars/") ||
             path.startsWith("/error") ||
-            isPublicVideoRead) {
+            isPublicVideoRead ||
+            isPublicSearchRead) {
             return true;
         }
 

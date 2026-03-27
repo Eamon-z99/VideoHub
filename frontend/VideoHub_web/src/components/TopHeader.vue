@@ -32,17 +32,31 @@
       </li>
       </ul>
     </div>
-    <div class="search">
-      <input
-        class="search-input"
-        v-model="searchText"
-        placeholder="搜索你感兴趣的内容"
-        @keyup.enter="doSearch"
-      />
-      <button class="search-btn" @click="doSearch">
-        <!-- 🔍 -->
-        <img src="/assets/search-button.png" class="search-btn-img"/>
-      </button>
+    <div class="search" :class="{ 'is-typing': !!searchText.trim(), 'is-open': showSuggest }">
+      <div class="search-input-row">
+        <input
+          class="search-input"
+          v-model="searchText"
+          placeholder="搜索你感兴趣的内容"
+          @keyup.enter="doSearch"
+          @focus="onSearchFocus"
+          @input="onSearchInput"
+          @blur="hideSuggestSoon"
+        />
+        <button class="search-btn" @click="doSearch">
+          <img src="/assets/search-button.png" class="search-btn-img"/>
+        </button>
+      </div>
+
+      <div class="search-expand-panel" :class="{ visible: showSuggest }">
+        <SearchSuggestPopover
+          :history="searchHistory"
+          :hot-keywords="hotKeywords"
+          @select="onSelectSuggestion"
+          @clear-history="clearHistory"
+          @remove-history="removeHistoryItem"
+        />
+      </div>
     </div>
     <div class="actions">
       <div 
@@ -101,6 +115,8 @@ import Login from '@/components/Login.vue'
 import UserDropdown from '@/components/UserDropdown.vue'
 import { useUserStore } from '@/stores/user'
 import { fetchMyProfile } from '@/api/userProfile'
+import SearchSuggestPopover from '@/components/SearchSuggestPopover.vue'
+import { fetchHotKeywords, recordSearchKeyword } from '@/api/search'
 import webLogoRaw from '../../public/assets/webLogo.svg?raw'
 
 // Props
@@ -137,6 +153,129 @@ const isAuthenticated = computed(() => userStore.isAuthenticated)
 
 // 搜索关键字
 const searchText = ref('')
+
+const showSuggest = ref(false)
+const searchHistory = ref<string[]>([])
+const hotKeywords = ref<Array<{ keyword: string; isNew: boolean }>>([])
+let hotKeywordsLoadedAt = 0
+const HOT_KEYWORDS_CACHE_MS = 60 * 1000
+
+const storageKey = computed(() => {
+  const id = user.value?.id || user.value?.userId
+  return `search_history_${id || 'guest'}`
+})
+
+function loadHistory() {
+  try {
+    const raw = localStorage.getItem(storageKey.value)
+    if (!raw) {
+      searchHistory.value = []
+      return
+    }
+    const list = JSON.parse(raw)
+    if (!Array.isArray(list)) {
+      searchHistory.value = []
+      return
+    }
+    searchHistory.value = list.filter(x => typeof x === 'string' && x.trim()).slice(0, 10)
+  } catch {
+    searchHistory.value = []
+  }
+}
+
+function persistHistory(next: string[]) {
+  try {
+    localStorage.setItem(storageKey.value, JSON.stringify(next))
+  } catch {
+    // ignore
+  }
+}
+
+function pushHistory(keyword: string) {
+  const kw = keyword.trim()
+  if (!kw) return
+  const next = [kw, ...searchHistory.value.filter(x => x !== kw)].slice(0, 10)
+  searchHistory.value = next
+  persistHistory(next)
+}
+
+const clearHistory = () => {
+  searchHistory.value = []
+  persistHistory([])
+}
+
+const removeHistoryItem = (keyword: string) => {
+  const next = searchHistory.value.filter(x => x !== keyword)
+  searchHistory.value = next
+  persistHistory(next)
+}
+
+async function loadHotKeywordsIfNeeded(force = false) {
+  const now = Date.now()
+  if (!force && hotKeywords.value.length > 0 && now - hotKeywordsLoadedAt < HOT_KEYWORDS_CACHE_MS) return
+
+  try {
+    const resp = await fetchHotKeywords({ limit: 10 })
+    const list = resp?.data?.list || resp?.data?.data?.list || []
+    hotKeywords.value = Array.isArray(list)
+      ? list.map(it => ({ keyword: it.keyword, isNew: !!it.isNew }))
+      : []
+    hotKeywordsLoadedAt = now
+  } catch {
+    // 接口未就绪：允许前端先可用
+    hotKeywords.value = []
+  }
+}
+
+let blurTimer: any = null
+
+const onSearchFocus = () => {
+  showSuggest.value = true
+  loadHistory()
+  void loadHotKeywordsIfNeeded()
+}
+
+const onSearchInput = () => {
+  // 输入变化也保持下拉展示
+  showSuggest.value = true
+  void loadHotKeywordsIfNeeded()
+}
+
+const doSearchWithKeyword = (kw: string) => {
+  const keyword = (kw || '').trim()
+  if (!keyword) return
+
+  // 记录搜索历史（本地）
+  pushHistory(keyword)
+
+  // 记录到后端热搜（允许失败）
+  void recordSearchKeyword({ keyword }).catch(() => {})
+
+  const query = `?keyword=${encodeURIComponent(keyword)}`
+  openInNewTab(`/search${query}`)
+}
+
+const onSelectSuggestion = (kw: string) => {
+  showSuggest.value = false
+  searchText.value = kw
+  doSearchWithKeyword(kw)
+}
+
+function hideSuggestSoon() {
+  if (blurTimer) clearTimeout(blurTimer)
+  blurTimer = setTimeout(() => {
+    showSuggest.value = false
+  }, 140)
+}
+
+function onDocClick(e: MouseEvent) {
+  const target = e.target as HTMLElement | null
+  if (!target) return
+  const wrap = document.querySelector('.top-header .search')
+  if (!wrap) return
+  if (wrap.contains(target)) return
+  showSuggest.value = false
+}
 
 // 规范化头像 URL
 const normalizeAvatarUrl = (url: string) => {
@@ -371,10 +510,31 @@ const navigateToCreatorCenter = () => {
 const doSearch = () => {
   const kw = searchText.value.trim()
   if (!kw) return
+
+  // 记录搜索历史（本地）
+  pushHistory(kw)
+
+  // 记录到后端热搜（允许失败）
+  void recordSearchKeyword({ keyword: kw }).catch(() => {})
+
   // 在新标签页打开搜索结果，而不是当前页跳转
   const query = `?keyword=${encodeURIComponent(kw)}`
   openInNewTab(`/search${query}`)
 }
+
+watch(() => user.value, () => {
+  // 用户信息变更时，刷新历史
+  loadHistory()
+})
+
+onMounted(() => {
+  document.addEventListener('click', onDocClick)
+})
+
+onUnmounted(() => {
+  document.removeEventListener('click', onDocClick)
+  if (blurTimer) clearTimeout(blurTimer)
+})
 </script>
 
 <style lang="scss" scoped>
@@ -521,34 +681,85 @@ const doSearch = () => {
 }
 
 .search {
-  display: grid;
-  grid-template-columns: 1fr 40px;
+  display: flex;
+  flex-direction: column;
   background: #F1F2F3;
+  border: 0;
   border-radius: 8px;
   overflow: hidden;
-  width: clamp(260px, 28vw, 420px);
+  width: 100%;
+  max-width: 560px;
+  min-width: 260px;
   margin: 0 auto;
+  margin-top: 12px;
+  align-self: start;
+  position: relative;
+  box-sizing: border-box;
+  padding: 4px;
+  transition: border-radius 0.2s ease, background-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.search-input-row {
+  position: relative;
+  display: flex;
+  align-items: center;
+  min-height: 32px;
+}
+
+.search.is-typing,
+.search:focus-within {
+  background: #ffffff;
 }
 
 .search-input {
-  height: 36px;
-  padding: 0 12px;
+  height: 32px;
+  padding: 0 48px 0 12px;
   border: 0;
   outline: none;
   font-size: 14px;
   background: #F1F2F3;
+  color: #111827;
+  border-radius: 8px;
+  width: 93%;
+  box-sizing: border-box;
+  transition: background-color 0.2s ease;
+}
+
+/* 输入时背景色变深一点 */
+.search.is-typing .search-input,
+.search:focus-within .search-input {
+  background: #e3e5e7;
+}
+
+.search.is-open {
+  border-radius: 8px;
+  box-shadow: 0 0 30px rgba(0, 0, 0, .1);
+}
+
+.search-expand-panel {
+  max-height: 0;
+  opacity: 0;
+  transition: max-height 0.2s ease, opacity 0.2s ease;
+}
+
+.search-expand-panel.visible {
+  max-height: 1000px;
+  opacity: 1;
 }
 
 .search-btn {
-  margin-left: 4px;
-  margin-top: 4px;
+  position: absolute;
+  right: 4px;
+  top: 50%;
+  transform: translateY(-50%);
+  margin: 0;
   border: 0;
   background: transparent;
   cursor: pointer;
   font-size: 16px;
   padding: 8px;
-  width: 25px;
-  height: 25px;
+  width: 30px;
+  height: 30px;
   border-radius: 8px;
   display: flex;
   align-items: center;
@@ -556,13 +767,13 @@ const doSearch = () => {
 }
 
 .search-btn:hover {
-  background-color: #f5f5f5;
+  background: transparent;
 }
 
 .search-btn-img {
   width: 20px;
   height: 20px;
-  margin-top: 4px;
+  margin-top: 0;
   // 搜索按钮图标在搜索框内，搜索框本身是白色背景，所以图标应该是深色
   filter: brightness(0);
 }
