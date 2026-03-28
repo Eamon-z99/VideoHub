@@ -20,12 +20,18 @@ const DataCenter = () => import('@/views/Submit/data_center.vue')
 const ContentManagement = () => import('@/views/Submit/content_management.vue')
 const Community = () => import('@/views/column/Community.vue')
 const Classroom = () => import('@/views/column/Classroom.vue')
+const TagFeedView = () => import('@/views/TagFeed/TagFeedView.vue')
 
 const routes = [
   {
     path: '/',
     name: 'home',
     component: HomePage
+  },
+  {
+    path: '/tag/:tag',
+    name: 'tag-feed',
+    component: TagFeedView
   },
   {
     path: '/mall',//会员购

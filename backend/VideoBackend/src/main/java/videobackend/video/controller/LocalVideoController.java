@@ -16,6 +16,8 @@ import java.util.Locale;
 import java.util.List;
 import java.util.Map;
 
+import org.springframework.util.StringUtils;
+
 @RestController
 @RequestMapping("/api/db/videos")
 public class LocalVideoController {
@@ -37,16 +39,18 @@ public class LocalVideoController {
                                     @RequestParam(defaultValue = "20") int pageSize,
                                     @RequestParam(required = false) Long userId,
                                     @RequestParam(required = false) Boolean followingOnly,
-                                    @RequestParam(required = false) Long followingId) {
+                                    @RequestParam(required = false) Long followingId,
+                                    @RequestParam(required = false) String tag) {
         List<VideoItem> items;
         long total;
-        
+
         if (followingOnly != null && followingOnly && userId != null) {
-            // 只返回关注用户的视频
             items = localVideoService.listPageByFollowing(userId, followingId, page, pageSize);
             total = localVideoService.countByFollowing(userId, followingId);
+        } else if (StringUtils.hasText(tag)) {
+            items = localVideoService.listPageByTag(tag.trim(), page, pageSize);
+            total = localVideoService.countByTag(tag.trim());
         } else {
-            // 默认返回所有视频
             items = localVideoService.listPage(page, pageSize);
             total = localVideoService.count();
         }

@@ -11,7 +11,7 @@
  Target Server Version : 80040
  File Encoding         : 65001
 
- Date: 27/03/2026 21:09:26
+ Date: 28/03/2026 23:52:45
 */
 
 SET NAMES utf8mb4;
@@ -50,7 +50,7 @@ CREATE TABLE `comment_likes`  (
   INDEX `idx_comment_id`(`comment_id` ASC) USING BTREE,
   CONSTRAINT `comment_likes_ibfk_1` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE ON UPDATE RESTRICT,
   CONSTRAINT `comment_likes_ibfk_2` FOREIGN KEY (`comment_id`) REFERENCES `comments` (`id`) ON DELETE CASCADE ON UPDATE RESTRICT
-) ENGINE = InnoDB AUTO_INCREMENT = 6 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_unicode_ci COMMENT = '评论点赞表' ROW_FORMAT = DYNAMIC;
+) ENGINE = InnoDB AUTO_INCREMENT = 20 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_unicode_ci COMMENT = '评论点赞表' ROW_FORMAT = DYNAMIC;
 
 -- ----------------------------
 -- Table structure for comments
@@ -62,7 +62,7 @@ CREATE TABLE `comments`  (
   `user_id` bigint UNSIGNED NOT NULL COMMENT '用户ID',
   `content` text CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL COMMENT '评论内容',
   `parent_id` bigint UNSIGNED NULL DEFAULT NULL COMMENT '父评论ID（回复评论时使用）',
-  `reply_to_user_id` bigint UNSIGNED NULL DEFAULT NULL COMMENT '被回复用户ID（仅对回复再回复）',
+  `reply_to_user_id` bigint UNSIGNED NULL DEFAULT NULL COMMENT '被回复用户ID（仅二次回复）',
   `like_count` int UNSIGNED NULL DEFAULT 0 COMMENT '点赞数',
   `status` tinyint NULL DEFAULT 1 COMMENT '状态：0-删除，1-正常',
   `create_time` datetime NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
@@ -71,13 +71,13 @@ CREATE TABLE `comments`  (
   INDEX `idx_video_id`(`video_id` ASC) USING BTREE,
   INDEX `idx_user_id`(`user_id` ASC) USING BTREE,
   INDEX `idx_parent_id`(`parent_id` ASC) USING BTREE,
-  INDEX `idx_reply_to_user_id`(`reply_to_user_id` ASC) USING BTREE,
   INDEX `idx_create_time`(`create_time` ASC) USING BTREE,
+  INDEX `idx_reply_to_user_id`(`reply_to_user_id` ASC) USING BTREE,
   CONSTRAINT `comments_ibfk_1` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE ON UPDATE RESTRICT,
   CONSTRAINT `comments_ibfk_2` FOREIGN KEY (`video_id`) REFERENCES `videos` (`video_id`) ON DELETE CASCADE ON UPDATE RESTRICT,
   CONSTRAINT `comments_ibfk_3` FOREIGN KEY (`parent_id`) REFERENCES `comments` (`id`) ON DELETE CASCADE ON UPDATE RESTRICT,
   CONSTRAINT `comments_ibfk_reply_to_user` FOREIGN KEY (`reply_to_user_id`) REFERENCES `users` (`id`) ON DELETE SET NULL ON UPDATE RESTRICT
-) ENGINE = InnoDB AUTO_INCREMENT = 16 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_unicode_ci COMMENT = '评论表' ROW_FORMAT = DYNAMIC;
+) ENGINE = InnoDB AUTO_INCREMENT = 22 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_unicode_ci COMMENT = '评论表' ROW_FORMAT = DYNAMIC;
 
 -- ----------------------------
 -- Table structure for fans
@@ -207,7 +207,7 @@ CREATE TABLE `play_history`  (
   INDEX `idx_play_history_video_play_time`(`video_id` ASC, `play_time` ASC) USING BTREE,
   CONSTRAINT `play_history_ibfk_1` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE ON UPDATE RESTRICT,
   CONSTRAINT `play_history_ibfk_2` FOREIGN KEY (`video_id`) REFERENCES `videos` (`video_id`) ON DELETE CASCADE ON UPDATE RESTRICT
-) ENGINE = InnoDB AUTO_INCREMENT = 1023182 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_unicode_ci COMMENT = '播放历史表' ROW_FORMAT = DYNAMIC;
+) ENGINE = InnoDB AUTO_INCREMENT = 1023187 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_unicode_ci COMMENT = '播放历史表' ROW_FORMAT = DYNAMIC;
 
 -- ----------------------------
 -- Table structure for private_messages
@@ -243,7 +243,7 @@ CREATE TABLE `profile_visits`  (
   INDEX `idx_visitor`(`visitor_id` ASC) USING BTREE,
   CONSTRAINT `fk_profile_visits_profile_user` FOREIGN KEY (`profile_user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE ON UPDATE RESTRICT,
   CONSTRAINT `fk_profile_visits_visitor` FOREIGN KEY (`visitor_id`) REFERENCES `users` (`id`) ON DELETE CASCADE ON UPDATE RESTRICT
-) ENGINE = InnoDB AUTO_INCREMENT = 5 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_unicode_ci COMMENT = '个人主页访问记录表' ROW_FORMAT = DYNAMIC;
+) ENGINE = InnoDB AUTO_INCREMENT = 16 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_unicode_ci COMMENT = '个人主页访问记录表' ROW_FORMAT = DYNAMIC;
 
 -- ----------------------------
 -- Table structure for search_hot_keywords
@@ -273,7 +273,7 @@ CREATE TABLE `search_keyword_events`  (
   INDEX `idx_create_time`(`create_time` ASC) USING BTREE,
   INDEX `search_keyword_events_ibfk_1`(`user_id` ASC) USING BTREE,
   CONSTRAINT `search_keyword_events_ibfk_1` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE SET NULL ON UPDATE RESTRICT
-) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci ROW_FORMAT = Dynamic;
+) ENGINE = InnoDB AUTO_INCREMENT = 20 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci ROW_FORMAT = Dynamic;
 
 -- ----------------------------
 -- Table structure for transcode_tasks
@@ -297,30 +297,21 @@ CREATE TABLE `transcode_tasks`  (
 ) ENGINE = InnoDB AUTO_INCREMENT = 1 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_unicode_ci COMMENT = '转码任务表' ROW_FORMAT = DYNAMIC;
 
 -- ----------------------------
--- Table structure for users
+-- Table structure for user_daily_login_coin_grants
 -- ----------------------------
-DROP TABLE IF EXISTS `users`;
-CREATE TABLE `users`  (
-  `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '用户ID',
-  `username` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL COMMENT '用户名',
-  `account` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL COMMENT '登录账号',
-  `password` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL COMMENT '密码（加密后）',
-  `email` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL DEFAULT NULL COMMENT '邮箱',
-  `avatar` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL DEFAULT NULL COMMENT '头像URL',
-  `bio` varchar(500) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL DEFAULT NULL COMMENT '个人简介',
-  `coin_balance` bigint UNSIGNED NOT NULL DEFAULT 0 COMMENT '用户硬币余额',
-  `level` TINYINT UNSIGNED NOT NULL DEFAULT 0 COMMENT '用户等级（0-6）',
-  `exp` BIGINT UNSIGNED NOT NULL DEFAULT 0 COMMENT '当前总经验值（用于计算等级）',
-  `status` tinyint NULL DEFAULT 1 COMMENT '状态：0-禁用，1-正常',
+DROP TABLE IF EXISTS `user_daily_login_coin_grants`;
+CREATE TABLE `user_daily_login_coin_grants`  (
+  `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '发放记录ID',
+  `user_id` bigint UNSIGNED NOT NULL COMMENT '用户ID',
+  `grant_date` date NOT NULL COMMENT '发放日期（按日）',
+  `coin_granted` int UNSIGNED NOT NULL DEFAULT 1 COMMENT '发放硬币数（当前固定 1）',
   `create_time` datetime NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
-  `update_time` datetime NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
   PRIMARY KEY (`id`) USING BTREE,
-  UNIQUE INDEX `account`(`account` ASC) USING BTREE,
-  INDEX `idx_account`(`account` ASC) USING BTREE,
-  INDEX `idx_username`(`username` ASC) USING BTREE,
-  INDEX `idx_level`(`level` ASC) USING BTREE,
-  INDEX `idx_exp`(`exp` ASC) USING BTREE
-) ENGINE = InnoDB AUTO_INCREMENT = 6346 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_unicode_ci COMMENT = '用户表' ROW_FORMAT = DYNAMIC;
+  UNIQUE INDEX `uk_user_date`(`user_id` ASC, `grant_date` ASC) USING BTREE,
+  INDEX `idx_user_id`(`user_id` ASC) USING BTREE,
+  INDEX `idx_grant_date`(`grant_date` ASC) USING BTREE,
+  CONSTRAINT `user_daily_login_coin_grants_ibfk_1` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE ON UPDATE RESTRICT
+) ENGINE = InnoDB AUTO_INCREMENT = 8 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_unicode_ci COMMENT = '用户每日登录硬币奖励发放记录' ROW_FORMAT = DYNAMIC;
 
 -- ----------------------------
 -- Table structure for user_exp_daily_grants
@@ -340,24 +331,31 @@ CREATE TABLE `user_exp_daily_grants`  (
   INDEX `idx_user_id`(`user_id` ASC) USING BTREE,
   INDEX `idx_grant_date`(`grant_date` ASC) USING BTREE,
   CONSTRAINT `user_exp_daily_grants_ibfk_1` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE ON UPDATE RESTRICT
-) ENGINE = InnoDB AUTO_INCREMENT = 1 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_unicode_ci COMMENT = '用户每日经验发放记录' ROW_FORMAT = DYNAMIC;
+) ENGINE = InnoDB AUTO_INCREMENT = 13 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_unicode_ci COMMENT = '用户每日经验发放记录' ROW_FORMAT = Dynamic;
 
 -- ----------------------------
--- Table structure for user_daily_login_coin_grants
+-- Table structure for users
 -- ----------------------------
-DROP TABLE IF EXISTS `user_daily_login_coin_grants`;
-CREATE TABLE `user_daily_login_coin_grants`  (
-  `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '发放记录ID',
-  `user_id` bigint UNSIGNED NOT NULL COMMENT '用户ID',
-  `grant_date` date NOT NULL COMMENT '发放日期（按日）',
-  `coin_granted` int UNSIGNED NOT NULL DEFAULT 1 COMMENT '发放硬币数（当前固定 1）',
+DROP TABLE IF EXISTS `users`;
+CREATE TABLE `users`  (
+  `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '用户ID',
+  `username` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL COMMENT '用户名',
+  `account` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL COMMENT '登录账号',
+  `password` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL COMMENT '密码（加密后）',
+  `email` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL DEFAULT NULL COMMENT '邮箱',
+  `avatar` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL DEFAULT NULL COMMENT '头像URL',
+  `bio` varchar(500) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL DEFAULT NULL COMMENT '个人简介',
+  `coin_balance` bigint UNSIGNED NOT NULL DEFAULT 0 COMMENT '用户硬币余额',
+  `level` tinyint UNSIGNED NOT NULL DEFAULT 0 COMMENT '用户等级（0-6，预留更高等级）',
+  `exp` bigint UNSIGNED NOT NULL DEFAULT 0 COMMENT '当前经验值（用于计算等级）',
+  `status` tinyint NULL DEFAULT 1 COMMENT '状态：0-禁用，1-正常',
   `create_time` datetime NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  `update_time` datetime NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
   PRIMARY KEY (`id`) USING BTREE,
-  UNIQUE INDEX `uk_user_date`(`user_id` ASC, `grant_date` ASC) USING BTREE,
-  INDEX `idx_user_id`(`user_id` ASC) USING BTREE,
-  INDEX `idx_grant_date`(`grant_date` ASC) USING BTREE,
-  CONSTRAINT `user_daily_login_coin_grants_ibfk_1` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE ON UPDATE RESTRICT
-) ENGINE = InnoDB AUTO_INCREMENT = 1 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_unicode_ci COMMENT = '用户每日登录硬币奖励发放记录' ROW_FORMAT = DYNAMIC;
+  UNIQUE INDEX `account`(`account` ASC) USING BTREE,
+  INDEX `idx_account`(`account` ASC) USING BTREE,
+  INDEX `idx_username`(`username` ASC) USING BTREE
+) ENGINE = InnoDB AUTO_INCREMENT = 6346 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_unicode_ci COMMENT = '用户表' ROW_FORMAT = DYNAMIC;
 
 -- ----------------------------
 -- Table structure for video_coins
@@ -375,7 +373,7 @@ CREATE TABLE `video_coins`  (
   INDEX `idx_create_time`(`create_time` ASC) USING BTREE,
   CONSTRAINT `video_coins_ibfk_1` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE ON UPDATE RESTRICT,
   CONSTRAINT `video_coins_ibfk_2` FOREIGN KEY (`video_id`) REFERENCES `videos` (`video_id`) ON DELETE CASCADE ON UPDATE RESTRICT
-) ENGINE = InnoDB AUTO_INCREMENT = 3 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_unicode_ci COMMENT = '视频投币表' ROW_FORMAT = DYNAMIC;
+) ENGINE = InnoDB AUTO_INCREMENT = 9 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_unicode_ci COMMENT = '视频投币表' ROW_FORMAT = DYNAMIC;
 
 -- ----------------------------
 -- Table structure for video_complaints
@@ -499,7 +497,7 @@ CREATE TABLE `video_play_events`  (
   CONSTRAINT `fk_vpe_creator` FOREIGN KEY (`creator_id`) REFERENCES `users` (`id`) ON DELETE CASCADE ON UPDATE RESTRICT,
   CONSTRAINT `fk_vpe_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE SET NULL ON UPDATE RESTRICT,
   CONSTRAINT `fk_vpe_video` FOREIGN KEY (`video_id`) REFERENCES `videos` (`video_id`) ON DELETE CASCADE ON UPDATE RESTRICT
-) ENGINE = InnoDB AUTO_INCREMENT = 114 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_unicode_ci COMMENT = '视频播放事件流水表' ROW_FORMAT = DYNAMIC;
+) ENGINE = InnoDB AUTO_INCREMENT = 156 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_unicode_ci COMMENT = '视频播放事件流水表' ROW_FORMAT = DYNAMIC;
 
 -- ----------------------------
 -- Table structure for video_submissions
@@ -576,5 +574,19 @@ CREATE TABLE `videos`  (
   INDEX `idx_create_time`(`create_time` ASC) USING BTREE,
   CONSTRAINT `videos_ibfk_1` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE SET NULL ON UPDATE RESTRICT
 ) ENGINE = InnoDB AUTO_INCREMENT = 6678 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_unicode_ci COMMENT = '视频表' ROW_FORMAT = DYNAMIC;
+
+-- ----------------------------
+-- Table structure for watch_later
+-- ----------------------------
+DROP TABLE IF EXISTS `watch_later`;
+CREATE TABLE `watch_later`  (
+  `id` bigint NOT NULL AUTO_INCREMENT,
+  `user_id` bigint NOT NULL COMMENT '用户ID',
+  `video_id` varchar(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL COMMENT '视频ID，与 videos.video_id 一致',
+  `create_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '加入时间',
+  PRIMARY KEY (`id`) USING BTREE,
+  UNIQUE INDEX `uk_watch_later_user_video`(`user_id` ASC, `video_id` ASC) USING BTREE,
+  INDEX `idx_watch_later_user_time`(`user_id` ASC, `create_time` ASC) USING BTREE
+) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = utf8mb4_unicode_ci COMMENT = '稍后再看' ROW_FORMAT = Dynamic;
 
 SET FOREIGN_KEY_CHECKS = 1;

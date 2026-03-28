@@ -1,6 +1,7 @@
 <template>
   <div class="video-card">
     <div
+      ref="thumbOuterRef"
       class="thumb-outer"
       @mouseenter="onThumbEnter"
       @mouseleave="onThumbLeave"
@@ -27,8 +28,9 @@
       />
       <img
         v-else
-        :src="video.cover"
-        loading="lazy"
+        :src="coverSrc"
+        :loading="lazyCover ? 'eager' : 'lazy'"
+        decoding="async"
         @error="onImgError && onImgError($event)"
       />
       <div v-if="!isPreviewPlaying" class="bottom-gradient"></div>
@@ -137,11 +139,15 @@
 </template>
 
 <script setup>
-import { ref, computed, watch } from 'vue'
+import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
 import { ElMessage } from 'element-plus'
 import { fetchVideoDetail } from '@/api/video'
 import { useUserStore } from '@/stores/user'
 import { useWatchLaterStore } from '@/stores/watchLater'
+
+/** 仅占位的透明 1×1，真实封面由 IntersectionObserver / 悬停再加载 */
+const COVER_PLACEHOLDER =
+  'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7'
 
 const props = defineProps({
   video: {
@@ -156,6 +162,13 @@ const props = defineProps({
   hoverPreview: {
     type: Boolean,
     default: true
+  },
+  /**
+   * 为 true 时：进入视口（或悬停）再请求真实封面；适合首页虚拟网格，避免屏外卡片抢带宽。
+   */
+  lazyCover: {
+    type: Boolean,
+    default: false
   }
 })
 
@@ -165,10 +178,49 @@ const wlStore = useWatchLaterStore()
 const thumbHover = ref(false)
 const playUrlResolved = ref('')
 const thumbVideoRef = ref(null)
+const thumbOuterRef = ref(null)
 const thumbCurrentSec = ref(0)
 const thumbDurationSec = ref(0)
+/** 懒加载封面：已进入视口或用户悬停则为 true */
+const coverRevealed = ref(!props.lazyCover)
+
+let coverIo = null
 
 const videoId = computed(() => props.video?.id || props.video?.videoId || null)
+
+const coverSrc = computed(() => {
+  const real = (props.video?.cover || '').trim()
+  if (!props.lazyCover) return real
+  if (coverRevealed.value || thumbHover.value) return real || COVER_PLACEHOLDER
+  return COVER_PLACEHOLDER
+})
+
+function disconnectCoverIo() {
+  if (coverIo) {
+    coverIo.disconnect()
+    coverIo = null
+  }
+}
+
+function setupCoverIo() {
+  if (!props.lazyCover || coverRevealed.value) return
+  disconnectCoverIo()
+  nextTick(() => {
+    const el = thumbOuterRef.value
+    if (!el || coverRevealed.value) return
+    coverIo = new IntersectionObserver(
+      (entries) => {
+        const hit = entries.some((e) => e.isIntersecting)
+        if (hit) {
+          coverRevealed.value = true
+          disconnectCoverIo()
+        }
+      },
+      { root: null, rootMargin: '160px 0px', threshold: 0.01 }
+    )
+    coverIo.observe(el)
+  })
+}
 
 const displayPlayUrl = computed(() => {
   if (props.video?.playUrl) return props.video.playUrl
@@ -238,6 +290,32 @@ watch(videoId, () => {
   }
 })
 
+watch(
+  () => [props.lazyCover, videoId.value],
+  () => {
+    if (!props.lazyCover) {
+      coverRevealed.value = true
+      disconnectCoverIo()
+      return
+    }
+    coverRevealed.value = false
+    disconnectCoverIo()
+    setupCoverIo()
+  }
+)
+
+onMounted(() => {
+  if (!props.lazyCover) {
+    coverRevealed.value = true
+    return
+  }
+  setupCoverIo()
+})
+
+onUnmounted(() => {
+  disconnectCoverIo()
+})
+
 async function ensurePlayUrl() {
   if (!props.hoverPreview) return
   if (displayPlayUrl.value) return
@@ -254,6 +332,10 @@ async function ensurePlayUrl() {
 
 function onThumbEnter() {
   thumbHover.value = true
+  if (props.lazyCover) {
+    coverRevealed.value = true
+    disconnectCoverIo()
+  }
   if (props.hoverPreview) {
     void ensurePlayUrl()
   }

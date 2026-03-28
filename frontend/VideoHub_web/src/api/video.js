@@ -6,7 +6,8 @@ export const fetchVideos = (
   pageSize = 20,
   userId = null,
   followingOnly = false,
-  followingId = null
+  followingId = null,
+  tag = null
 ) => {
   const params = { page, pageSize }
   if (userId) {
@@ -17,6 +18,9 @@ export const fetchVideos = (
   }
   if (followingId) {
     params.followingId = followingId
+  }
+  if (tag) {
+    params.tag = tag
   }
   return request.get('/api/db/videos', { params })
 }

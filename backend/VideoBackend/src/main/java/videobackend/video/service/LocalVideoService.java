@@ -128,6 +128,69 @@ public class LocalVideoService {
     }
 
     /**
+     * tags 字段为 JSON 数组字符串，筛选包含指定标签名的视频（精确匹配数组中的某个字符串元素）。
+     */
+    public List<VideoItem> listPageByTag(String tag, int page, int pageSize) {
+        int safeSize = Math.max(1, Math.min(pageSize, 100));
+        int safePage = Math.max(1, page);
+        int offset = (safePage - 1) * safeSize;
+        String t = tag == null ? "" : tag.trim();
+        if (!StringUtils.hasText(t)) {
+            return listPage(page, pageSize);
+        }
+        String sql = """
+                SELECT v.video_id,
+                       v.title,
+                       v.description,
+                       v.duration,
+                       v.cover_url,
+                       v.storage_path,
+                       v.source_file,
+                       v.view_count,
+                       (SELECT COUNT(*)
+                        FROM comments c
+                        WHERE c.video_id = v.video_id
+                          AND c.status = 1
+                       ) AS comment_count,
+                       v.like_count,
+                       v.favorite_count,
+                       v.file_size,
+                       u.username AS uploader_name,
+                       u.avatar AS uploader_avatar,
+                       u.id AS uploader_id,
+                       v.create_time
+                FROM videos v
+                LEFT JOIN users u ON v.user_id = u.id
+                WHERE (v.status IS NULL OR UPPER(TRIM(v.status)) NOT IN ('FAILED','DOWN'))
+                  AND v.tags IS NOT NULL
+                  AND TRIM(v.tags) <> ''
+                  AND JSON_VALID(v.tags)
+                  AND JSON_SEARCH(v.tags, 'one', ?, NULL, '$[*]') IS NOT NULL
+                ORDER BY RAND()
+                LIMIT ? OFFSET ?
+                """;
+        return jdbcTemplate.query(sql, (rs, i) -> mapToVideo(rs), t, safeSize, offset);
+    }
+
+    public long countByTag(String tag) {
+        String t = tag == null ? "" : tag.trim();
+        if (!StringUtils.hasText(t)) {
+            return count();
+        }
+        String sql = """
+                SELECT COUNT(*)
+                FROM videos v
+                WHERE (v.status IS NULL OR UPPER(TRIM(v.status)) NOT IN ('FAILED','DOWN'))
+                  AND v.tags IS NOT NULL
+                  AND TRIM(v.tags) <> ''
+                  AND JSON_VALID(v.tags)
+                  AND JSON_SEARCH(v.tags, 'one', ?, NULL, '$[*]') IS NOT NULL
+                """;
+        Long total = jdbcTemplate.queryForObject(sql, Long.class, t);
+        return total == null ? 0 : total;
+    }
+
+    /**
      * 按关键字搜索视频（标题 / 描述 / 作者昵称）
      */
     public List<VideoItem> listPageByKeyword(String keyword, int page, int pageSize) {

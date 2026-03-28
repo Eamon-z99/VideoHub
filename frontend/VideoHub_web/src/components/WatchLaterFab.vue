@@ -287,11 +287,22 @@ const fabStyle = computed(() => {
   }
 })
 
+/**
+ * 与首页 openInNewTab 一致：微前端下必须用 window.__MICRO_APP_BASE_ROUTE__，
+ * 否则 window.open 会打开宿主根路径的 /video/...，易被重定向到主页。
+ */
+function resolvePublicAppBase() {
+  const micro =
+    typeof window !== 'undefined' ? window.__MICRO_APP_BASE_ROUTE__ || '' : ''
+  if (micro) return String(micro).replace(/\/$/, '')
+  return String(import.meta.env.BASE_URL || '/').replace(/\/$/, '')
+}
+
 function openVideoPage(videoId) {
   if (!videoId) return
-  const base = import.meta.env.BASE_URL || '/'
-  const b = String(base).replace(/\/$/, '')
-  const url = `${b}/video/${encodeURIComponent(videoId)}`
+  const base = resolvePublicAppBase()
+  const path = `/video/${encodeURIComponent(videoId)}`
+  const url = `${base}${path}`
   window.open(url, '_blank')
 }
 
