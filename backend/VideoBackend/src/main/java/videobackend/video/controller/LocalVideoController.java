@@ -40,13 +40,17 @@ public class LocalVideoController {
                                     @RequestParam(required = false) Long userId,
                                     @RequestParam(required = false) Boolean followingOnly,
                                     @RequestParam(required = false) Long followingId,
-                                    @RequestParam(required = false) String tag) {
+                                    @RequestParam(required = false) String tag,
+                                    @RequestParam(required = false) String partitionTag) {
         List<VideoItem> items;
         long total;
 
         if (followingOnly != null && followingOnly && userId != null) {
             items = localVideoService.listPageByFollowing(userId, followingId, page, pageSize);
             total = localVideoService.countByFollowing(userId, followingId);
+        } else if (StringUtils.hasText(partitionTag)) {
+            items = localVideoService.listPageByPartitionLabel(partitionTag.trim(), page, pageSize);
+            total = localVideoService.countByPartitionLabel(partitionTag.trim());
         } else if (StringUtils.hasText(tag)) {
             items = localVideoService.listPageByTag(tag.trim(), page, pageSize);
             total = localVideoService.countByTag(tag.trim());

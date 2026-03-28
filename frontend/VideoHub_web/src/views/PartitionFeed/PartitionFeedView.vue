@@ -1,29 +1,31 @@
 <template>
-  <div class="tag-feed">
+  <div class="partition-feed">
     <TopHeader :transparent-at-top="false" />
-    <div class="tag-feed__inner">
-      <section class="tag-feed__main">
-        <p v-if="currentTag && isKnownTag" class="tag-feed__summary">
-          <span class="tag-feed__label">「{{ currentTag }}」</span>
-          <span class="tag-feed__meta">相关视频 · 共 {{ totalCount }} 条</span>
+    <div class="partition-feed__inner">
+      <section class="partition-feed__main">
+        <p v-if="currentLabel && isKnownLabel" class="partition-feed__summary">
+          <span class="partition-feed__label">「{{ currentLabel }}」</span>
+          <span class="partition-feed__meta">相关视频 · 共 {{ totalCount }} 条</span>
         </p>
-        <div v-if="!isKnownTag" class="tag-feed__state">该地址不是有效的分区标签，请从首页分区入口进入或检查链接。</div>
-        <div v-else-if="loading && videos.length === 0" class="tag-feed__state">加载中…</div>
-        <div v-else-if="!loading && videos.length === 0" class="tag-feed__state">暂无带该标签的视频</div>
-        <div v-else-if="isKnownTag" class="tag-feed__grid">
+        <div v-if="!isKnownLabel" class="partition-feed__state">
+          该入口无效，请从首页右侧六个快捷入口进入或检查链接。
+        </div>
+        <div v-else-if="loading && videos.length === 0" class="partition-feed__state">加载中…</div>
+        <div v-else-if="!loading && videos.length === 0" class="partition-feed__state">暂无包含该分区标签的视频</div>
+        <div v-else-if="isKnownLabel" class="partition-feed__grid">
           <div
             v-for="v in videos"
             :key="v.id"
-            class="tag-feed__cell"
+            class="partition-feed__cell"
             @click="playVideo(v)"
           >
             <VideoCard :video="v" :on-img-error="onImgError" lazy-cover />
           </div>
         </div>
         <div
-          v-if="isKnownTag && videos.length > 0"
+          v-if="isKnownLabel && videos.length > 0"
           ref="loadMoreTrigger"
-          class="tag-feed__loading-bar"
+          class="partition-feed__loading-bar"
         >
           <span v-if="loadingMore">加载中...</span>
           <span v-else-if="finished">已加载全部</span>
@@ -40,14 +42,14 @@ import { useRoute } from 'vue-router'
 import TopHeader from '@/components/TopHeader.vue'
 import VideoCard from '@/components/VideoCard.vue'
 import { fetchVideos } from '@/api/video'
-import { VIDEO_NAV_TAGS } from '@/constants/videoNavTags'
+import { VIDEO_UTILITY_PARTITIONS } from '@/constants/videoUtilityPartitions'
 
 const route = useRoute()
 
 const fallbackCover = '/images/banner-1.jpg'
 
-const currentTag = computed(() => {
-  const raw = route.params.tag
+const currentLabel = computed(() => {
+  const raw = route.params.name
   const s = typeof raw === 'string' ? raw : Array.isArray(raw) ? raw[0] : ''
   try {
     return decodeURIComponent(s || '')
@@ -56,9 +58,9 @@ const currentTag = computed(() => {
   }
 })
 
-const isKnownTag = computed(() => {
-  const t = currentTag.value?.trim()
-  return !!t && VIDEO_NAV_TAGS.includes(t)
+const isKnownLabel = computed(() => {
+  const t = currentLabel.value?.trim()
+  return !!t && VIDEO_UTILITY_PARTITIONS.includes(t)
 })
 
 const videos = ref([])
@@ -100,8 +102,8 @@ const normalizeList = (data) => {
 }
 
 const fetchPage = async (reset = false) => {
-  const tag = currentTag.value?.trim()
-  if (!tag || !VIDEO_NAV_TAGS.includes(tag)) {
+  const label = currentLabel.value?.trim()
+  if (!label || !VIDEO_UTILITY_PARTITIONS.includes(label)) {
     videos.value = []
     finished.value = true
     totalCount.value = 0
@@ -121,7 +123,7 @@ const fetchPage = async (reset = false) => {
   else loadingMore.value = true
 
   try {
-    const { data } = await fetchVideos(page.value, pageSize, null, false, null, tag)
+    const { data } = await fetchVideos(page.value, pageSize, null, false, null, null, label)
     const mapped = normalizeList(data)
     videos.value = [...videos.value, ...mapped]
     const total = typeof data?.total === 'number' ? data.total : undefined
@@ -156,7 +158,7 @@ function setupObserver() {
 }
 
 watch(
-  currentTag,
+  currentLabel,
   () => {
     void fetchPage(true).then(() => nextTick(() => setupObserver()))
   },
@@ -209,54 +211,54 @@ const playVideo = (video) => {
 </script>
 
 <style scoped lang="scss">
-.tag-feed {
+.partition-feed {
   min-height: 100vh;
   background: #fff;
   padding-top: 64px;
   box-sizing: border-box;
 }
 
-.tag-feed__inner {
+.partition-feed__inner {
   max-width: 1350px;
   margin: 0 auto;
   padding: 16px 20px 48px;
   box-sizing: border-box;
 }
 
-.tag-feed__summary {
+.partition-feed__summary {
   margin: 0 0 16px;
   font-size: 15px;
   color: #61666d;
 }
 
-.tag-feed__label {
+.partition-feed__label {
   font-weight: 600;
   color: #18191c;
 }
 
-.tag-feed__meta {
+.partition-feed__meta {
   margin-left: 8px;
 }
 
-.tag-feed__state {
+.partition-feed__state {
   padding: 48px 16px;
   text-align: center;
   color: #9499a0;
   font-size: 14px;
 }
 
-.tag-feed__grid {
+.partition-feed__grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
   gap: 16px 12px;
 }
 
-.tag-feed__cell {
+.partition-feed__cell {
   min-width: 0;
   cursor: pointer;
 }
 
-.tag-feed__loading-bar {
+.partition-feed__loading-bar {
   text-align: center;
   padding: 20px;
   font-size: 13px;
