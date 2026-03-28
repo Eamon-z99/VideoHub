@@ -57,7 +57,12 @@
             src="/assets/new.png"
             alt="新"
           />
-          <span v-else class="hot-badge is-hot">热</span>
+          <img
+            v-else-if="item.isHot"
+            class="hot-badge-hot"
+            src="/assets/hot.png"
+            alt="热"
+          />
         </div>
       </div>
 
@@ -74,6 +79,7 @@ import { computed } from 'vue'
 interface HotKeywordItem {
   keyword: string
   isNew: boolean
+  isHot?: boolean
 }
 
 const props = defineProps<{
@@ -285,21 +291,8 @@ const hasMoreHistory = computed(() => (props.history || []).length > MAX_HISTORY
   letter-spacing: 0;
 }
 
-.hot-badge {
-  font-size: 12px;
-  font-weight: 800;
-  border-radius: 6px;
-  padding: 4px 8px;
-  line-height: 1;
-  flex-shrink: 0;
-}
-
-.hot-badge.is-hot {
-  color: #ef4444;
-  background: rgba(239, 68, 68, 0.08);
-}
-
-.hot-badge-new {
+.hot-badge-new,
+.hot-badge-hot {
   width: 14px;
   height: 14px;
   margin-left: 2px;

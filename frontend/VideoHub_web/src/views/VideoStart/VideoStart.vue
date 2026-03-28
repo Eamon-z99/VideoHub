@@ -86,6 +86,10 @@
             @pause="onVideoPause"
           />
 
+          <div class="player-corner-time" aria-hidden="true">
+            {{ currentTimeText }}/{{ durationText }}
+          </div>
+
           <button
             v-if="isMiniPlayer"
             class="mini-close-btn"
@@ -2737,6 +2741,32 @@ onUnmounted(() => {
       overflow: hidden;
              position: relative;
              aspect-ratio: auto;
+
+      .player-corner-time {
+        position: absolute;
+        right: 12px;
+        bottom: 12px;
+        z-index: 8;
+        font-size: 13px;
+        line-height: 1.2;
+        font-variant-numeric: tabular-nums;
+        color: #fff;
+        pointer-events: none;
+        text-shadow:
+          0 1px 2px rgba(0, 0, 0, 0.75),
+          0 0 1px rgba(0, 0, 0, 0.85);
+        transition: bottom 0.18s ease;
+      }
+
+      &:hover:not(.is-mini-player) .player-corner-time {
+        bottom: 54px;
+      }
+
+      &.is-mini-player .player-corner-time {
+        right: 8px;
+        bottom: 8px;
+        font-size: 11px;
+      }
 
       &.is-web-fullscreen {
         position: fixed;

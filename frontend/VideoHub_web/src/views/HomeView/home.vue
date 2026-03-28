@@ -92,18 +92,10 @@
         <div
           class="top-video"
           v-for="(r, i) in recommends"
-          :key="i"
+          :key="r.id ?? i"
           @click="playTopVideo(r)"
         >
-          <div class="thumb-wrap">
-            <img :src="r.cover" @error="onImgError" />
-            <span class="duration">{{ r.duration }}</span>
-            <div class="play-overlay">
-              <div class="play-button">▶</div>
-            </div>
-          </div>
-          <div class="v-title" :title="r.title">{{ r.title }}</div>
-          <div class="v-sub">推荐</div>
+          <VideoCard :video="r" :on-img-error="onImgError" />
         </div>
       </aside>
     </section>
@@ -147,6 +139,20 @@
         <span v-else style="visibility: hidden;">加载更多</span>
       </div>
     </section>
+
+    <!-- 悬浮：底「顶部」→「换一换」→「稍后再看」 -->
+    <BackToTop :anchor="videoWrapperRef" />
+    <Refresh
+      floating-only
+      :anchor="videoWrapperRef"
+      :busy="loadingVideos"
+      :floating-bottom-offset-px="FAB_ABOVE_BACK_TO_TOP_PX"
+      @swap="onRefreshVideos"
+    />
+    <WatchLaterFab
+      :anchor="videoWrapperRef"
+      :bottom-offset-px="WATCH_LATER_BOTTOM_OFFSET_PX"
+    />
   </div>
 </template>
 
@@ -157,7 +163,21 @@ import { FixedSizeGrid as ElVirtualGrid } from 'element-plus/es/components/virtu
 import { useRouter } from 'vue-router'
 import TopHeader from '@/components/TopHeader.vue'
 import VideoCard from '@/components/VideoCard.vue'
+import Refresh from '@/components/Refresh.vue'
+import BackToTop from '@/components/BackToTop.vue'
+import WatchLaterFab from '@/components/WatchLaterFab.vue'
 import { fetchVideos, fetchTopVideos, searchVideos } from '@/api/video'
+import { useUserStore } from '@/stores/user'
+import { useWatchLaterStore } from '@/stores/watchLater'
+
+/** 「换一换」在「顶部」之上：≈ 顶部按钮高度 + 与顶部的间距 */
+const FAB_ABOVE_BACK_TO_TOP_PX = 60
+/** 「稍后再看」在「换一换」之上（换一换块高度 + 间距的估计值） */
+const REFRESH_FAB_HEIGHT_WITH_GAP_PX = 100
+const WATCH_LATER_BOTTOM_OFFSET_PX = FAB_ABOVE_BACK_TO_TOP_PX + REFRESH_FAB_HEIGHT_WITH_GAP_PX
+
+const userStore = useUserStore()
+const watchLaterStore = useWatchLaterStore()
 
 const router = useRouter()
 
@@ -263,23 +283,26 @@ const formatDuration = (seconds?: number) => {
   return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`
 }
 
+/** 与虚拟列表卡片一致的字段，供首页推荐区 VideoCard 复用 */
+const normalizeVideoItem = (item: any) => {
+  const rawCover = (item?.coverUrl || '').trim()
+  const safeCover = rawCover || fallbackCover
+  const durationText = formatDuration(item?.duration)
+  return {
+    ...item,
+    cover: safeCover,
+    duration: durationText,
+    playCount: typeof item?.viewCount === 'number' ? item.viewCount : '本地视频',
+    up: item?.sourceFile || '本地文件',
+    playUrl: item?.playUrl || '',
+    id: item?.videoId || item?.id,
+    isVideo: !!item?.playUrl
+  }
+}
+
 const normalizeList = (data: any) => {
   const list = Array.isArray(data?.list) ? data.list : (Array.isArray(data) ? data : [])
-  return list.map((item: any) => {
-    const rawCover = (item?.coverUrl || '').trim()
-    const safeCover = rawCover || fallbackCover
-    const durationText = formatDuration(item?.duration)
-    return {
-      ...item,
-      cover: safeCover,
-      duration: durationText,
-      playCount: typeof item?.viewCount === 'number' ? item.viewCount : '本地视频',
-      up: item?.sourceFile || '本地文件',
-      playUrl: item?.playUrl || '',
-      id: item?.videoId || item?.id,
-      isVideo: !!item?.playUrl
-    }
-  })
+  return list.map((item: any) => normalizeVideoItem(item))
 }
 
 // 加载播放量最高的视频用于顶部轮播和右侧推荐
@@ -288,15 +311,10 @@ const loadTopVideos = async () => {
     const { data } = await fetchTopVideos(6)
     const list = Array.isArray(data?.list) ? data.list : []
     const mapped = list.map((item: any) => {
-      const rawCover = (item?.coverUrl || '').trim()
-      const safeCover = rawCover || fallbackCover
-      const durationText = formatDuration(item?.duration)
+      const v = normalizeVideoItem(item)
       return {
-        ...item,
-        cover: safeCover,
-        title: item?.title || '本地视频',
-        duration: durationText,
-        id: item?.videoId || item?.id
+        ...v,
+        title: item?.title || v.title || '本地视频'
       }
     })
     slides.value = mapped
@@ -427,6 +445,10 @@ onMounted(() => {
   timer = setInterval(next, 4000)
   fetchVideosData()
   loadTopVideos()
+  const uid = userStore.user?.userId || userStore.user?.id
+  if (uid) {
+    watchLaterStore.load(uid as number)
+  }
   // 等待 DOM 渲染后设置 observer
   nextTick(() => {
     setupIntersectionObserver()
@@ -498,6 +520,12 @@ const navigateToCreatorCenter = () => {
 const playVideo = (video: any) => {
   if (!video || !video.id) return
   openInNewTab(`/video/${encodeURIComponent(video.id)}`)
+}
+
+/** 换一换：重新拉取首页列表与顶部推荐 */
+const onRefreshVideos = () => {
+  fetchVideosData(true)
+  loadTopVideos()
 }
 </script>
 
@@ -848,72 +876,13 @@ const playVideo = (video: any) => {
     display: contents; /* 将推荐卡片直接放入网格，让其占据网格单元 */
 
     .top-video {
-      display: grid;
-      grid-template-rows: minmax(0, 1fr) auto auto;
-      gap: 6px;
-      cursor: pointer;
+      min-width: 0;
       min-height: 0;
-      
-      .thumb-wrap {
-        position: relative;
+      cursor: pointer;
+
+      :deep(.video-card) {
         width: 100%;
-        padding-bottom: 56%;
-        border-radius: 8px;
-        overflow: hidden;
-        background: #f1f2f3;
-
-        img {
-          position: absolute;
-          inset: 0;
-          width: 100%;
-          height: 100%;
-          object-fit: cover;
-        }
-
-        .duration {
-          position: absolute;
-          right: 6px;
-          bottom: 6px;
-          font-size: 12px;
-          color: #fff;
-          background: rgba(0, 0, 0, .55);
-          padding: 2px 6px;
-          border-radius: 4px;
-          z-index: 2;
-        }
-
-        .play-overlay {
-          position: absolute;
-          inset: 0;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          background: rgba(0, 0, 0, 0.3);
-          opacity: 0;
-          transition: opacity 0.3s ease;
-          z-index: 1;
-
-          .play-button {
-            width: 50px;
-            height: 50px;
-            background: rgba(255, 255, 255, 0.9);
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 20px;
-            color: #333;
-            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
-          }
-        }
-
-        &:hover .play-overlay {
-          opacity: 1;
-        }
       }
-
-      .v-title { font-size: 13px; color: #222; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-      .v-sub { font-size: 12px; color: #8a8a8a; }
     }
   }
 }

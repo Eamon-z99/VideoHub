@@ -49,7 +49,7 @@ public class SearchHotKeywordController {
 
     /**
      * 获取热搜关键词列表
-     * 返回：[{ keyword, isNew }]
+     * 返回：[{ keyword, score, isNew, isHot }]（isHot 在非新词条中每次请求随机 3～5 条）
      */
     @GetMapping("/hot-keywords")
     public Map<String, Object> hotKeywords(@RequestParam(defaultValue = "10") int limit) {

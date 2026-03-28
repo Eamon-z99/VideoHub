@@ -168,7 +168,7 @@ const searchText = ref('')
 
 const showSuggest = ref(false)
 const searchHistory = ref<string[]>([])
-const hotKeywords = ref<Array<{ keyword: string; isNew: boolean }>>([])
+const hotKeywords = ref<Array<{ keyword: string; isNew: boolean; isHot: boolean }>>([])
 let hotKeywordsLoadedAt = 0
 const HOT_KEYWORDS_CACHE_MS = 60 * 1000
 
@@ -230,7 +230,11 @@ async function loadHotKeywordsIfNeeded(force = false) {
     const resp = await fetchHotKeywords({ limit: 10 })
     const list = resp?.data?.list || resp?.data?.data?.list || []
     hotKeywords.value = Array.isArray(list)
-      ? list.map(it => ({ keyword: it.keyword, isNew: !!it.isNew }))
+      ? list.map(it => ({
+          keyword: it.keyword,
+          isNew: !!it.isNew,
+          isHot: !!it.isHot
+        }))
       : []
     hotKeywordsLoadedAt = now
   } catch {

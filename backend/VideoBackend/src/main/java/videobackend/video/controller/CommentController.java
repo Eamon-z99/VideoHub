@@ -32,7 +32,7 @@ public class CommentController {
                                     @RequestParam(defaultValue = "20") int pageSize,
                                     @RequestParam(defaultValue = "time") String sort) {
         List<CommentItem> items = commentService.listComments(videoId, page, pageSize, sort);
-        long total = commentService.countComments(videoId);
+        long total = commentService.countCommentsWithReplies(videoId);
         return Map.of(
                 "success", true,
                 "list", items,

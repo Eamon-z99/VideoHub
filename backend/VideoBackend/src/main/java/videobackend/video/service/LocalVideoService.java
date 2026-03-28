@@ -100,6 +100,11 @@ public class LocalVideoService {
                        v.storage_path,
                        v.source_file,
                        v.view_count,
+                       (SELECT COUNT(*)
+                        FROM comments c
+                        WHERE c.video_id = v.video_id
+                          AND c.status = 1
+                       ) AS comment_count,
                        v.like_count,
                        v.favorite_count,
                        v.file_size,
@@ -380,7 +385,7 @@ public class LocalVideoService {
                     .format(DateTimeFormatter.ISO_OFFSET_DATE_TIME);
         }
 
-        // comments 统计：仅在部分查询里返回 comment_count 字段时生效
+        // comments 统计：与 CommentService.countCommentsWithReplies 一致（含回复、status=1）；仅在部分查询返回 comment_count 时生效
         Long commentCount = 0L;
         try {
             Object ccObj = rs.getObject("comment_count");
