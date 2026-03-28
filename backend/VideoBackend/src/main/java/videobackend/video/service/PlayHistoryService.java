@@ -20,11 +20,13 @@ public class PlayHistoryService {
 
     private final JdbcTemplate jdbcTemplate;
     private final LocalVideoService localVideoService;
+    private final UserLevelService userLevelService;
     private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
 
-    public PlayHistoryService(JdbcTemplate jdbcTemplate, LocalVideoService localVideoService) {
+    public PlayHistoryService(JdbcTemplate jdbcTemplate, LocalVideoService localVideoService, UserLevelService userLevelService) {
         this.jdbcTemplate = jdbcTemplate;
         this.localVideoService = localVideoService;
+        this.userLevelService = userLevelService;
     }
 
     /**
@@ -118,6 +120,11 @@ public class PlayHistoryService {
             if (isNewWatch) {
                 insertPlayEvent(userId, videoId, creatorId, playTime);
             }
+
+            // 规则：每日观看视频获得 5 经验值（当日出现观看行为即可；每日上限 5，自动去重）
+            if (playTime != null && playTime > 0) {
+                userLevelService.awardWatchExp(userId);
+            }
         } else {
             // 插入新记录（首次观看，watch_count = 1）
             Integer progressPercent = 0;
@@ -135,6 +142,11 @@ public class PlayHistoryService {
             jdbcTemplate.update(insertSql, userId, videoId, playTime, duration, 
                               progressPercent, isWatched ? 1 : 0);
             insertPlayEvent(userId, videoId, creatorId, playTime);
+
+            // 规则：每日观看视频获得 5 经验值（当日出现观看行为即可；每日上限 5，自动去重）
+            if (playTime != null && playTime > 0) {
+                userLevelService.awardWatchExp(userId);
+            }
         }
     }
 

@@ -8,6 +8,7 @@ public record CommentItem(
         String videoId,
         Long userId,
         String username,
+        Integer level,
         String avatar,
         String content,
         Long parentId,

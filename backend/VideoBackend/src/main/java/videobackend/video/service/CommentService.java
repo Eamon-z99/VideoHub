@@ -40,7 +40,7 @@ public class CommentService {
 
         String sql = """
                 SELECT c.id, c.video_id, c.user_id, c.content, c.parent_id, c.like_count, c.create_time,
-                       u.username, u.avatar
+                       u.username, u.avatar, u.level
                 FROM comments c
                 LEFT JOIN users u ON c.user_id = u.id
                 WHERE c.video_id = ?
@@ -109,7 +109,7 @@ public class CommentService {
     public List<CommentItem> listReplies(String videoId, Long parentId) {
         String sql = """
                 SELECT c.id, c.video_id, c.user_id, c.content, c.parent_id, c.like_count, c.create_time,
-                       u.username, u.avatar
+                       u.username, u.avatar, u.level
                 FROM comments c
                 LEFT JOIN users u ON c.user_id = u.id
                 WHERE c.video_id = ?
@@ -126,7 +126,7 @@ public class CommentService {
     public CommentItem getCommentById(Long id) {
         String sql = """
                 SELECT c.id, c.video_id, c.user_id, c.content, c.parent_id, c.like_count, c.create_time,
-                       u.username, u.avatar
+                       u.username, u.avatar, u.level
                 FROM comments c
                 LEFT JOIN users u ON c.user_id = u.id
                 WHERE c.id = ?
@@ -193,6 +193,7 @@ public class CommentService {
                 ? DATE_FORMATTER.format(createTime.toLocalDateTime())
                 : DATE_FORMATTER.format(LocalDateTime.now());
         String username = rs.getString("username");
+        Integer level = rs.getObject("level") != null ? rs.getInt("level") : 0;
         String avatar = rs.getString("avatar");
 
         return new CommentItem(
@@ -200,6 +201,7 @@ public class CommentService {
                 videoId,
                 userId,
                 username,
+                level,
                 avatar,
                 content,
                 parentId,

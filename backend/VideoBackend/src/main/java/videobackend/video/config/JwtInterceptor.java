@@ -2,10 +2,13 @@ package videobackend.video.config;
 
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import io.jsonwebtoken.Claims;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 import org.springframework.web.servlet.HandlerInterceptor;
+import videobackend.video.service.UserDailyRewardService;
+import videobackend.video.service.UserLevelService;
 import videobackend.video.util.JwtUtil;
 
 @Component
@@ -14,9 +17,13 @@ public class JwtInterceptor implements HandlerInterceptor {
     private static final Logger logger = LoggerFactory.getLogger(JwtInterceptor.class);
 
     private final JwtUtil jwtUtil;
+    private final UserLevelService userLevelService;
+    private final UserDailyRewardService userDailyRewardService;
 
-    public JwtInterceptor(JwtUtil jwtUtil) {
+    public JwtInterceptor(JwtUtil jwtUtil, UserLevelService userLevelService, UserDailyRewardService userDailyRewardService) {
         this.jwtUtil = jwtUtil;
+        this.userLevelService = userLevelService;
+        this.userDailyRewardService = userDailyRewardService;
     }
 
     @Override
@@ -72,6 +79,31 @@ public class JwtInterceptor implements HandlerInterceptor {
         if (!jwtUtil.validateToken(token)) {
             response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
             return false;
+        }
+
+        // 方案A：跨天仍在线，也能在“当天第一次已登录请求”时补发每日登录奖励
+        try {
+            Claims claims = jwtUtil.getClaimsFromToken(token);
+            if (claims != null) {
+                Object userIdObj = claims.get("userId");
+                Long userId = null;
+                if (userIdObj instanceof Number) userId = ((Number) userIdObj).longValue();
+                if (userId == null && userIdObj instanceof String) {
+                    try {
+                        userId = Long.parseLong((String) userIdObj);
+                    } catch (NumberFormatException ignore) {
+                        userId = null;
+                    }
+                }
+
+                if (userId != null) {
+                    userLevelService.awardLoginExp(userId);
+                    userDailyRewardService.awardDailyLoginCoin(userId);
+                }
+            }
+        } catch (Exception e) {
+            // 不影响正常请求；仅记录日志方便排查
+            logger.debug("daily login grant skipped: {}", e.getMessage());
         }
 
         return true;

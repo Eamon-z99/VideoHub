@@ -16,11 +16,15 @@ public class AuthService {
     private final UserRepository userRepository;
     private final JwtUtil jwtUtil;
     private final BCryptPasswordEncoder passwordEncoder;
+    private final UserLevelService userLevelService;
+    private final UserDailyRewardService userDailyRewardService;
 
-    public AuthService(UserRepository userRepository, JwtUtil jwtUtil) {
+    public AuthService(UserRepository userRepository, JwtUtil jwtUtil, UserLevelService userLevelService, UserDailyRewardService userDailyRewardService) {
         this.userRepository = userRepository;
         this.jwtUtil = jwtUtil;
         this.passwordEncoder = new BCryptPasswordEncoder();
+        this.userLevelService = userLevelService;
+        this.userDailyRewardService = userDailyRewardService;
     }
 
     public LoginResponse login(LoginRequest request) {
@@ -64,6 +68,20 @@ public class AuthService {
 
         // 生成JWT token
         String token = jwtUtil.generateToken(user.getId(), user.getUsername(), user.getAccount());
+
+        // 规则：每日上线登录获得 5 经验值（每日上限 5，避免重复）
+        try {
+            userLevelService.awardLoginExp(user.getId());
+        } catch (Exception ignore) {
+            // 发放经验不影响登录结果
+        }
+
+        // 规则：每日登录奖励 +1 硬币（一天一次）
+        try {
+            userDailyRewardService.awardDailyLoginCoin(user.getId());
+        } catch (Exception ignore) {
+            // 发放硬币不影响登录结果
+        }
 
         // 管理端使用独立 admins 账号与 /api/admin/auth/login，普通登录不再标记 isAdmin
         return new LoginResponse(

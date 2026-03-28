@@ -10,7 +10,8 @@
     >
       <!-- 不可见的连接区域，填充用户区域和下拉菜单之间的间隙 -->
       <div class="dropdown-bridge"></div>
-      <!-- 下拉菜单 -->
+      <!-- 阴影放在外层：带 mask 的内层会裁掉 box-shadow -->
+      <div class="user-dropdown-shell">
       <div class="user-dropdown">
         <!-- 用户信息头部 -->
         <div class="user-header">
@@ -22,22 +23,44 @@
           <!-- 等级进度条 -->
           <div class="level-progress">
             <div class="level-info">
-              <span class="level-label">LVS</span>
-              <span class="level-value">LV{{ currentLevel }}</span>
-            </div>
-            <div class="progress-bar">
-              <div class="progress-fill" :style="{ width: progressPercent + '%' }"></div>
+              <img
+                class="level-icon"
+                :src="currentLevelIconUrlWithCache"
+                :alt="`LV${currentLevel}`"
+              />
+              <div class="progress-bar">
+                <div class="progress-fill" :style="{ width: progressPercent + '%' }"></div>
+              </div>
+              <img
+                class="level-icon"
+                :src="nextLevelIconUrlWithCache"
+                :alt="`LV${nextLevelForIcon}`"
+              />
             </div>
             <div class="level-text">
-              当前成长{{ currentExp }},距离升级Lv.{{ nextLevel }} 还需要{{ needExp }}
+              <template v-if="isMaxLevel">
+                当前成长{{ currentExp }}，已达最高等级
+              </template>
+              <template v-else>
+                当前成长{{ currentExp }}，距离升级Lv.{{ nextLevel }} 还需要{{ needExp }}
+              </template>
             </div>
           </div>
           
           <!-- 统计数据 -->
           <div class="user-stats">
-            <span>{{ following }} 关注</span>
-            <span>{{ fans }} 粉丝</span>
-            <span>{{ dynamics }} 动态</span>
+            <div class="stat-item">
+              <div class="stat-value">{{ following }}</div>
+              <div class="stat-label">关注</div>
+            </div>
+            <div class="stat-item">
+              <div class="stat-value">{{ fans }}</div>
+              <div class="stat-label">粉丝</div>
+            </div>
+            <div class="stat-item">
+              <div class="stat-value">{{ dynamics }}</div>
+              <div class="stat-label">动态</div>
+            </div>
           </div>
         </div>
         
@@ -62,7 +85,13 @@
             <span>投稿管理</span>
             <el-icon class="arrow"><ArrowRight /></el-icon>
           </div>
-          <div class="menu-item" @click="goToRecommend">
+          <div
+            ref="recommendItemRef"
+            class="menu-item recommend-item"
+            @mouseenter="openRecommendPopover"
+            @mouseleave="closeRecommendPopoverSoon"
+            @click="toggleRecommendPopover"
+          >
             <el-icon><Star /></el-icon>
             <span>推荐服务</span>
             <el-icon class="arrow"><ArrowRight /></el-icon>
@@ -82,8 +111,28 @@
           </div>
         </div>
       </div>
+      </div>
       <!-- 不可见的底部连接区域，防止鼠标移动到下方时消失 -->
       <div class="dropdown-bridge-bottom"></div>
+
+      <!-- 推荐服务：右侧小弹窗（放到 .user-dropdown 外，避免被 overflow: hidden 裁剪） -->
+      <div
+        v-show="showRecommendPopover"
+        class="recommend-popover"
+        :style="recommendPopoverStyle"
+        @mouseenter="openRecommendPopover"
+        @mouseleave="closeRecommendPopoverSoon"
+      >
+        <div class="recommend-popover-item" @click.stop="goToDynamicCenter">
+          <span class="recommend-text">动态中心</span>
+        </div>
+        <div class="recommend-popover-item" @click.stop="goToHistoryPage">
+          <span class="recommend-text">历史页面</span>
+        </div>
+        <div class="recommend-popover-item" @click.stop="goToCreatorCenter">
+          <span class="recommend-text">投稿中心</span>
+        </div>
+      </div>
     </div>
   </Teleport>
 </template>
@@ -97,6 +146,7 @@ import { User, VideoCamera, Star, Moon, RefreshLeft, ArrowRight } from '@element
 import { getUserStats } from '@/api/follow'
 import { getCoinBalance } from '@/api/coin'
 import { fetchFeeds } from '@/api/feed'
+import { getUserLevelProgress } from '@/api/userLevel'
 
 const props = defineProps({
   visible: {
@@ -120,24 +170,97 @@ const user = computed(() => userStore.user || {})
 const username = computed(() => user.value.username || user.value.loginAccount || '未登录')
 
 const coins = ref(0)
-const currentLevel = ref(5)
-const nextLevel = ref(6)
-const currentExp = ref(12690)
-const needExp = ref(16110)
+const currentLevel = ref(0)
+const nextLevel = ref(1)
+const currentExp = ref(0)
+const needExp = ref(50)
 const following = ref(0)
 const fans = ref(0)
 const dynamics = ref(0)
 
 const progressPercent = computed(() => {
+  // 已达到最高等级时：needExp=0，此时进度条应展示为满格
+  if (needExp.value === 0) return 100
   const total = currentExp.value + needExp.value
   return total > 0 ? (currentExp.value / total) * 100 : 0
 })
+
+const isMaxLevel = computed(() => toNumber(nextLevel.value) === toNumber(currentLevel.value) || toNumber(needExp.value) === 0)
+
+const clampLevel = (lv) => {
+  const n = toNumber(lv)
+  if (n < 0) return 0
+  if (n > 6) return 6
+  return n
+}
+
+// 右侧固定展示“下一个等级”的图标（未达到）
+const nextLevelForIcon = computed(() => {
+  const lv = clampLevel(currentLevel.value)
+  if (lv >= 6) return 6
+  return lv + 1
+})
+
+const currentLevelIconUrl = computed(() => `/assets/level_${clampLevel(currentLevel.value)}.svg`)
+const nextLevelIconUrl = computed(() => `/assets/level_${nextLevelForIcon.value}.svg`)
+
+// 带一个轻量 cache bust，避免浏览器缓存导致不刷新
+const currentLevelIconUrlWithCache = computed(() => `${currentLevelIconUrl.value}?v=${clampLevel(currentLevel.value)}`)
+const nextLevelIconUrlWithCache = computed(() => `${nextLevelIconUrl.value}?v=${nextLevelForIcon.value}`)
 
 const themeText = ref('浅色')
 
 let leaveTimer = null
 const dropdownStyle = ref({})
 let loadingStats = false
+
+const showRecommendPopover = ref(false)
+let recommendTimer = null
+const recommendItemRef = ref(null)
+const recommendPopoverStyle = ref({})
+
+const openRecommendPopover = () => {
+  if (recommendTimer) {
+    clearTimeout(recommendTimer)
+    recommendTimer = null
+  }
+  showRecommendPopover.value = true
+  void updateRecommendPopoverPosition()
+}
+
+const closeRecommendPopoverSoon = () => {
+  if (recommendTimer) clearTimeout(recommendTimer)
+  recommendTimer = setTimeout(() => {
+    showRecommendPopover.value = false
+  }, 120)
+}
+
+const toggleRecommendPopover = () => {
+  if (showRecommendPopover.value) {
+    showRecommendPopover.value = false
+    return
+  }
+  openRecommendPopover()
+}
+
+const updateRecommendPopoverPosition = async () => {
+  await nextTick()
+  const el = recommendItemRef.value
+  if (!el) return
+  const rect = el.getBoundingClientRect()
+  const popoverEl = wrapperRef.value?.querySelector('.recommend-popover')
+  const popoverWidth = popoverEl?.getBoundingClientRect?.().width || 140
+  const desiredLeft = rect.right + 12
+  const maxLeft = Math.max(8, window.innerWidth - popoverWidth - 8)
+  const left = Math.min(desiredLeft, maxLeft)
+  const top = rect.top + rect.height / 2
+  recommendPopoverStyle.value = {
+    position: 'fixed',
+    left: `${left}px`,
+    top: `${top}px`,
+    transform: 'translateY(-50%)'
+  }
+}
 
 const toNumber = (value) => {
   if (value === null || value === undefined || value === '') return 0
@@ -151,10 +274,11 @@ const loadRealtimeStats = async () => {
 
   loadingStats = true
   try {
-    const [coinResp, followResp, feedResp] = await Promise.all([
+    const [coinResp, followResp, feedResp, levelResp] = await Promise.all([
       getCoinBalance(),
       getUserStats(userId),
-      fetchFeeds(1, 1, userId, true, userId)
+      fetchFeeds(1, 1, userId, true, userId),
+      getUserLevelProgress()
     ])
 
     const coinData = coinResp?.data || {}
@@ -171,6 +295,22 @@ const loadRealtimeStats = async () => {
 
     const feedData = feedResp?.data || {}
     dynamics.value = toNumber(feedData.total)
+
+    const levelData = levelResp?.data || {}
+    if (levelResp?.success === false) {
+      // 接口返回结构异常：不影响其他统计展示
+    } else if (levelData.success) {
+      currentLevel.value = toNumber(levelData.level)
+      nextLevel.value = toNumber(levelData.nextLevel)
+      currentExp.value = toNumber(levelData.currentExp)
+      needExp.value = toNumber(levelData.needExp)
+    } else if (levelResp?.data?.level !== undefined) {
+      // 兼容：后端如未包裹 success
+      currentLevel.value = toNumber(levelResp.data.level)
+      nextLevel.value = toNumber(levelResp.data.nextLevel)
+      currentExp.value = toNumber(levelResp.data.currentExp)
+      needExp.value = toNumber(levelResp.data.needExp)
+    }
   } catch (error) {
     // 保持静默，避免影响下拉显示
     console.warn('加载用户下拉统计失败:', error)
@@ -256,14 +396,23 @@ watch(() => props.visible, async (val) => {
     // 监听窗口滚动和大小变化
     window.addEventListener('scroll', updatePosition, true)
     window.addEventListener('resize', updatePosition)
+    window.addEventListener('scroll', updateRecommendPopoverPosition, true)
+    window.addEventListener('resize', updateRecommendPopoverPosition)
   } else {
     window.removeEventListener('scroll', updatePosition, true)
     window.removeEventListener('resize', updatePosition)
+    window.removeEventListener('scroll', updateRecommendPopoverPosition, true)
+    window.removeEventListener('resize', updateRecommendPopoverPosition)
     // 关闭时清理定时器
     if (leaveTimer) {
       clearTimeout(leaveTimer)
       leaveTimer = null
     }
+    if (recommendTimer) {
+      clearTimeout(recommendTimer)
+      recommendTimer = null
+    }
+    showRecommendPopover.value = false
   }
 })
 
@@ -278,10 +427,16 @@ onMounted(() => {
 onUnmounted(() => {
   window.removeEventListener('scroll', updatePosition, true)
   window.removeEventListener('resize', updatePosition)
+  window.removeEventListener('scroll', updateRecommendPopoverPosition, true)
+  window.removeEventListener('resize', updateRecommendPopoverPosition)
   // 清理定时器
   if (leaveTimer) {
     clearTimeout(leaveTimer)
     leaveTimer = null
+  }
+  if (recommendTimer) {
+    clearTimeout(recommendTimer)
+    recommendTimer = null
   }
 })
 
@@ -370,6 +525,27 @@ const goToRecommend = () => {
   emit('update:visible', false)
 }
 
+const goToDynamicCenter = () => {
+  openInNewTab('/feed')
+  showRecommendPopover.value = false
+  emit('close')
+  emit('update:visible', false)
+}
+
+const goToHistoryPage = () => {
+  openInNewTab('/history')
+  showRecommendPopover.value = false
+  emit('close')
+  emit('update:visible', false)
+}
+
+const goToCreatorCenter = () => {
+  openInNewTab('/submitHome?view=contentManagement')
+  showRecommendPopover.value = false
+  emit('close')
+  emit('update:visible', false)
+}
+
 const goToVip = () => {
   openInNewTab('/vip')
   emit('close')
@@ -442,11 +618,22 @@ const handleLogout = async () => {
   flex-shrink: 0;
 }
 
+/* 无 mask，专门承载阴影，避免被内层 mask 吃掉 */
+.user-dropdown-shell {
+  width: 320px;
+  flex-shrink: 0;
+  border-radius: 8px;
+  box-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.06),
+    0 8px 24px rgba(0, 0, 0, 0.12),
+    0 16px 48px rgba(0, 0, 0, 0.14);
+  pointer-events: auto;
+}
+
 .user-dropdown {
   width: 320px;
-  background: #fff;
+  background: #ffffff;
   border-radius: 8px;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
   overflow: hidden;
   /* 确保整个下拉菜单区域都能捕获鼠标事件 */
   pointer-events: auto;
@@ -477,7 +664,7 @@ const handleLogout = async () => {
     padding-top: 50px;
     padding-bottom: 20px; /* 确保底部有足够的 padding */
     text-align: center;
-    background: linear-gradient(135deg, #f5f7fa 0%, #ffffff 100%);
+    background: #ffffff;
     /* 确保整个区域都能捕获鼠标事件 */
     min-height: 100%;
     
@@ -503,33 +690,35 @@ const handleLogout = async () => {
       .level-info {
         display: flex;
         justify-content: space-between;
+        align-items: center;
         font-size: 12px;
         color: #61666d;
         margin-bottom: 6px;
-        
-        .level-label {
-          font-weight: 500;
+
+        .level-icon {
+          width: 60px;
+          height: 32px;
+          flex: 0 0 40px;
+          display: inline-block;
+          object-fit: contain;
         }
-        
-        .level-value {
-          color: #00a1d6;
-          font-weight: 600;
-        }
-      }
-      
-      .progress-bar {
-        width: 100%;
-        height: 6px;
-        background: #e3e5e7;
-        border-radius: 3px;
-        overflow: hidden;
-        margin-bottom: 6px;
-        
-        .progress-fill {
-          height: 100%;
-          background: linear-gradient(90deg, #00a1d6 0%, #00b5e5 100%);
-          border-radius: 3px;
-          transition: width 0.3s ease;
+
+        .progress-bar {
+          flex: 1;
+          margin-left: 3px;
+          margin-right: 6px;
+          width: auto;
+          height: 2px;
+          background: #e3e5e7;
+          border-radius: 1px;
+          overflow: hidden;
+
+          .progress-fill {
+            height: 100%;
+            background: #f3cb85;
+            border-radius: 1px;
+            transition: width 0.3s ease;
+          }
         }
       }
       
@@ -542,18 +731,37 @@ const handleLogout = async () => {
     
     .user-stats {
       display: flex;
-      justify-content: center;
-      gap: 20px;
-      font-size: 13px;
+      justify-content: space-between;
+      gap: 0;
+      margin-top: 6px;
+      padding: 0 6px;
       color: #61666d;
-      
-      span {
+
+      .stat-item {
+        flex: 1;
+        text-align: center;
         cursor: pointer;
-        transition: color 0.2s;
-        
-        &:hover {
-          color: #00a1d6;
-        }
+        padding: 6px 0;
+        border-radius: 8px;
+        transition: background 0.15s ease, color 0.2s ease;
+
+        // &:hover {
+        //   color: #00a1d6;
+        //   background: rgba(245, 247, 250, 0.9);
+        // }
+      }
+
+      .stat-value {
+        font-size: 18px;
+        line-height: 1.1;
+        font-weight: 500;
+        color: #18191c;
+      }
+
+      .stat-label {
+        margin-top: 6px;
+        font-size: 13px;
+        color: #61666d;
       }
     }
   }
@@ -609,6 +817,7 @@ const handleLogout = async () => {
       padding: 12px 20px;
       cursor: pointer;
       transition: background 0.2s;
+      position: relative;
       
       &:hover {
         background: #f5f7fa;
@@ -650,5 +859,39 @@ const handleLogout = async () => {
       margin: 8px 0;
     }
   }
+
+.recommend-item {
+  user-select: none;
+}
+
+.recommend-popover {
+  width: max-content;
+  min-width: 0;
+  background: #ffffff;
+  border-radius: 10px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.12);
+  padding: 8px 0;
+  border: 1px solid rgba(227, 229, 231, 0.9);
+  z-index: 60;
+}
+
+.recommend-popover-item {
+  display: flex;
+  align-items: center;
+  padding: 10px 14px;
+  color: #18191c;
+  font-size: 14px;
+  cursor: pointer;
+  transition: background 0.15s ease;
+  white-space: nowrap;
+}
+
+.recommend-popover-item:hover {
+  background: #f5f7fa;
+}
+
+.recommend-text {
+  display: inline-block;
+}
 </style>
 

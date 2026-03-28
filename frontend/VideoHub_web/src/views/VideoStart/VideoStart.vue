@@ -624,6 +624,7 @@
       <VideoComments
         v-if="!isWidescreen"
         :video-id="videoData.videoId || route.params.id"
+        :uploader-id="uploader.id"
         @comment-total-change="onCommentTotalChange"
       />
     </section>
@@ -641,6 +642,7 @@
       <!-- 评论区组件 -->
       <VideoComments
         :video-id="videoData.videoId || route.params.id"
+        :uploader-id="uploader.id"
         @comment-total-change="onCommentTotalChange"
       />
     </section>

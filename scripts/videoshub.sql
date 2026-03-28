@@ -11,7 +11,7 @@
  Target Server Version : 80040
  File Encoding         : 65001
 
- Date: 26/03/2026 21:38:55
+ Date: 27/03/2026 21:09:26
 */
 
 SET NAMES utf8mb4;
@@ -243,6 +243,36 @@ CREATE TABLE `profile_visits`  (
 ) ENGINE = InnoDB AUTO_INCREMENT = 5 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_unicode_ci COMMENT = '个人主页访问记录表' ROW_FORMAT = DYNAMIC;
 
 -- ----------------------------
+-- Table structure for search_hot_keywords
+-- ----------------------------
+DROP TABLE IF EXISTS `search_hot_keywords`;
+CREATE TABLE `search_hot_keywords`  (
+  `keyword` varchar(200) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
+  `first_seen_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `last_seen_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `score` double NOT NULL DEFAULT 0,
+  `update_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`keyword`) USING BTREE
+) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci ROW_FORMAT = Dynamic;
+
+-- ----------------------------
+-- Table structure for search_keyword_events
+-- ----------------------------
+DROP TABLE IF EXISTS `search_keyword_events`;
+CREATE TABLE `search_keyword_events`  (
+  `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT,
+  `user_id` bigint UNSIGNED NULL DEFAULT NULL,
+  `keyword` varchar(200) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
+  `weight` int UNSIGNED NOT NULL DEFAULT 1,
+  `create_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`) USING BTREE,
+  INDEX `idx_keyword_time`(`keyword` ASC, `create_time` ASC) USING BTREE,
+  INDEX `idx_create_time`(`create_time` ASC) USING BTREE,
+  INDEX `search_keyword_events_ibfk_1`(`user_id` ASC) USING BTREE,
+  CONSTRAINT `search_keyword_events_ibfk_1` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE SET NULL ON UPDATE RESTRICT
+) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci ROW_FORMAT = Dynamic;
+
+-- ----------------------------
 -- Table structure for transcode_tasks
 -- ----------------------------
 DROP TABLE IF EXISTS `transcode_tasks`;
@@ -276,14 +306,55 @@ CREATE TABLE `users`  (
   `avatar` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL DEFAULT NULL COMMENT '头像URL',
   `bio` varchar(500) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL DEFAULT NULL COMMENT '个人简介',
   `coin_balance` bigint UNSIGNED NOT NULL DEFAULT 0 COMMENT '用户硬币余额',
+  `level` TINYINT UNSIGNED NOT NULL DEFAULT 0 COMMENT '用户等级（0-6）',
+  `exp` BIGINT UNSIGNED NOT NULL DEFAULT 0 COMMENT '当前总经验值（用于计算等级）',
   `status` tinyint NULL DEFAULT 1 COMMENT '状态：0-禁用，1-正常',
   `create_time` datetime NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
   `update_time` datetime NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
   PRIMARY KEY (`id`) USING BTREE,
   UNIQUE INDEX `account`(`account` ASC) USING BTREE,
   INDEX `idx_account`(`account` ASC) USING BTREE,
-  INDEX `idx_username`(`username` ASC) USING BTREE
+  INDEX `idx_username`(`username` ASC) USING BTREE,
+  INDEX `idx_level`(`level` ASC) USING BTREE,
+  INDEX `idx_exp`(`exp` ASC) USING BTREE
 ) ENGINE = InnoDB AUTO_INCREMENT = 6346 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_unicode_ci COMMENT = '用户表' ROW_FORMAT = DYNAMIC;
+
+-- ----------------------------
+-- Table structure for user_exp_daily_grants
+-- ----------------------------
+DROP TABLE IF EXISTS `user_exp_daily_grants`;
+CREATE TABLE `user_exp_daily_grants`  (
+  `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '发放记录ID',
+  `user_id` bigint UNSIGNED NOT NULL COMMENT '用户ID',
+  `grant_date` date NOT NULL COMMENT '发放日期（按日）',
+  `exp_type` varchar(20) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL COMMENT '经验类型：LOGIN/WATCH/COIN_GIFT',
+  `exp_granted` int UNSIGNED NOT NULL DEFAULT 0 COMMENT '当日累计发放经验值',
+  `coin_count` int UNSIGNED NOT NULL DEFAULT 0 COMMENT '当日累计投币次数（仅 COIN_GIFT 使用）',
+  `create_time` datetime NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  `update_time` datetime NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+  PRIMARY KEY (`id`) USING BTREE,
+  UNIQUE INDEX `uk_user_date_type`(`user_id` ASC, `grant_date` ASC, `exp_type` ASC) USING BTREE,
+  INDEX `idx_user_id`(`user_id` ASC) USING BTREE,
+  INDEX `idx_grant_date`(`grant_date` ASC) USING BTREE,
+  CONSTRAINT `user_exp_daily_grants_ibfk_1` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE ON UPDATE RESTRICT
+) ENGINE = InnoDB AUTO_INCREMENT = 1 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_unicode_ci COMMENT = '用户每日经验发放记录' ROW_FORMAT = DYNAMIC;
+
+-- ----------------------------
+-- Table structure for user_daily_login_coin_grants
+-- ----------------------------
+DROP TABLE IF EXISTS `user_daily_login_coin_grants`;
+CREATE TABLE `user_daily_login_coin_grants`  (
+  `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '发放记录ID',
+  `user_id` bigint UNSIGNED NOT NULL COMMENT '用户ID',
+  `grant_date` date NOT NULL COMMENT '发放日期（按日）',
+  `coin_granted` int UNSIGNED NOT NULL DEFAULT 1 COMMENT '发放硬币数（当前固定 1）',
+  `create_time` datetime NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  PRIMARY KEY (`id`) USING BTREE,
+  UNIQUE INDEX `uk_user_date`(`user_id` ASC, `grant_date` ASC) USING BTREE,
+  INDEX `idx_user_id`(`user_id` ASC) USING BTREE,
+  INDEX `idx_grant_date`(`grant_date` ASC) USING BTREE,
+  CONSTRAINT `user_daily_login_coin_grants_ibfk_1` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE ON UPDATE RESTRICT
+) ENGINE = InnoDB AUTO_INCREMENT = 1 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_unicode_ci COMMENT = '用户每日登录硬币奖励发放记录' ROW_FORMAT = DYNAMIC;
 
 -- ----------------------------
 -- Table structure for video_coins

@@ -8,9 +8,11 @@ import org.springframework.transaction.annotation.Transactional;
 public class VideoCoinService {
 
     private final JdbcTemplate jdbcTemplate;
+    private final UserLevelService userLevelService;
 
-    public VideoCoinService(JdbcTemplate jdbcTemplate) {
+    public VideoCoinService(JdbcTemplate jdbcTemplate, UserLevelService userLevelService) {
         this.jdbcTemplate = jdbcTemplate;
+        this.userLevelService = userLevelService;
     }
 
     @Transactional
@@ -40,6 +42,11 @@ public class VideoCoinService {
                 "INSERT INTO video_coins (user_id, video_id, create_time) VALUES (?, ?, NOW())",
                 userId, videoId
         );
+        if (inserted > 0) {
+            // 规则：每日给其他UP主的视频投币获得经验（1币=10经验，日上限50）
+            userLevelService.awardCoinGiftExp(userId, videoId);
+        }
+
         return inserted > 0;
     }
 
