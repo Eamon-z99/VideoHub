@@ -72,8 +72,18 @@ public class CommentController {
                 parentId = Long.valueOf(body.get("parentId").toString());
             }
 
-            CommentItem comment = commentService.addComment(userId, videoId, content, parentId);
+            Long replyToCommentId = null;
+            if (body.get("replyToCommentId") != null) {
+                replyToCommentId = Long.valueOf(body.get("replyToCommentId").toString());
+            }
+            if (replyToCommentId != null && parentId == null) {
+                return ResponseEntity.badRequest().body(Map.of("success", false, "message", "二次回复需指定父评论 parentId"));
+            }
+
+            CommentItem comment = commentService.addComment(userId, videoId, content, parentId, replyToCommentId);
             return ResponseEntity.ok(Map.of("success", true, "data", comment));
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(Map.of("success", false, "message", e.getMessage()));
         } catch (Exception e) {
             return ResponseEntity.status(500).body(Map.of("success", false, "message", "发表评论失败: " + e.getMessage()));
         }

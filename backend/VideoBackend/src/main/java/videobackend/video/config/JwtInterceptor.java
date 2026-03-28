@@ -62,6 +62,7 @@ public class JwtInterceptor implements HandlerInterceptor {
             path.startsWith("/api/watch/") ||
             path.startsWith("/local-videos/") ||
             path.startsWith("/avatars/") ||
+            path.startsWith("/feed-images/") ||
             path.startsWith("/error") ||
             isPublicVideoRead ||
             isPublicSearchRead) {

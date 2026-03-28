@@ -1,9 +1,12 @@
 package videobackend.video.controller;
 
+import io.jsonwebtoken.Claims;
+import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import videobackend.video.model.FavoriteItem;
 import videobackend.video.service.FavoriteService;
+import videobackend.video.util.JwtUtil;
 
 import java.util.List;
 import java.util.Map;
@@ -14,9 +17,11 @@ import java.util.Map;
 public class FavoriteController {
 
     private final FavoriteService favoriteService;
+    private final JwtUtil jwtUtil;
 
-    public FavoriteController(FavoriteService favoriteService) {
+    public FavoriteController(FavoriteService favoriteService, JwtUtil jwtUtil) {
         this.favoriteService = favoriteService;
+        this.jwtUtil = jwtUtil;
     }
 
     /**
@@ -94,10 +99,12 @@ public class FavoriteController {
             @RequestParam Long userId,
             @RequestParam(required = false) Long folderId,
             @RequestParam(defaultValue = "1") Integer page,
-            @RequestParam(defaultValue = "20") Integer pageSize) {
+            @RequestParam(defaultValue = "20") Integer pageSize,
+            HttpServletRequest request) {
         try {
-            List<FavoriteItem> list = favoriteService.getUserFavorites(userId, folderId, page, pageSize);
-            Long total = favoriteService.getUserFavoriteCount(userId, folderId);
+            Long viewerUserId = getUserIdFromRequest(request);
+            List<FavoriteItem> list = favoriteService.getUserFavorites(userId, folderId, page, pageSize, viewerUserId);
+            Long total = favoriteService.getUserFavoriteCount(userId, folderId, viewerUserId);
             
             // 使用 HashMap 而不是 Map.of()，因为 folderId 可能为 null
             Map<String, Object> response = new java.util.HashMap<>();
@@ -158,6 +165,27 @@ public class FavoriteController {
             return ResponseEntity.status(500)
                 .body(Map.of("success", false, "message", "批量删除失败: " + e.getMessage()));
         }
+    }
+
+    private Long getUserIdFromRequest(HttpServletRequest request) {
+        String bearerToken = request.getHeader("Authorization");
+        if (bearerToken != null && bearerToken.startsWith("Bearer ")) {
+            String token = bearerToken.substring(7);
+            Claims claims = jwtUtil.getClaimsFromToken(token);
+            if (claims != null) {
+                Object userIdObj = claims.get("userId");
+                if (userIdObj instanceof Number) {
+                    return ((Number) userIdObj).longValue();
+                }
+                if (userIdObj instanceof String) {
+                    try {
+                        return Long.parseLong((String) userIdObj);
+                    } catch (NumberFormatException ignored) {
+                    }
+                }
+            }
+        }
+        return null;
     }
 }
 

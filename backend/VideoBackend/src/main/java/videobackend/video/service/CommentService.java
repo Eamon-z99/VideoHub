@@ -39,10 +39,12 @@ public class CommentService {
         }
 
         String sql = """
-                SELECT c.id, c.video_id, c.user_id, c.content, c.parent_id, c.like_count, c.create_time,
-                       u.username, u.avatar, u.level
+                SELECT c.id, c.video_id, c.user_id, c.content, c.parent_id, c.reply_to_user_id, c.like_count, c.create_time,
+                       u.username, u.avatar, u.level,
+                       ru.username AS reply_to_username
                 FROM comments c
                 LEFT JOIN users u ON c.user_id = u.id
+                LEFT JOIN users ru ON c.reply_to_user_id = ru.id
                 WHERE c.video_id = ?
                   AND c.status = 1
                   AND c.parent_id IS NULL
@@ -86,12 +88,28 @@ public class CommentService {
      * 新增评论（支持顶层评论或回复）
      */
     @Transactional
-    public CommentItem addComment(Long userId, String videoId, String content, Long parentId) {
+    public CommentItem addComment(Long userId, String videoId, String content, Long parentId, Long replyToCommentId) {
+        Long replyToUserId = null;
+        if (parentId != null && replyToCommentId != null) {
+            CommentItem target = getCommentById(replyToCommentId);
+            if (target == null) {
+                throw new IllegalArgumentException("被回复的评论不存在");
+            }
+            if (!videoId.equals(target.videoId())) {
+                throw new IllegalArgumentException("被回复的评论不属于该视频");
+            }
+            Long targetParent = target.parentId();
+            if (targetParent == null || !targetParent.equals(parentId)) {
+                throw new IllegalArgumentException("被回复的评论不属于该条父评论下的回复");
+            }
+            replyToUserId = target.userId();
+        }
+
         String insertSql = """
-                INSERT INTO comments (video_id, user_id, content, parent_id, like_count, status, create_time, update_time)
-                VALUES (?, ?, ?, ?, 0, 1, NOW(), NOW())
+                INSERT INTO comments (video_id, user_id, content, parent_id, reply_to_user_id, like_count, status, create_time, update_time)
+                VALUES (?, ?, ?, ?, ?, 0, 1, NOW(), NOW())
                 """;
-        jdbcTemplate.update(insertSql, videoId, userId, content, parentId);
+        jdbcTemplate.update(insertSql, videoId, userId, content, parentId, replyToUserId);
 
         // 获取自增ID
         Long commentId = jdbcTemplate.queryForObject("SELECT LAST_INSERT_ID()", Long.class);
@@ -108,10 +126,12 @@ public class CommentService {
      */
     public List<CommentItem> listReplies(String videoId, Long parentId) {
         String sql = """
-                SELECT c.id, c.video_id, c.user_id, c.content, c.parent_id, c.like_count, c.create_time,
-                       u.username, u.avatar, u.level
+                SELECT c.id, c.video_id, c.user_id, c.content, c.parent_id, c.reply_to_user_id, c.like_count, c.create_time,
+                       u.username, u.avatar, u.level,
+                       ru.username AS reply_to_username
                 FROM comments c
                 LEFT JOIN users u ON c.user_id = u.id
+                LEFT JOIN users ru ON c.reply_to_user_id = ru.id
                 WHERE c.video_id = ?
                   AND c.status = 1
                   AND c.parent_id = ?
@@ -125,10 +145,12 @@ public class CommentService {
      */
     public CommentItem getCommentById(Long id) {
         String sql = """
-                SELECT c.id, c.video_id, c.user_id, c.content, c.parent_id, c.like_count, c.create_time,
-                       u.username, u.avatar, u.level
+                SELECT c.id, c.video_id, c.user_id, c.content, c.parent_id, c.reply_to_user_id, c.like_count, c.create_time,
+                       u.username, u.avatar, u.level,
+                       ru.username AS reply_to_username
                 FROM comments c
                 LEFT JOIN users u ON c.user_id = u.id
+                LEFT JOIN users ru ON c.reply_to_user_id = ru.id
                 WHERE c.id = ?
                 """;
         List<CommentItem> list = jdbcTemplate.query(sql, (rs, i) -> mapToCommentItem(rs), id);
@@ -187,6 +209,7 @@ public class CommentService {
         Long userId = rs.getLong("user_id");
         String content = rs.getString("content");
         Long parentId = rs.getObject("parent_id") != null ? rs.getLong("parent_id") : null;
+        Long replyToUserId = rs.getObject("reply_to_user_id") != null ? rs.getLong("reply_to_user_id") : null;
         Long likeCount = rs.getObject("like_count") != null ? rs.getLong("like_count") : 0L;
         Timestamp createTime = rs.getTimestamp("create_time");
         String createTimeStr = createTime != null
@@ -195,6 +218,7 @@ public class CommentService {
         String username = rs.getString("username");
         Integer level = rs.getObject("level") != null ? rs.getInt("level") : 0;
         String avatar = rs.getString("avatar");
+        String replyToUsername = rs.getString("reply_to_username");
 
         return new CommentItem(
                 id,
@@ -205,6 +229,8 @@ public class CommentService {
                 avatar,
                 content,
                 parentId,
+                replyToUserId,
+                replyToUsername,
                 likeCount,
                 createTimeStr
         );

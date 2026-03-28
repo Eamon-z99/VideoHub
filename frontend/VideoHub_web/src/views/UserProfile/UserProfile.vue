@@ -36,7 +36,8 @@
                 @click="editBio"
               >
                 <span v-if="bio">{{ bio }}</span>
-                <span v-else class="bio-placeholder">编辑个性签名</span>
+                <span v-else-if="canEditProfile" class="bio-placeholder">编辑个性签名</span>
+                <span v-else class="bio-placeholder bio-placeholder-visitor">暂无简介</span>
               </div>
             </div>
           </div>
@@ -100,8 +101,8 @@
       <div class="content-inner user-profile-container" :class="{ 'no-left-panel': activeTab !== 'collections' }">
         <aside class="left-panel" v-if="activeTab === 'collections'">
           <div class="panel-section">
-            <div class="panel-title">我创建的收藏夹</div>
-            <button class="new-folder" @click="onCreateFolder">
+            <div class="panel-title">{{ canManageCollections ? '我创建的收藏夹' : '公开收藏夹' }}</div>
+            <button v-if="canManageCollections" class="new-folder" @click="onCreateFolder">
               <span class="plus">＋</span>
               新建收藏夹
             </button>
@@ -121,6 +122,7 @@
                 <span class="folder-count">{{ f.count }}</span>
                 </div>
                 <div
+                  v-if="canManageCollections"
                   class="folder-more"
                   @click.stop
                 >
@@ -147,7 +149,7 @@
               </li>
             </ul>
           </div>
-          <div class="panel-section">
+          <div v-if="canManageCollections" class="panel-section">
             <div class="panel-title">我追的合集/收藏夹</div>
             <ul class="folder-list">
               <li
@@ -183,14 +185,14 @@
               <div class="fav-sub">公开 · 视频数：{{ activeFolder?.count ?? 0 }}</div>
             </div>
             <button v-if="!isBatchMode" class="play-all">播放全部</button>
-            <div class="fav-tools">
+            <div v-if="canManageCollections" class="fav-tools">
               <button v-if="!isBatchMode" class="tool-btn" @click="enterBatchMode">批量操作</button>
               <button v-else class="tool-btn" @click="exitBatchMode">退出管理</button>
             </div>
           </div>
 
           <!-- 批量操作头部 -->
-          <div v-if="activeTab === 'collections' && isBatchMode" class="batch-header">
+          <div v-if="activeTab === 'collections' && isBatchMode && canManageCollections" class="batch-header">
             <div class="batch-left">
               <label class="select-all-label">
                 <input 
@@ -241,16 +243,16 @@
               :key="v.id"
               class="video-card"
               :class="{ 
-                'batch-mode': isBatchMode,
-                'selected': isBatchMode && selectedFavoriteIds.includes(v.favoriteId)
+                'batch-mode': isBatchMode && canManageCollections,
+                'selected': isBatchMode && canManageCollections && selectedFavoriteIds.includes(v.favoriteId)
               }"
             >
               <div 
                 class="card-inner"
-                :class="{ 'selected': isBatchMode && selectedFavoriteIds.includes(v.favoriteId) }"
+                :class="{ 'selected': isBatchMode && canManageCollections && selectedFavoriteIds.includes(v.favoriteId) }"
               >
                 <!-- 批量选择复选框 -->
-                <div v-if="isBatchMode" class="batch-checkbox">
+                <div v-if="isBatchMode && canManageCollections" class="batch-checkbox">
                   <input 
                     type="checkbox" 
                     :checked="selectedFavoriteIds.includes(v.favoriteId)"
@@ -258,7 +260,7 @@
                     @click.stop
                   />
                 </div>
-                <div class="thumb" @click="isBatchMode ? null : openVideoInNewTab(v.id)">
+                <div class="thumb" @click="isBatchMode && canManageCollections ? null : openVideoInNewTab(v.id)">
                   <img v-if="v.cover" :src="v.cover" alt="" @error="onImageError" />
                 <div v-else class="thumb-ph" />
                 <span class="duration">{{ v.duration }}</span>
@@ -266,6 +268,7 @@
                 <div class="v-title-row">
                   <div class="v-title" :title="v.title" @click="openVideoInNewTab(v.id)">{{ v.title }}</div>
                   <div
+                    v-if="canManageCollections"
                     class="video-more"
                     @click.stop
                   >
@@ -446,7 +449,7 @@ import TopHeader from '@/components/TopHeader.vue'
 import ProfileHome from './ProfileHome.vue'
 import { getFavoriteListByFolder } from '@/api/favorite'
 import { getFavoriteFolderList, createFavoriteFolder } from '@/api/favoriteFolder'
-import { fetchMyProfile, updateAvatar as apiUpdateAvatar, updateBio as apiUpdateBio, recordProfileVisit } from '@/api/userProfile'
+import { fetchMyProfile, fetchPublicProfile, updateAvatar as apiUpdateAvatar, updateBio as apiUpdateBio, recordProfileVisit } from '@/api/userProfile'
 import { getUserStats } from '@/api/follow'
 import { useUserStore } from '@/stores/user'
 import { ElMessage, ElMessageBox } from 'element-plus'
@@ -542,6 +545,10 @@ export default {
       if (!viewingId) return true
       return String(viewingId) === String(myId)
     },
+    // 管理收藏夹（新建/编辑/删除/批量/取消收藏等）仅本人可操作
+    canManageCollections () {
+      return this.canEditProfile
+    },
     // 是否全选
     isAllSelected () {
       if (this.videos.length === 0) return false
@@ -567,8 +574,16 @@ export default {
     if (tab === 'collections') {
       this.activeTab = 'collections'
     }
-    
-    // 先加载当前用户资料（头像 + 签名）
+
+    const routeUid = this.$route?.params?.id
+    const store = useUserStore()
+    const myUid = store.user?.userId || store.user?.id
+    const viewingOthers = routeUid && (!myUid || String(routeUid) !== String(myUid))
+    if (viewingOthers && tab !== 'collections') {
+      this.activeTab = 'home'
+    }
+
+    // 先加载当前用户资料（头像 + 签名）或他人公开资料
     this.loadProfile()
       .finally(() => {
         // 记录主页访问（仅登录用户有效；后端会自动忽略本人访问）
@@ -616,8 +631,8 @@ export default {
         const store = this.userStore || useUserStore()
         const routeUserId = this.$route?.params?.id
         const myUserId = store.user?.userId || store.user?.id
-        // 当路由指向“他人主页”时，不覆盖显示当前用户的头像/昵称/简介
-        if (routeUserId && myUserId && String(routeUserId) !== String(myUserId)) {
+        // 当路由指向“他人主页”时，不覆盖显示当前用户的头像/昵称/简介（含未登录访客）
+        if (routeUserId && (!myUserId || String(routeUserId) !== String(myUserId))) {
           const q = this.$route?.query || {}
           if (typeof q.nickname === 'string' && q.nickname.trim()) this.nickname = q.nickname.trim()
           if (typeof q.avatar === 'string' && q.avatar.trim()) this.avatar = this.normalizeAvatarUrl(q.avatar.trim())
@@ -669,17 +684,22 @@ export default {
     async loadProfile () {
       try {
         const userStore = this.userStore || useUserStore()
-        if (!userStore.isAuthenticated) return
         const routeUserId = this.$route?.params?.id
         const myUserId = userStore.user?.userId || userStore.user?.id
-        // 他人主页：避免调用“我的资料”接口覆盖展示内容
-        if (routeUserId && myUserId && String(routeUserId) !== String(myUserId)) {
-          const q = this.$route?.query || {}
-          if (typeof q.nickname === 'string' && q.nickname.trim()) this.nickname = q.nickname.trim()
-          if (typeof q.avatar === 'string' && q.avatar.trim()) this.avatar = this.normalizeAvatarUrl(q.avatar.trim())
-          if (typeof q.bio === 'string' && q.bio.trim()) this.bio = q.bio.trim()
+        const isOthersSpace = routeUserId && (!myUserId || String(routeUserId) !== String(myUserId))
+
+        if (isOthersSpace) {
+          const { data } = await fetchPublicProfile(routeUserId)
+          if (data && data.success !== false && data.id != null) {
+            this.nickname = data.username || '-'
+            this.avatar = data.avatar ? this.normalizeAvatarUrl(data.avatar) : DEFAULT_GREY_AVATAR
+            this.bio = typeof data.bio === 'string' ? data.bio : ''
+          }
           return
         }
+
+        if (!userStore.isAuthenticated) return
+
         const { data } = await fetchMyProfile()
         if (data && data.id) {
           this.nickname = data.username || this.nickname
@@ -723,9 +743,12 @@ export default {
       }
     },
     onTabChange (key) {
+      if (!this.canManageCollections && this.isBatchMode) {
+        this.exitBatchMode()
+      }
       // 如果切换到收藏tab，重置并加载数据
       if (key === 'collections' && this.currentUserId) {
-      this.activeTab = key
+        this.activeTab = key
         this.initCollections()
       } else {
         this.activeTab = key
@@ -978,7 +1001,7 @@ export default {
     },
 
     async onCreateFolder () {
-      if (!this.currentUserId) return
+      if (!this.canManageCollections || !this.currentUserId) return
       this.editFolderDialog = {
         visible: true,
         mode: 'create',
@@ -1111,6 +1134,7 @@ export default {
 
     // 批量操作相关方法
     enterBatchMode () {
+      if (!this.canManageCollections) return
       this.isBatchMode = true
       this.selectedFavoriteIds = []
     },
@@ -1586,6 +1610,11 @@ export default {
 
     .bio-placeholder {
       opacity: 0.9;
+    }
+
+    .bio-placeholder-visitor {
+      opacity: 0.75;
+      font-style: normal;
     }
 
     .badge {

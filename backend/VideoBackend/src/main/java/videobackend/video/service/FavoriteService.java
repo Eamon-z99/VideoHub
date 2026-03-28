@@ -11,6 +11,7 @@ import java.sql.SQLException;
 import java.sql.Timestamp;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -122,12 +123,30 @@ public class FavoriteService {
     /**
      * 获取用户的收藏列表（按收藏时间倒序）
      */
-    public List<FavoriteItem> getUserFavorites(Long userId, Long folderId, Integer page, Integer pageSize) {
+    public List<FavoriteItem> getUserFavorites(Long userId, Long folderId, Integer page, Integer pageSize, Long viewerUserId) {
         try {
-            int offset = (page - 1) * pageSize;
+            boolean isOwner = viewerUserId != null && viewerUserId.equals(userId);
+            Long defaultFolderIdForSql = isOwner
+                    ? favoriteFolderService.ensureDefaultFolder(userId)
+                    : favoriteFolderService.findDefaultFolderIdOnly(userId).orElse(0L);
 
-            Long defaultFolderId = favoriteFolderService.ensureDefaultFolder(userId);
-            Long targetFolderId = (folderId != null) ? folderId : defaultFolderId;
+            Long targetFolderId;
+            if (folderId != null) {
+                targetFolderId = folderId;
+            } else {
+                targetFolderId = isOwner
+                        ? defaultFolderIdForSql
+                        : favoriteFolderService.findDefaultFolderIdOnly(userId).orElse(null);
+            }
+
+            if (targetFolderId == null) {
+                return Collections.emptyList();
+            }
+            if (!isOwner && !favoriteFolderService.isFolderPublicForViewer(userId, targetFolderId)) {
+                return Collections.emptyList();
+            }
+
+            int offset = (page - 1) * pageSize;
 
             String sql = """
                     SELECT f.id, f.video_id, f.create_time,
@@ -144,8 +163,8 @@ public class FavoriteService {
                     """;
             return jdbcTemplate.query(sql, (rs, i) -> mapToFavoriteItem(rs),
                     userId,
-                    targetFolderId, defaultFolderId, defaultFolderId,
-                    targetFolderId, defaultFolderId, targetFolderId,
+                    targetFolderId, defaultFolderIdForSql, defaultFolderIdForSql,
+                    targetFolderId, defaultFolderIdForSql, targetFolderId,
                     pageSize, offset);
         } catch (Exception e) {
             e.printStackTrace();
@@ -156,10 +175,28 @@ public class FavoriteService {
     /**
      * 获取用户收藏总数
      */
-    public Long getUserFavoriteCount(Long userId, Long folderId) {
+    public Long getUserFavoriteCount(Long userId, Long folderId, Long viewerUserId) {
         try {
-            Long defaultFolderId = favoriteFolderService.ensureDefaultFolder(userId);
-            Long targetFolderId = (folderId != null) ? folderId : defaultFolderId;
+            boolean isOwner = viewerUserId != null && viewerUserId.equals(userId);
+            Long defaultFolderIdForSql = isOwner
+                    ? favoriteFolderService.ensureDefaultFolder(userId)
+                    : favoriteFolderService.findDefaultFolderIdOnly(userId).orElse(0L);
+
+            Long targetFolderId;
+            if (folderId != null) {
+                targetFolderId = folderId;
+            } else {
+                targetFolderId = isOwner
+                        ? defaultFolderIdForSql
+                        : favoriteFolderService.findDefaultFolderIdOnly(userId).orElse(null);
+            }
+
+            if (targetFolderId == null) {
+                return 0L;
+            }
+            if (!isOwner && !favoriteFolderService.isFolderPublicForViewer(userId, targetFolderId)) {
+                return 0L;
+            }
 
             String sql = """
                     SELECT COUNT(*) FROM favorites
@@ -171,8 +208,8 @@ public class FavoriteService {
                     """;
             Object countObj = jdbcTemplate.queryForObject(sql, Object.class,
                     userId,
-                    targetFolderId, defaultFolderId, defaultFolderId,
-                    targetFolderId, defaultFolderId, targetFolderId);
+                    targetFolderId, defaultFolderIdForSql, defaultFolderIdForSql,
+                    targetFolderId, defaultFolderIdForSql, targetFolderId);
             if (countObj == null) {
                 return 0L;
             }

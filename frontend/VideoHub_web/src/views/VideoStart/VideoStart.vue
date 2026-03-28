@@ -612,12 +612,17 @@
                  </div>
                </div>
 
-      <!-- 简介与标签 -->
+      <!-- 简介在上、标签在下 -->
       <div v-if="!isWidescreen" class="desc">
-        <div class="tags">
-          <el-tag v-for="t in tags" :key="t" size="small" effect="light">{{ t }}</el-tag>
-        </div>
         <p class="intro">{{ description }}</p>
+        <div v-if="tags.length" class="tags">
+          <router-link
+            v-for="t in tags"
+            :key="t"
+            class="tag-link"
+            :to="{ name: 'search', query: { keyword: t } }"
+          >{{ t }}</router-link>
+        </div>
       </div>
 
       <!-- 评论区组件 -->
@@ -631,12 +636,17 @@
 
     <!-- 左下内容区（仅宽屏显示） -->
     <section v-if="isWidescreen" class="content-main">
-      <!-- 简介与标签 -->
+      <!-- 简介在上、标签在下 -->
       <div class="desc">
-        <div class="tags">
-          <el-tag v-for="t in tags" :key="t" size="small" effect="light">{{ t }}</el-tag>
-        </div>
         <p class="intro">{{ description }}</p>
+        <div v-if="tags.length" class="tags">
+          <router-link
+            v-for="t in tags"
+            :key="t"
+            class="tag-link"
+            :to="{ name: 'search', query: { keyword: t } }"
+          >{{ t }}</router-link>
+        </div>
       </div>
 
       <!-- 评论区组件 -->
@@ -3889,269 +3899,59 @@ onUnmounted(() => {
       /* 让描述区左侧与视频左侧对齐：去掉左右内边距，仅保留上下间距 */
       padding: 12px 0;
       border-bottom: 1px solid var(--line_regular, #E3E5E7);
-      .tags {
-        display: flex;
-        gap: 8px;
-        flex-wrap: wrap;
-        margin-bottom: 8px;
-      }
       .intro {
         margin: 0;
-        color: #333;
+        color: #18191c;
         line-height: 1.6;
-        font-size: 14px;
+        font-size: 15px;
+        font-family:
+          'PingFang SC',
+          'HarmonyOS Sans SC',
+          'HarmonyOS Sans',
+          'Microsoft YaHei',
+          sans-serif;
       }
-    }
 
-    .comments {
-      background: #fff;
-      border-radius: 8px;
-      /* 与上方 .desc 左侧对齐：去掉左右内边距，仅保留上下内边距 */
-      padding: 16px 0;
-      display: flex;
-      flex-direction: column;
-      gap: 12px;
-
-      .comment-header {
+      .tags {
         display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin-top: 16px;
+      }
+
+      .tag-link {
+        box-sizing: border-box;
+        display: inline-flex;
         align-items: center;
-        justify-content: space-between;
-        padding-bottom: 12px;
-        border-bottom: 1px solid #f1f2f3;
+        justify-content: center;
+        height: 28px;
+        padding: 0 12px;
+        border-radius: 15px;
+        background: #f1f2f3;
+        color: #61666d;
+        font-size: 13px;
+        font-weight: 400;
+        line-height: 1;
+        font-family:
+          'PingFang SC',
+          'HarmonyOS Sans SC',
+          'HarmonyOS Sans',
+          'Microsoft YaHei',
+          sans-serif;
+        text-decoration: none;
+        white-space: nowrap;
 
-        .title {
-          font-size: 16px;
-          font-weight: 600;
-          color: #18191c;
+        &:visited {
+          color: #61666d;
         }
 
-        .sort-tabs {
-          display: flex;
-          align-items: center;
-          gap: 16px;
-          font-size: 13px;
-
-          .sort-item {
-            color: #61666d;
-            cursor: pointer;
-            position: relative;
-            padding-bottom: 2px;
-
-            &.is-active {
-              color: #00a1d6;
-              font-weight: 500;
-            }
-          }
-        }
-      }
-
-      .comment-editor {
-        display: flex;
-        align-items: flex-start;
-        margin-top: 8px;
-
-        .editor-avatar {
-          margin-right: 12px;
-
-          img,
-          .avatar-placeholder {
-            width: 40px;
-            height: 40px;
-            border-radius: 50%;
-            object-fit: cover;
-            background: #e3e5e7;
-          }
-        }
-
-        .editor-main {
-          flex: 1 1 auto;
-
-          .editor-input {
-            width: 100%;
-
-            :deep(.el-textarea__inner) {
-              background-color: #f4f5f7;
-              border-radius: 6px;
-              border-color: transparent;
-              padding: 8px 12px;
-
-              &:focus {
-                border-color: #00a1d6;
-                background-color: #fff;
-              }
-            }
-          }
-
-          .editor-actions {
-            display: flex;
-            justify-content: flex-end;
-            align-items: center;
-            margin-top: 8px;
-            gap: 12px;
-
-            .login-hint {
-              font-size: 12px;
-              color: #9499a0;
-              margin-right: auto;
-            }
-          }
-        }
-      }
-
-      .comment-list {
-        margin-top: 8px;
-
-        .no-comment {
-          padding: 24px 0;
-          text-align: center;
-          color: #9499a0;
-          font-size: 13px;
-        }
-
-        .comment-item {
-          display: flex;
-          gap: 12px;
-          padding: 16px 0;
-          border-bottom: 1px solid #f1f2f3;
-
-          .avatar {
-            width: 40px;
-            height: 40px;
-            border-radius: 50%;
-            flex: 0 0 40px;
-            object-fit: cover;
-            background: #e3e5e7;
-          }
-
-          .content {
-            flex: 1 1 auto;
-
-            .header {
-              display: flex;
-              align-items: center;
-              gap: 8px;
-              margin-bottom: 4px;
-
-              .name {
-                font-weight: 600;
-                font-size: 13px;
-                color: #18191c;
-              }
-
-              .time {
-                color: #9499a0;
-                font-size: 12px;
-              }
-            }
-
-            .text {
-              margin: 4px 0 6px;
-              color: #18191c;
-              font-size: 14px;
-              line-height: 1.6;
-            }
-
-            .comment-footer {
-              display: flex;
-              align-items: center;
-              justify-content: space-between;
-              margin-top: 4px;
-
-              .reply-summary {
-                font-size: 12px;
-                color: #9499a0;
-              }
-
-              .comment-actions {
-                display: inline-flex;
-                gap: 4px;
-
-                :deep(.el-button) {
-                  padding: 0 4px;
-                  font-size: 12px;
-                  color: #9499a0;
-
-                  &:hover {
-                    color: #00a1d6;
-                  }
-                }
-              }
-            }
-
-            .reply-list {
-              margin-top: 8px;
-              padding-left: 48px;
-
-              .reply-item {
-                display: flex;
-                gap: 8px;
-                margin-bottom: 8px;
-
-                .reply-avatar {
-                  width: 24px;
-                  height: 24px;
-                  border-radius: 50%;
-                }
-
-                .reply-content {
-                  .reply-header {
-                    display: flex;
-                    align-items: center;
-                    gap: 8px;
-                    margin-bottom: 2px;
-
-                    .name {
-                      font-size: 13px;
-                      color: #18191c;
-                    }
-
-                    .time {
-                      font-size: 12px;
-                      color: #9499a0;
-                    }
-                  }
-
-                  .text {
-                    margin: 0;
-                    font-size: 14px;
-                    color: #222;
-                  }
-                }
-              }
-            }
-
-            .reply-editor {
-              margin-top: 8px;
-              padding-left: 48px;
-
-              .reply-actions {
-                margin-top: 6px;
-                display: flex;
-                justify-content: flex-end;
-                gap: 8px;
-              }
-            }
-          }
-        }
-
-        .loading-more,
-        .load-more {
-          padding: 12px 0;
-          text-align: center;
-          font-size: 13px;
-          color: #9499a0;
-          cursor: default;
-        }
-
-        .load-more {
-          cursor: pointer;
-
-          &:hover {
-            color: #00a1d6;
-          }
-        }
+        // &:hover {
+        //   background: #e3e5e7;
+        //   color: #61666d;
+        // }
       }
     }
+
   }
 
   .content-main {
@@ -4163,18 +3963,56 @@ onUnmounted(() => {
       padding: 12px 0;
       border-bottom: 1px solid var(--line_regular, #E3E5E7);
 
-      .tags {
-        display: flex;
-        gap: 8px;
-        flex-wrap: wrap;
-        margin-bottom: 8px;
-      }
-
       .intro {
         margin: 0;
-        color: #333;
+        color: #18191c;
         line-height: 1.6;
-        font-size: 14px;
+        font-size: 15px;
+        font-family:
+          'PingFang SC',
+          'HarmonyOS Sans SC',
+          'HarmonyOS Sans',
+          'Microsoft YaHei',
+          sans-serif;
+      }
+
+      .tags {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin-top: 16px;
+      }
+
+      .tag-link {
+        box-sizing: border-box;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        height: 28px;
+        padding: 0 12px;
+        border-radius: 15px;
+        background: #f1f2f3;
+        color: #61666d;
+        font-size: 13px;
+        font-weight: 400;
+        line-height: 1;
+        font-family:
+          'PingFang SC',
+          'HarmonyOS Sans SC',
+          'HarmonyOS Sans',
+          'Microsoft YaHei',
+          sans-serif;
+        text-decoration: none;
+        white-space: nowrap;
+
+        &:visited {
+          color: #61666d;
+        }
+
+        &:hover {
+          background: #e3e5e7;
+          color: #61666d;
+        }
       }
     }
   }

@@ -45,6 +45,28 @@ public class FavoriteFolderService {
                 .orElseThrow(() -> new RuntimeException("创建默认收藏夹失败"));
     }
 
+    /**
+     * 仅查询默认收藏夹 id，不存在则返回空（不创建）
+     */
+    public Optional<Long> findDefaultFolderIdOnly(Long userId) {
+        return findFolderIdByName(userId, DEFAULT_FOLDER_NAME);
+    }
+
+    /**
+     * 访客是否可读该收藏夹（公开且属于该用户）
+     */
+    public boolean isFolderPublicForViewer(Long ownerUserId, Long folderId) {
+        if (folderId == null || ownerUserId == null) {
+            return false;
+        }
+        String sql = "SELECT is_public FROM favorite_folders WHERE id = ? AND user_id = ? LIMIT 1";
+        List<Integer> rows = jdbcTemplate.query(sql, (rs, i) -> rs.getObject("is_public") != null ? rs.getInt("is_public") : 1, folderId, ownerUserId);
+        if (rows.isEmpty()) {
+            return false;
+        }
+        return rows.get(0) != null && rows.get(0) != 0;
+    }
+
     public Optional<Long> findFolderIdByName(Long userId, String name) {
         String sql = "SELECT id FROM favorite_folders WHERE user_id = ? AND name = ? LIMIT 1";
         List<Map<String, Object>> rows = jdbcTemplate.queryForList(sql, userId, name);

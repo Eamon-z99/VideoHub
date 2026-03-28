@@ -12,9 +12,9 @@ public record CommentItem(
         String avatar,
         String content,
         Long parentId,
+        Long replyToUserId,
+        String replyToUsername,
         Long likeCount,
         String createTime
 ) {
 }
-
-

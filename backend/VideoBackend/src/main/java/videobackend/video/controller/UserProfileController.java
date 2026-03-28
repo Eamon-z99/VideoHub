@@ -41,6 +41,16 @@ public class UserProfileController {
                 .orElseGet(() -> ResponseEntity.status(404).body(Map.of("success", false, "message", "用户不存在")));
     }
 
+    /**
+     * 公开资料（访客可访问）：头像、昵称、签名等，不含邮箱/登录账号
+     */
+    @GetMapping("/public/{userId}")
+    public ResponseEntity<?> getPublicProfile(@PathVariable Long userId) {
+        return userProfileService.getUserById(userId)
+                .<ResponseEntity<?>>map(user -> ResponseEntity.ok(buildPublicUserPayload(user)))
+                .orElseGet(() -> ResponseEntity.status(404).body(Map.of("success", false, "message", "用户不存在")));
+    }
+
     @PostMapping("/avatar")
     public ResponseEntity<?> updateAvatar(HttpServletRequest request,
                                           @RequestPart("file") MultipartFile file) {
@@ -123,6 +133,16 @@ public class UserProfileController {
         payload.put("email", user.getEmail());
         payload.put("avatar", user.getAvatar());
         payload.put("bio", user.getBio());
+        return payload;
+    }
+
+    private Map<String, Object> buildPublicUserPayload(User user) {
+        Map<String, Object> payload = new HashMap<>();
+        payload.put("success", true);
+        payload.put("id", user.getId());
+        payload.put("username", user.getUsername());
+        payload.put("avatar", user.getAvatar());
+        payload.put("bio", user.getBio() != null ? user.getBio() : "");
         return payload;
     }
 }

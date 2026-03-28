@@ -7,11 +7,14 @@ export const getComments = (videoId, page = 1, pageSize = 20, sort = 'time') => 
   })
 }
 
-// 发表评论（顶层评论或回复）
-export const addComment = (videoId, content, parentId = null) => {
+// 发表评论（顶层评论或回复）；replyToCommentId 为对某条「回复」再回复时传入该回复的评论 id
+export const addComment = (videoId, content, parentId = null, replyToCommentId = null) => {
   const payload = { videoId, content }
   if (parentId) {
     payload.parentId = parentId
+  }
+  if (replyToCommentId != null && replyToCommentId !== '') {
+    payload.replyToCommentId = replyToCommentId
   }
   return request.post('/api/comments/add', payload)
 }
@@ -37,6 +40,17 @@ export const getCommentReplies = (videoId, parentId) => {
 export const getCommentCountWithReplies = (videoId) => {
   return request.get('/api/comments/count-with-replies', {
     params: { videoId }
+  })
+}
+
+/** 评论配图上传（复用动态图片存储，返回路径如 /feed-images/...） */
+export const uploadCommentImage = (file) => {
+  const formData = new FormData()
+  formData.append('file', file)
+  return request.post('/api/images/upload', formData, {
+    headers: {
+      'Content-Type': 'multipart/form-data'
+    }
   })
 }
 

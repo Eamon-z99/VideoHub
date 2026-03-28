@@ -1,12 +1,16 @@
 package videobackend.video.controller;
 
+import io.jsonwebtoken.Claims;
+import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import videobackend.video.model.FavoriteFolderItem;
 import videobackend.video.service.FavoriteFolderService;
+import videobackend.video.util.JwtUtil;
 
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api/favorite-folders")
@@ -14,15 +18,23 @@ import java.util.Map;
 public class FavoriteFolderController {
 
     private final FavoriteFolderService folderService;
+    private final JwtUtil jwtUtil;
 
-    public FavoriteFolderController(FavoriteFolderService folderService) {
+    public FavoriteFolderController(FavoriteFolderService folderService, JwtUtil jwtUtil) {
         this.folderService = folderService;
+        this.jwtUtil = jwtUtil;
     }
 
     @GetMapping("/list")
-    public ResponseEntity<?> list(@RequestParam Long userId) {
+    public ResponseEntity<?> list(@RequestParam Long userId, HttpServletRequest request) {
         try {
             List<FavoriteFolderItem> list = folderService.listFolders(userId);
+            Long viewerId = getUserIdFromRequest(request);
+            if (viewerId == null || !viewerId.equals(userId)) {
+                list = list.stream()
+                        .filter(f -> Boolean.TRUE.equals(f.getIsPublic()))
+                        .collect(Collectors.toList());
+            }
             return ResponseEntity.ok(Map.of(
                     "success", true,
                     "list", list,
@@ -122,6 +134,27 @@ public class FavoriteFolderController {
                     "message", "删除失败: " + e.getMessage()
             ));
         }
+    }
+
+    private Long getUserIdFromRequest(HttpServletRequest request) {
+        String bearerToken = request.getHeader("Authorization");
+        if (bearerToken != null && bearerToken.startsWith("Bearer ")) {
+            String token = bearerToken.substring(7);
+            Claims claims = jwtUtil.getClaimsFromToken(token);
+            if (claims != null) {
+                Object userIdObj = claims.get("userId");
+                if (userIdObj instanceof Number) {
+                    return ((Number) userIdObj).longValue();
+                }
+                if (userIdObj instanceof String) {
+                    try {
+                        return Long.parseLong((String) userIdObj);
+                    } catch (NumberFormatException ignored) {
+                    }
+                }
+            }
+        }
+        return null;
     }
 }
 

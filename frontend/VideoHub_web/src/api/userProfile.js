@@ -5,6 +5,11 @@ export const fetchMyProfile = () => {
   return request.get('/api/user/profile/me')
 }
 
+// 获取任意用户的公开资料（访客可访问，用于他人主页）
+export const fetchPublicProfile = (userId) => {
+  return request.get(`/api/user/profile/public/${encodeURIComponent(String(userId))}`)
+}
+
 // 更新个性签名（bio）
 export const updateBio = (bio) => {
   return request.post('/api/user/profile/bio', { bio })

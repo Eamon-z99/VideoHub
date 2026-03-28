@@ -111,7 +111,8 @@ public class FollowService {
      */
     public List<Map<String, Object>> getFollowingUsers(Long userId) {
         String sql = """
-                SELECT u.id, u.username, u.avatar, u.account
+                SELECT u.id, u.username, u.avatar, u.account,
+                       (SELECT COUNT(*) FROM fans f2 WHERE f2.following_id = u.id) AS follower_count
                 FROM fans f
                 INNER JOIN users u ON f.following_id = u.id
                 WHERE f.follower_id = ?
@@ -123,6 +124,8 @@ public class FollowService {
             user.put("username", rs.getString("username"));
             user.put("avatar", rs.getString("avatar"));
             user.put("account", rs.getString("account"));
+            long fc = rs.getLong("follower_count");
+            user.put("followerCount", fc);
             return user;
         }, userId);
     }
