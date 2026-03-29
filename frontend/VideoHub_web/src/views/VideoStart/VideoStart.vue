@@ -84,6 +84,7 @@
             @loadedmetadata="onVideoLoaded"
             @play="onVideoPlay"
             @pause="onVideoPause"
+            @ended="onCollectionVideoEnded"
           />
 
           <div class="player-corner-time" aria-hidden="true">
@@ -696,6 +697,13 @@
         />
       </div>
 
+      <VideoCollectionPanel
+        ref="collectionPanelRef"
+        :video-id="videoData.videoId || route.params.id"
+        :is-playing="isVideoPlaying"
+        @select-video="onCollectionSelectVideo"
+      />
+
       <VideoRecommendList
         :uploader-id="uploader.id"
         :current-video-id="videoData.videoId || route.params.id"
@@ -727,6 +735,7 @@ import { ElMessage } from 'element-plus'
 import { fetchDanmaku, sendDanmaku, getDanmakuCount } from '@/api/danmaku'
 import { heartbeatWatch } from '@/api/watch'
 import DanmakuList from './DanmakuList.vue'
+import VideoCollectionPanel from './VideoCollectionPanel.vue'
 import VideoRecommendList from './VideoRecommendList.vue'
 import VideoComments from './VideoComments.vue'
 import VideoComplaintDialog from './components/VideoComplaintDialog.vue'
@@ -740,6 +749,7 @@ const MAX_RECOMMENDS = 40
 const INITIAL_RECOMMENDS = 4
 
 const videoPlayer = ref(null)
+const collectionPanelRef = ref(null)
 const playerRef = ref(null)
 const danmakuBarRef = ref(null)
 const danmakuListSectionRef = ref(null)
@@ -1041,6 +1051,19 @@ const sendWatchHeartbeat = async () => {
     }
   } catch (e) {
     // 静默失败：不影响播放体验
+  }
+}
+
+const onCollectionSelectVideo = (videoId) => {
+  if (!videoId) return
+  router.replace({ name: 'video', params: { id: videoId } })
+}
+
+const onCollectionVideoEnded = () => {
+  const cur = videoData.value.videoId || route.params.id
+  const nextId = collectionPanelRef.value?.getNextVideoIdAfter?.(cur)
+  if (nextId) {
+    router.replace({ name: 'video', params: { id: nextId } })
   }
 }
 

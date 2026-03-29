@@ -353,33 +353,50 @@ const onVideoFileChange = (event) => {
   selectedVideoSize.value = formatSize(file.size)
   durationSeconds.value = 0
 
-  // 读取时长（秒）
+  // 读取时长（秒）：必须在元数据就绪后再通知父组件，否则 duration 恒为 0 写入 video_submissions
+  let emitted = false
+  const finish = () => {
+    if (emitted) return
+    emitted = true
+    emit('uploaded', {
+      submissionId: '',
+      videoFile: videoFile.value,
+      videoName: selectedVideoName.value,
+      durationSeconds: durationSeconds.value
+    })
+  }
+
   try {
     const url = URL.createObjectURL(file)
     const videoEl = document.createElement('video')
     videoEl.preload = 'metadata'
+    videoEl.muted = true
+    videoEl.playsInline = true
     videoEl.src = url
     videoEl.onloadedmetadata = () => {
       videoEl.pause()
       const dur = videoEl.duration
-      durationSeconds.value = typeof dur === 'number' && dur > 0 ? Math.floor(dur) : 0
+      durationSeconds.value =
+        typeof dur === 'number' && Number.isFinite(dur) && dur > 0 ? Math.floor(dur) : 0
       URL.revokeObjectURL(url)
+      finish()
     }
     videoEl.onerror = () => {
       durationSeconds.value = 0
       URL.revokeObjectURL(url)
+      finish()
     }
+    // 个别编码/浏览器下 metadata 过久不回调，避免一直卡在上传页
+    window.setTimeout(() => {
+      if (!emitted) {
+        URL.revokeObjectURL(url)
+        finish()
+      }
+    }, 12000)
   } catch (e) {
     durationSeconds.value = 0
+    finish()
   }
-
-  // 只选择文件并进入下一步（填写信息），不自动上传
-  emit('uploaded', {
-    submissionId: '',
-    videoFile: videoFile.value,
-    videoName: selectedVideoName.value,
-    durationSeconds: durationSeconds.value,
-  })
 }
 </script>
 

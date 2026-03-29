@@ -168,4 +168,194 @@ public class VideoCollectionService {
                 userId
         );
     }
+
+    /**
+     * 播放页：当前视频若在合集中，返回合集信息、有序视频列表、当前序号、总播放量、是否已订阅。
+     */
+    public Map<String, Object> getContextByVideoId(String videoId, Long requesterUserId) {
+        Map<String, Object> out = new HashMap<>();
+        if (!StringUtils.hasText(videoId)) {
+            out.put("inCollection", false);
+            return out;
+        }
+        String vid = videoId.trim();
+        Long collectionId;
+        try {
+            collectionId = jdbcTemplate.queryForObject(
+                    """
+                    SELECT v.collection_id
+                    FROM videos v
+                    WHERE v.video_id = ?
+                      AND (v.status IS NULL OR UPPER(TRIM(v.status)) NOT IN ('FAILED','DOWN'))
+                    """,
+                    Long.class,
+                    vid
+            );
+        } catch (EmptyResultDataAccessException e) {
+            out.put("inCollection", false);
+            return out;
+        }
+        if (collectionId == null) {
+            out.put("inCollection", false);
+            return out;
+        }
+
+        Map<String, Object> crow;
+        try {
+            crow = jdbcTemplate.queryForMap(
+                    """
+                    SELECT c.id, c.name, c.description, c.user_id AS owner_user_id,
+                           u.username AS owner_name
+                    FROM video_collections c
+                    LEFT JOIN users u ON u.id = c.user_id
+                    WHERE c.id = ?
+                    """,
+                    collectionId
+            );
+        } catch (EmptyResultDataAccessException e) {
+            out.put("inCollection", false);
+            return out;
+        }
+
+        List<Map<String, Object>> videos = jdbcTemplate.queryForList(
+                """
+                SELECT v.video_id, v.title, v.duration, v.view_count
+                FROM videos v
+                WHERE v.collection_id = ?
+                  AND (v.status IS NULL OR UPPER(TRIM(v.status)) NOT IN ('FAILED','DOWN'))
+                ORDER BY v.create_time ASC, v.id ASC
+                """,
+                collectionId
+        );
+
+        Long sumPlays = jdbcTemplate.queryForObject(
+                """
+                SELECT COALESCE(SUM(v.view_count), 0)
+                FROM videos v
+                WHERE v.collection_id = ?
+                  AND (v.status IS NULL OR UPPER(TRIM(v.status)) NOT IN ('FAILED','DOWN'))
+                """,
+                Long.class,
+                collectionId
+        );
+
+        int currentIndex = -1;
+        int total = videos.size();
+        for (int i = 0; i < total; i++) {
+            Object idObj = videos.get(i).get("video_id");
+            if (idObj != null && vid.equals(String.valueOf(idObj))) {
+                currentIndex = i;
+                break;
+            }
+        }
+
+        boolean subscribed = false;
+        if (requesterUserId != null) {
+            Long sc = jdbcTemplate.queryForObject(
+                    """
+                    SELECT COUNT(*) FROM video_collection_subscriptions
+                    WHERE user_id = ? AND collection_id = ?
+                    """,
+                    Long.class,
+                    requesterUserId,
+                    collectionId
+            );
+            subscribed = sc != null && sc > 0;
+        }
+
+        boolean ownCollection = requesterUserId != null
+                && crow.get("owner_user_id") != null
+                && requesterUserId.equals(toLong(crow.get("owner_user_id")));
+
+        out.put("inCollection", true);
+        out.put("collection", crow);
+        out.put("videos", videos);
+        out.put("currentIndex", currentIndex);
+        out.put("total", total);
+        out.put("totalPlayCount", sumPlays == null ? 0L : sumPlays);
+        out.put("subscribed", subscribed);
+        out.put("ownCollection", ownCollection);
+        return out;
+    }
+
+    private static Long toLong(Object o) {
+        if (o instanceof Number) {
+            return ((Number) o).longValue();
+        }
+        return null;
+    }
+
+    public void subscribe(Long userId, long collectionId) {
+        if (userId == null) {
+            throw new IllegalArgumentException("未登录");
+        }
+        Long ownerId;
+        try {
+            ownerId = jdbcTemplate.queryForObject(
+                    "SELECT user_id FROM video_collections WHERE id=?",
+                    Long.class,
+                    collectionId
+            );
+        } catch (EmptyResultDataAccessException e) {
+            throw new IllegalArgumentException("合集不存在");
+        }
+        if (ownerId == null) {
+            throw new IllegalArgumentException("合集不存在");
+        }
+        if (ownerId.equals(userId)) {
+            throw new IllegalArgumentException("不能订阅自己的合集");
+        }
+        jdbcTemplate.update(
+                """
+                INSERT INTO video_collection_subscriptions (user_id, collection_id, create_time)
+                VALUES (?, ?, NOW())
+                ON DUPLICATE KEY UPDATE create_time = create_time
+                """,
+                userId,
+                collectionId
+        );
+    }
+
+    public void unsubscribe(Long userId, long collectionId) {
+        if (userId == null) {
+            throw new IllegalArgumentException("未登录");
+        }
+        jdbcTemplate.update(
+                "DELETE FROM video_collection_subscriptions WHERE user_id=? AND collection_id=?",
+                userId,
+                collectionId
+        );
+    }
+
+    /**
+     * 个人中心「我追的合集」：某用户订阅的合集列表。
+     */
+    public List<Map<String, Object>> listSubscribedCollections(long userId) {
+        return jdbcTemplate.queryForList(
+                """
+                SELECT c.id,
+                       c.name,
+                       c.user_id AS owner_user_id,
+                       u.username AS owner_name,
+                       (SELECT COUNT(*)
+                        FROM videos v
+                        WHERE v.collection_id = c.id
+                          AND (v.status IS NULL OR UPPER(TRIM(v.status)) NOT IN ('FAILED','DOWN'))
+                       ) AS video_count,
+                       (SELECT v2.video_id
+                        FROM videos v2
+                        WHERE v2.collection_id = c.id
+                          AND (v2.status IS NULL OR UPPER(TRIM(v2.status)) NOT IN ('FAILED','DOWN'))
+                        ORDER BY v2.create_time ASC, v2.id ASC
+                        LIMIT 1
+                       ) AS entry_video_id
+                FROM video_collection_subscriptions s
+                JOIN video_collections c ON c.id = s.collection_id
+                LEFT JOIN users u ON u.id = c.user_id
+                WHERE s.user_id = ?
+                ORDER BY s.create_time DESC
+                """,
+                userId
+        );
+    }
 }

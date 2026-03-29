@@ -387,6 +387,9 @@ const openDraftForEdit = async (sid) => {
     if (data?.success) {
       initialDraft.value = data.data || null
       uploadedVideoName.value = String(data.data?.title || '')
+      const d = data.data?.duration
+      uploadedDurationSeconds.value =
+        d != null && Number(d) > 0 ? Math.floor(Number(d)) : 0
     }
   } catch (e) {
     // 忽略：草稿可能已不存在

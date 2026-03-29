@@ -62,6 +62,24 @@ export const setVideoCollectionForVideo = (videoId, collectionId) => {
   )
 }
 
+/** 播放页：当前视频若在投稿合集中，返回合集信息与分 P 列表（需登录时返回是否已订阅） */
+export const getVideoCollectionContextByVideo = (videoId) => {
+  return request.get(`/api/db/video-collections/by-video/${encodeURIComponent(videoId)}`)
+}
+
+export const subscribeVideoCollection = (collectionId) => {
+  return request.post(`/api/db/video-collections/${collectionId}/subscribe`)
+}
+
+export const unsubscribeVideoCollection = (collectionId) => {
+  return request.delete(`/api/db/video-collections/${collectionId}/subscribe`)
+}
+
+/** 个人中心「我追的合集」 */
+export const listSubscribedVideoCollections = (userId) => {
+  return request.get('/api/db/video-collections/subscribed/list', { params: { userId } })
+}
+
 export const fetchVideoDetail = (id) => {
   return request.get(`/api/db/videos/${encodeURIComponent(id)}`)
 }

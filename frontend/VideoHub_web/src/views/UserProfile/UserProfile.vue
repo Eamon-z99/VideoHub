@@ -150,16 +150,49 @@
             </ul>
           </div>
           <div v-if="canManageCollections" class="panel-section">
-            <div class="panel-title">我追的合集/收藏夹</div>
+            <div class="panel-title">我追的合集</div>
             <ul class="folder-list">
               <li
                 v-for="f in followedFolders"
                 :key="f.id"
-                class="folder"
+                class="folder folder-followed"
+                :class="{ active: activeFollowedCollectionId === f.id }"
+                @click="onFollowedCollectionSelect(f)"
               >
-                <span class="folder-icon" />
-                <span class="folder-name">{{ f.name }}</span>
-                <span class="folder-count">{{ f.count }}</span>
+                <div class="folder-main">
+                  <svg class="folder-icon" width="18" height="18" viewBox="0 0 18 18" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M2 4C2 3.44772 2.44772 3 3 3H7.5L9 5H15C15.5523 5 16 5.44772 16 6V14C16 14.5523 15.5523 15 15 15H3C2.44772 15 2 14.5523 2 14V4Z" stroke="currentColor" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+                  </svg>
+                  <span class="folder-name">{{ f.name }}</span>
+                  <span class="folder-count">{{ f.count }}</span>
+                </div>
+                <div class="folder-more" @click.stop>
+                  <button
+                    type="button"
+                    class="folder-more-btn"
+                    @click.stop="toggleFollowedCollectionMenu(f.id)"
+                    aria-label="更多操作"
+                  >
+                    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+                      <circle cx="8" cy="4" r="1.5" fill="currentColor"/>
+                      <circle cx="8" cy="8" r="1.5" fill="currentColor"/>
+                      <circle cx="8" cy="12" r="1.5" fill="currentColor"/>
+                    </svg>
+                  </button>
+                  <div
+                    v-if="followedCollectionMenuForId === f.id"
+                    class="folder-more-menu"
+                    @mouseleave="onFollowedCollectionMenuLeave(f.id)"
+                  >
+                    <button
+                      class="menu-item danger"
+                      :disabled="unsubscribingFollowedId === f.id"
+                      @click.stop="onUnsubscribeFollowedCollection(f)"
+                    >
+                      取消订阅
+                    </button>
+                  </div>
+                </div>
               </li>
             </ul>
           </div>
@@ -244,32 +277,54 @@
 
         <section class="right-panel">
           <div v-if="activeTab === 'collections'" class="fav-header">
-            <div class="fav-cover">
-              <img 
-                v-if="activeFolder?.coverUrl" 
-                :src="normalizeImageUrl(activeFolder.coverUrl)" 
-                alt="收藏夹封面" 
-                @error="onImageError"
-              />
-              <div v-else class="fav-cover-placeholder">
-                <svg width="32" height="32" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                  <path d="M4 16L8.586 11.414C9.367 10.633 10.633 10.633 11.414 11.414L16 16M14 14L15.586 12.414C16.367 11.633 17.633 11.633 18.414 12.414L20 14M14 8H14.01M6 20H18C19.105 20 20 19.105 20 18V6C20 4.895 19.105 4 18 4H6C4.895 4 4 4.895 4 6V18C4 19.105 4.895 20 6 20Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                </svg>
+            <template v-if="activeFollowedCollectionId && activeFollowedCollection">
+              <div class="fav-cover">
+                <img
+                  v-if="followedCollectionHeaderCoverUrl"
+                  :src="followedCollectionHeaderCoverUrl"
+                  alt="合集封面"
+                  @error="onImageError"
+                />
+                <div v-else class="fav-cover-placeholder">
+                  <svg width="32" height="32" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M4 16L8.586 11.414C9.367 10.633 10.633 10.633 11.414 11.414L16 16M14 14L15.586 12.414C16.367 11.633 17.633 11.633 18.414 12.414L20 14M14 8H14.01M6 20H18C19.105 20 20 19.105 20 18V6C20 4.895 19.105 4 18 4H6C4.895 4 4 4.895 4 6V18C4 19.105 4.895 20 6 20Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                  </svg>
+                </div>
               </div>
-            </div>
-            <div class="fav-left">
-              <div class="fav-title">{{ activeFolder?.name || '默认收藏夹' }}</div>
-              <div class="fav-sub">公开 · 视频数：{{ activeFolder?.count ?? 0 }}</div>
-            </div>
-            <button v-if="!isBatchMode" type="button" class="play-all" @click="playAllFromCollection">播放全部</button>
-            <div v-if="canManageCollections" class="fav-tools">
-              <button v-if="!isBatchMode" class="tool-btn" @click="enterBatchMode">批量操作</button>
-              <button v-else class="tool-btn" @click="exitBatchMode">退出管理</button>
-            </div>
+              <div class="fav-left">
+                <div class="fav-title">{{ activeFollowedCollection.name }}</div>
+                <div class="fav-sub">订阅的合集 · UP：{{ activeFollowedCollection.ownerName || '—' }} · 视频数：{{ total }}</div>
+              </div>
+              <button v-if="!isBatchMode" type="button" class="play-all" @click="playAllFromCollection">播放全部</button>
+            </template>
+            <template v-else>
+              <div class="fav-cover">
+                <img
+                  v-if="activeFolder?.coverUrl"
+                  :src="normalizeImageUrl(activeFolder.coverUrl)"
+                  alt="收藏夹封面"
+                  @error="onImageError"
+                />
+                <div v-else class="fav-cover-placeholder">
+                  <svg width="32" height="32" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M4 16L8.586 11.414C9.367 10.633 10.633 10.633 11.414 11.414L16 16M14 14L15.586 12.414C16.367 11.633 17.633 11.633 18.414 12.414L20 14M14 8H14.01M6 20H18C19.105 20 20 19.105 20 18V6C20 4.895 19.105 4 18 4H6C4.895 4 4 4.895 4 6V18C4 19.105 4.895 20 6 20Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                  </svg>
+                </div>
+              </div>
+              <div class="fav-left">
+                <div class="fav-title">{{ activeFolder?.name || '默认收藏夹' }}</div>
+                <div class="fav-sub">公开 · 视频数：{{ activeFolder?.count ?? 0 }}</div>
+              </div>
+              <button v-if="!isBatchMode" type="button" class="play-all" @click="playAllFromCollection">播放全部</button>
+              <div v-if="canManageCollections" class="fav-tools">
+                <button v-if="!isBatchMode" class="tool-btn" @click="enterBatchMode">批量操作</button>
+                <button v-else class="tool-btn" @click="exitBatchMode">退出管理</button>
+              </div>
+            </template>
           </div>
 
           <!-- 批量操作头部 -->
-          <div v-if="activeTab === 'collections' && isBatchMode && canManageCollections" class="batch-header">
+          <div v-if="activeTab === 'collections' && isBatchMode && canManageCollections && !activeFollowedCollectionId" class="batch-header">
             <div class="batch-left">
               <label class="select-all-label">
                 <input 
@@ -300,7 +355,7 @@
           </div>
 
           <div v-if="activeTab === 'collections'" class="toolbar">
-            <div class="chips">
+            <div v-if="!activeFollowedCollectionId" class="chips">
               <button
                 type="button"
                 class="chip"
@@ -329,7 +384,11 @@
                     type="search"
                     placeholder="搜索标题、简介、UP主"
                     autocomplete="off"
+                    @keyup.enter="runCollectionSearch"
                   />
+                  <button type="button" class="search-btn" aria-label="搜索" @click="runCollectionSearch">
+                    <img class="search-btn-img" src="/assets/search-button.png" alt="" />
+                  </button>
                 </div>
               </div>
             </div>
@@ -337,19 +396,19 @@
 
           <div v-if="activeTab === 'collections'" class="video-grid">
             <div v-if="loading && videos.length === 0" class="loading">加载中...</div>
-            <div v-else-if="videos.length === 0" class="empty">暂无收藏</div>
+            <div v-else-if="videos.length === 0" class="empty">{{ activeFollowedCollectionId ? '暂无视频' : '暂无收藏' }}</div>
             <div
               v-else
               v-for="v in videos"
               :key="v.id"
               class="video-card-wrapper fav-video-card-wrapper"
               :class="{
-                'batch-mode': isBatchMode && canManageCollections,
-                selected: isBatchMode && canManageCollections && selectedFavoriteIds.includes(v.favoriteId)
+                'batch-mode': isBatchMode && canManageCollections && !activeFollowedCollectionId,
+                selected: isBatchMode && canManageCollections && !activeFollowedCollectionId && v.favoriteId && selectedFavoriteIds.includes(v.favoriteId)
               }"
             >
               <div
-                v-if="isBatchMode && canManageCollections"
+                v-if="isBatchMode && canManageCollections && !activeFollowedCollectionId"
                 class="fav-batch-checkbox"
                 @click.stop
               >
@@ -364,11 +423,11 @@
                   :video="formatFavoriteVideoForCard(v)"
                   :on-img-error="onImageError"
                   lazy-cover
-                  :hover-preview="!(isBatchMode && canManageCollections)"
+                  :hover-preview="!(isBatchMode && canManageCollections && !activeFollowedCollectionId)"
                 />
               </div>
               <div
-                v-if="canManageCollections && !isBatchMode"
+                v-if="canManageCollections && !isBatchMode && !activeFollowedCollectionId"
                 class="fav-video-more"
                 @click.stop
               >
@@ -700,7 +759,11 @@
                       type="search"
                       placeholder="搜索视频标题、简介"
                       autocomplete="off"
+                      @keyup.enter="runSubmitSearch"
                     />
+                    <button type="button" class="search-btn" aria-label="搜索" @click="runSubmitSearch">
+                      <img class="search-btn-img" src="/assets/search-button.png" alt="" />
+                    </button>
                   </div>
                 </div>
               </div>
@@ -796,7 +859,9 @@ import {
   createVideoCollection,
   updateVideoCollection,
   deleteVideoCollection,
-  setVideoCollectionForVideo
+  setVideoCollectionForVideo,
+  listSubscribedVideoCollections,
+  unsubscribeVideoCollection
 } from '@/api/video'
 import { getFavoriteListByFolder } from '@/api/favorite'
 import { getFavoriteFolderList, createFavoriteFolder } from '@/api/favoriteFolder'
@@ -839,6 +904,12 @@ export default {
       activeFolderId: null,
       folders: [],
       followedFolders: [],
+      /** 正在取消订阅的合集 id（防重复点击） */
+      unsubscribingFollowedId: null,
+      /** 我追的合集：三点菜单当前展开项 */
+      followedCollectionMenuForId: null,
+      /** 当前选中的「我追的合集」（右侧展示该合集内视频，只读） */
+      activeFollowedCollectionId: null,
       videos: [],
       loading: false,
       page: 1,
@@ -908,6 +979,15 @@ export default {
     activeFolder () {
       return this.folders.find(f => f.id === this.activeFolderId)
     },
+    activeFollowedCollection () {
+      if (!this.activeFollowedCollectionId) return null
+      return this.followedFolders.find(f => f.id === this.activeFollowedCollectionId) || null
+    },
+    followedCollectionHeaderCoverUrl () {
+      if (!this.activeFollowedCollectionId || !this.videos.length) return ''
+      const c = this.videos[0].cover
+      return c ? this.normalizeImageUrl(c) : ''
+    },
     currentUserId () {
       // 从路由参数获取用户ID，如果没有则使用当前登录用户
       const routeUserId = this.$route?.params?.id
@@ -937,7 +1017,8 @@ export default {
     // 是否全选
     isAllSelected () {
       if (this.videos.length === 0) return false
-      return this.videos.every(v => this.selectedFavoriteIds.includes(v.favoriteId))
+      if (!this.activeFolderId || this.activeFollowedCollectionId) return false
+      return this.videos.every(v => v.favoriteId != null && this.selectedFavoriteIds.includes(v.favoriteId))
     },
     /** 侧栏「全部稿件」数量：未分类 + 各合集已发布数（与关键字筛选无关） */
     submitPublishedTotalCount () {
@@ -1015,12 +1096,13 @@ export default {
       previousTab = newTab
     })
 
-    // 投稿 / 收藏：输入防抖后请求，实时更新列表（无需按钮、回车）
+    // 投稿 / 收藏：输入防抖后请求；也可点击右侧搜索按钮或回车立即搜索
     this._scheduleCollectionSearch = () => {
       clearTimeout(this._collectionSearchTimer)
       this._collectionSearchTimer = setTimeout(() => {
         this._collectionSearchTimer = null
-        if (this.activeTab !== 'collections' || !this.activeFolderId || !this.currentUserId) return
+        if (this.activeTab !== 'collections' || !this.currentUserId) return
+        if (!this.activeFolderId && !this.activeFollowedCollectionId) return
         this.searchCollection()
       }, 320)
     }
@@ -1047,6 +1129,67 @@ export default {
         // 访问记录失败不影响页面主流程
       }
     },
+    onFollowedCollectionSelect (f) {
+      if (!f || f.id == null) return
+      if (f.id === this.activeFollowedCollectionId) return
+      this.folderMenuForId = null
+      this.followedCollectionMenuForId = null
+      if (this.isBatchMode) this.exitBatchMode()
+      this.activeFollowedCollectionId = f.id
+      this.activeFolderId = null
+      this.loadFollowedCollectionVideos(f.id, true)
+    },
+
+    toggleFollowedCollectionMenu (collectionId) {
+      this.folderMenuForId = null
+      this.followedCollectionMenuForId =
+        this.followedCollectionMenuForId === collectionId ? null : collectionId
+    },
+
+    onFollowedCollectionMenuLeave (collectionId) {
+      if (this.followedCollectionMenuForId === collectionId) {
+        this.followedCollectionMenuForId = null
+      }
+    },
+
+    async onUnsubscribeFollowedCollection (f) {
+      if (!f || f.id == null) return
+      this.followedCollectionMenuForId = null
+      try {
+        await ElMessageBox.confirm('确定取消订阅该合集？', '取消订阅', {
+          type: 'warning',
+          confirmButtonText: '取消订阅',
+          cancelButtonText: '保留'
+        })
+      } catch {
+        return
+      }
+      this.unsubscribingFollowedId = f.id
+      try {
+        const { data } = await unsubscribeVideoCollection(f.id)
+        if (data && data.success) {
+          ElMessage.success('已取消订阅')
+          const wasActive = this.activeFollowedCollectionId === f.id
+          await this.loadFollowedCollections()
+          if (wasActive) {
+            this.activeFollowedCollectionId = null
+            this.videos = []
+            this.total = 0
+            this.page = 1
+            if (this.folders.length > 0) {
+              this.onFolderSelect(this.folders[0])
+            }
+          }
+        } else {
+          ElMessage.error(data?.message || '操作失败')
+        }
+      } catch (e) {
+        // 拦截器已提示
+      } finally {
+        this.unsubscribingFollowedId = null
+      }
+    },
+
     openVideoInNewTab (videoId) {
       if (!videoId) return
       const micro = window.__MICRO_APP_BASE_ROUTE__ || ''
@@ -1322,16 +1465,36 @@ export default {
     },
     setCollectionSort (mode) {
       this.collectionSortMode = mode
+      if (this.activeFollowedCollectionId) return
       this.clearFolderCache(this.activeFolderId)
       if (this.activeFolderId && this.currentUserId) {
         this.loadFavorites(this.currentUserId, this.activeFolderId, true)
       }
     },
     searchCollection () {
+      if (this.activeFollowedCollectionId) {
+        this.loadFollowedCollectionVideos(this.activeFollowedCollectionId, true)
+        return
+      }
       this.clearFolderCache(this.activeFolderId)
       if (this.activeFolderId && this.currentUserId) {
         this.loadFavorites(this.currentUserId, this.activeFolderId, true)
       }
+    },
+
+    runCollectionSearch () {
+      clearTimeout(this._collectionSearchTimer)
+      this._collectionSearchTimer = null
+      if (this.activeTab !== 'collections' || !this.currentUserId) return
+      if (!this.activeFolderId && !this.activeFollowedCollectionId) return
+      this.searchCollection()
+    },
+
+    runSubmitSearch () {
+      clearTimeout(this._submitSearchTimer)
+      this._submitSearchTimer = null
+      if (this.activeTab !== 'submit' || !this.currentUserId) return
+      this.loadSubmitVideos(true)
     },
     playAllFromCollection () {
       if (!this.videos.length) {
@@ -1623,7 +1786,9 @@ export default {
       }
     },
     async initCollections () {
+      this.activeFollowedCollectionId = null
       await this.loadFolders()
+      await this.loadFollowedCollections()
       // 检查URL参数，如果有folder参数，优先使用
       const urlParams = new URLSearchParams(window.location.search)
       const folderId = urlParams.get('folder')
@@ -1664,6 +1829,92 @@ export default {
         } else {
           // 没有缓存，加载数据
           await this.loadFavorites(this.currentUserId, targetFolderId, true)
+        }
+      }
+    },
+
+    async loadFollowedCollections () {
+      if (!this.canManageCollections || !this.myUserId) {
+        this.followedFolders = []
+        return
+      }
+      try {
+        const { data } = await listSubscribedVideoCollections(this.myUserId)
+        if (data && data.success && data.data && Array.isArray(data.data.list)) {
+          this.followedFolders = data.data.list.map((it) => ({
+            id: it.id,
+            name: it.name,
+            count: Number(it.video_count) || 0,
+            entryVideoId: it.entry_video_id,
+            ownerName: it.owner_name,
+            ownerUserId: it.owner_user_id != null ? Number(it.owner_user_id) : null
+          }))
+        } else {
+          this.followedFolders = []
+        }
+      } catch (e) {
+        console.error('加载订阅合集失败:', e)
+        this.followedFolders = []
+      }
+    },
+
+    async loadFollowedCollectionVideos (collectionId, reset = false) {
+      const fc = this.followedFolders.find(f => f.id === collectionId)
+      if (!fc || fc.ownerUserId == null) {
+        this.videos = []
+        this.total = 0
+        return
+      }
+      if (this.loading && !reset) return
+      this._fcListReqId = (this._fcListReqId || 0) + 1
+      const reqId = this._fcListReqId
+      if (reset) {
+        this.page = 1
+        this.videos = []
+      }
+      this.loading = true
+      try {
+        const kw = (this.collectionKeyword || '').trim()
+        const { data } = await fetchVideos(
+          this.page,
+          this.pageSize,
+          fc.ownerUserId,
+          false,
+          null,
+          null,
+          null,
+          kw || null,
+          collectionId
+        )
+        if (reqId !== this._fcListReqId) return
+        const list = Array.isArray(data?.list) ? data.list : []
+        const total = typeof data?.total === 'number' ? data.total : list.length
+        const formattedVideos = list.map(item => ({
+          id: item.videoId || item.id,
+          favoriteId: null,
+          cover: this.normalizeImageUrl(item.coverUrl || ''),
+          title: item.title || '未知标题',
+          duration: typeof item.duration === 'number'
+            ? this.formatDurationSec(item.duration)
+            : (item.duration || '00:00'),
+          viewCount: item.viewCount != null ? item.viewCount : 0,
+          commentCount: item.commentCount != null ? item.commentCount : null,
+          uploaderName: (item.uploaderName && String(item.uploaderName).trim()) || '',
+          videoCreateTime: item.createTime || null,
+          time: ''
+        }))
+        this.videos = formattedVideos
+        this.total = total
+      } catch (e) {
+        if (reqId !== this._fcListReqId) return
+        console.error('加载订阅合集视频失败:', e)
+        if (reset) {
+          this.videos = []
+          this.total = 0
+        }
+      } finally {
+        if (reqId === this._fcListReqId) {
+          this.loading = false
         }
       }
     },
@@ -1733,8 +1984,9 @@ export default {
 
     onFolderSelect (folder) {
       if (!folder || !folder.id) return
+      this.activeFollowedCollectionId = null
       if (folder.id === this.activeFolderId) return
-      
+
       // 检查缓存中是否有该收藏夹的数据
       const cached = this.videosCache[this.favoriteCacheKey(folder.id)]
       if (cached) {
@@ -1873,6 +2125,16 @@ export default {
     // 分页切换处理
     handlePageChange (newPage) {
       this.page = newPage
+      if (this.activeFollowedCollectionId) {
+        this.loadFollowedCollectionVideos(this.activeFollowedCollectionId, false)
+        this.$nextTick(() => {
+          const rightPanel = document.querySelector('.right-panel')
+          if (rightPanel) {
+            rightPanel.scrollIntoView({ behavior: 'smooth', block: 'start' })
+          }
+        })
+        return
+      }
       if (this.activeFolderId) {
         // 检查缓存中是否有该页的数据
         const cached = this.videosCache[this.favoriteCacheKey(this.activeFolderId)]
@@ -2103,6 +2365,7 @@ export default {
     },
 
     toggleFolderMenu (folderId) {
+      this.followedCollectionMenuForId = null
       this.folderMenuForId = this.folderMenuForId === folderId ? null : folderId
     },
 
@@ -2770,6 +3033,7 @@ export default {
       color: #e23c3c;
     }
   }
+
 }
 
 .right-panel {

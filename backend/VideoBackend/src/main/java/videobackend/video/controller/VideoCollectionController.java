@@ -8,6 +8,7 @@ import org.springframework.web.bind.annotation.*;
 import videobackend.video.service.VideoCollectionService;
 import videobackend.video.util.JwtUtil;
 
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -23,6 +24,59 @@ public class VideoCollectionController {
     public VideoCollectionController(VideoCollectionService videoCollectionService, JwtUtil jwtUtil) {
         this.videoCollectionService = videoCollectionService;
         this.jwtUtil = jwtUtil;
+    }
+
+    /**
+     * 播放页：根据当前视频 ID 查询所属合集及列表（无合集则 inCollection=false）。
+     */
+    @GetMapping("/by-video/{videoId}")
+    public ResponseEntity<?> contextByVideo(HttpServletRequest request, @PathVariable String videoId) {
+        if (!StringUtils.hasText(videoId)) {
+            return ResponseEntity.badRequest().body(Map.of("success", false, "message", "缺少视频ID"));
+        }
+        Long uid = getUserIdFromRequest(request);
+        Map<String, Object> data = videoCollectionService.getContextByVideoId(videoId.trim(), uid);
+        return ResponseEntity.ok(Map.of("success", true, "data", data));
+    }
+
+    /**
+     * 个人中心「我追的合集」：某用户订阅的合集列表（公开可读）。
+     */
+    @GetMapping("/subscribed/list")
+    public ResponseEntity<?> listSubscribed(@RequestParam long userId) {
+        if (userId <= 0) {
+            return ResponseEntity.badRequest().body(Map.of("success", false, "message", "无效的用户ID"));
+        }
+        List<Map<String, Object>> list = videoCollectionService.listSubscribedCollections(userId);
+        return ResponseEntity.ok(Map.of("success", true, "data", Map.of("list", list)));
+    }
+
+    @PostMapping("/{collectionId}/subscribe")
+    public ResponseEntity<?> subscribe(HttpServletRequest request, @PathVariable long collectionId) {
+        Long uid = getUserIdFromRequest(request);
+        if (uid == null) {
+            return ResponseEntity.status(401).body(Map.of("success", false, "message", "未登录或登录已过期"));
+        }
+        try {
+            videoCollectionService.subscribe(uid, collectionId);
+            return ResponseEntity.ok(Map.of("success", true));
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(Map.of("success", false, "message", e.getMessage()));
+        }
+    }
+
+    @DeleteMapping("/{collectionId}/subscribe")
+    public ResponseEntity<?> unsubscribe(HttpServletRequest request, @PathVariable long collectionId) {
+        Long uid = getUserIdFromRequest(request);
+        if (uid == null) {
+            return ResponseEntity.status(401).body(Map.of("success", false, "message", "未登录或登录已过期"));
+        }
+        try {
+            videoCollectionService.unsubscribe(uid, collectionId);
+            return ResponseEntity.ok(Map.of("success", true));
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(Map.of("success", false, "message", e.getMessage()));
+        }
     }
 
     @GetMapping

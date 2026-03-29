@@ -224,6 +224,47 @@ const props = defineProps({
 const emit = defineEmits(['back', 'done', 'created'])
 
 const userStore = useUserStore()
+
+/** 实际用于提交的时长秒数（父组件可能在 metadata 前就传入 0，此处对本地 File 再测一次） */
+const effectiveDurationSeconds = ref(Math.max(0, Math.floor(Number(props.durationSeconds) || 0)))
+
+function probeLocalVideoDuration (file) {
+  return new Promise((resolve) => {
+    if (!file) {
+      resolve(0)
+      return
+    }
+    try {
+      const url = URL.createObjectURL(file)
+      const videoEl = document.createElement('video')
+      videoEl.preload = 'metadata'
+      videoEl.muted = true
+      videoEl.playsInline = true
+      videoEl.src = url
+      let settled = false
+      const done = (sec) => {
+        if (settled) return
+        settled = true
+        try {
+          URL.revokeObjectURL(url)
+        } catch (_) {}
+        resolve(sec)
+      }
+      videoEl.onloadedmetadata = () => {
+        videoEl.pause()
+        const dur = videoEl.duration
+        const sec =
+          typeof dur === 'number' && Number.isFinite(dur) && dur > 0 ? Math.floor(dur) : 0
+        done(sec)
+      }
+      videoEl.onerror = () => done(0)
+      window.setTimeout(() => done(0), 12000)
+    } catch (_) {
+      resolve(0)
+    }
+  })
+}
+
 const videoCollections = ref([])
 const newCollectionOpen = ref(false)
 const newCollectionName = ref('')
@@ -241,8 +282,20 @@ const loadVideoCollections = async () => {
   }
 }
 
-onMounted(() => {
+watch(
+  () => props.durationSeconds,
+  (d) => {
+    const n = Math.floor(Number(d) || 0)
+    if (n > 0) effectiveDurationSeconds.value = n
+  }
+)
+
+onMounted(async () => {
   loadVideoCollections()
+  if (props.videoFile && effectiveDurationSeconds.value <= 0) {
+    const sec = await probeLocalVideoDuration(props.videoFile)
+    if (sec > 0) effectiveDurationSeconds.value = sec
+  }
 })
 
 const createCollectionAndSelect = async () => {
@@ -494,8 +547,8 @@ const buildCreateFormData = () => {
     return fd
   }
   fd.append('file', props.videoFile)
-  if (props.durationSeconds > 0) {
-    fd.append('duration', String(props.durationSeconds))
+  if (effectiveDurationSeconds.value > 0) {
+    fd.append('duration', String(effectiveDurationSeconds.value))
   }
   return fd
 }
