@@ -1,0 +1,97 @@
+/**
+ * 与 TopHeader 搜索区域一致的页面内搜索条（高度/宽度由修饰类或父级 flex 控制）
+ */
+.page-search {
+  display: flex;
+  flex-direction: column;
+  background: #f1f2f3;
+  border: 0;
+  border-radius: 8px;
+  overflow: hidden;
+  box-sizing: border-box;
+  padding: 4px;
+  width: 100%;
+}
+
+.page-search .search-input-row {
+  position: relative;
+  display: flex;
+  align-items: center;
+  min-height: 27px;
+}
+
+.page-search .search-input {
+  height: 27px;
+  padding: 0 38px 0 12px;
+  border: 0;
+  outline: none;
+  font-size: 14px;
+  background: #f1f2f3;
+  color: #111827;
+  border-radius: 8px;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.page-search .search-input:focus {
+  background: #f1f2f3;
+}
+
+.page-search .search-btn {
+  position: absolute;
+  right: 4px;
+  top: 50%;
+  transform: translateY(-50%);
+  margin: 0;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  padding: 8px;
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.page-search .search-btn-img {
+  width: 20px;
+  height: 20px;
+  filter: brightness(0);
+}
+
+/* 个人页工具条（原 34px，现 −5px） */
+.page-search.page-search--h34 .search-input-row {
+  min-height: 29px;
+}
+
+.page-search.page-search--h34 .search-input {
+  height: 29px;
+}
+
+/* 搜索结果页（原 36px，现 −5px） */
+.page-search.page-search--h36 .search-input-row {
+  min-height: 31px;
+}
+
+.page-search.page-search--h36 .search-input {
+  height: 31px;
+}
+
+/* 历史页（原 200px 宽，现 −15px） */
+.page-search.page-search--w200 {
+  width: 185px;
+  flex-shrink: 0;
+}
+
+/* 搜索结果页（原 320px 宽，现 −15px） */
+.page-search.page-search--w320 {
+  width: 305px;
+  flex-shrink: 0;
+}
+
+.page-search.page-search--disabled {
+  opacity: 0.55;
+  pointer-events: none;
+}

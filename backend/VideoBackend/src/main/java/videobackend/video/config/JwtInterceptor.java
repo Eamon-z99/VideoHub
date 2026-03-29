@@ -65,7 +65,11 @@ public class JwtInterceptor implements HandlerInterceptor {
             path.startsWith("/feed-images/") ||
             path.startsWith("/error") ||
             isPublicVideoRead ||
-            isPublicSearchRead) {
+            isPublicSearchRead ||
+            // 动态列表 GET（含个人主页 authorId 查询）允许未登录访问
+            (path.equals("/api/feeds") && "GET".equals(request.getMethod())) ||
+            // 单条动态详情 GET：/api/feeds/数字
+            ("GET".equals(request.getMethod()) && path.matches("/api/feeds/\\d+"))) {
             return true;
         }
 

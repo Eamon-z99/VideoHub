@@ -24,12 +24,14 @@ import java.util.UUID;
 public class VideoSubmissionService {
 
     private final JdbcTemplate jdbcTemplate;
+    private final VideoCollectionService videoCollectionService;
 
     @Value("${media.storage.root}")
     private String mediaStorageRoot;
 
-    public VideoSubmissionService(JdbcTemplate jdbcTemplate) {
+    public VideoSubmissionService(JdbcTemplate jdbcTemplate, VideoCollectionService videoCollectionService) {
         this.jdbcTemplate = jdbcTemplate;
+        this.videoCollectionService = videoCollectionService;
     }
 
     @Transactional
@@ -46,6 +48,7 @@ public class VideoSubmissionService {
                                    String schedulePublishAt,
                                    String collectionEnabled,
                                    String collectionName,
+                                   String collectionIdStr,
                                    String allowSecondCreation,
                                    String commercialPromotion,
                                    boolean draftOnly) throws IOException {
@@ -111,13 +114,16 @@ public class VideoSubmissionService {
         String submissionId = "sub_" + userId + "_" + System.currentTimeMillis();
         int safeDuration = (durationSeconds != null && durationSeconds > 0) ? durationSeconds : 0;
 
+        Long resolvedCollectionId = resolveSubmissionCollectionId(userId, collectionEnabled, collectionIdStr, collectionName);
+        String collectionNameForDb = submissionCollectionNameForInsert(resolvedCollectionId, collectionEnabled, collectionName);
+
         String sql = """
                 INSERT INTO video_submissions
                 (submission_id, user_id, title, description,
                  copyright, `partition`, tags,
                  duration, cover_url, storage_path, source_file, file_size,
                  schedule_enabled, schedule_publish_at,
-                 collection_enabled, collection_name,
+                 collection_enabled, collection_name, collection_id,
                  allow_second_creation, commercial_promotion,
                  review_status, create_time, update_time)
                 VALUES
@@ -125,7 +131,7 @@ public class VideoSubmissionService {
                  ?, ?, ?,
                  ?, ?, ?, ?, ?,
                  ?, ?,
-                 ?, ?,
+                 ?, ?, ?,
                  ?, ?,
                  'DRAFT', NOW(), NOW())
                 """;
@@ -146,7 +152,8 @@ public class VideoSubmissionService {
                 parseBool01(scheduleEnabled),
                 normalizeScheduleTime(schedulePublishAt, scheduleEnabled),
                 parseBool01(collectionEnabled),
-                normalizeCollectionName(collectionName, collectionEnabled),
+                collectionNameForDb,
+                resolvedCollectionId,
                 parseBool01(allowSecondCreation),
                 parseBool01(commercialPromotion)
         );
@@ -170,6 +177,7 @@ public class VideoSubmissionService {
                                  String schedulePublishAt,
                                  String collectionEnabled,
                                  String collectionName,
+                                 String collectionIdStr,
                                  String allowSecondCreation,
                                  String commercialPromotion,
                                  boolean submitNow) throws IOException {
@@ -241,6 +249,9 @@ public class VideoSubmissionService {
             }
         }
 
+        Long resolvedCollectionId = resolveSubmissionCollectionId(userId, collectionEnabled, collectionIdStr, collectionName);
+        String collectionNameForDb = submissionCollectionNameForInsert(resolvedCollectionId, collectionEnabled, collectionName);
+
         String coverRelativePath = null;
         if (coverFile != null && !coverFile.isEmpty()) {
             String coverContentType = coverFile.getContentType();
@@ -275,6 +286,7 @@ public class VideoSubmissionService {
                             schedule_publish_at=?,
                             collection_enabled=?,
                             collection_name=?,
+                            collection_id=?,
                             allow_second_creation=?,
                             commercial_promotion=?,
                             storage_path=COALESCE(?, storage_path),
@@ -297,7 +309,8 @@ public class VideoSubmissionService {
                 parseBool01(scheduleEnabled),
                 normalizeScheduleTime(schedulePublishAt, scheduleEnabled),
                 parseBool01(collectionEnabled),
-                normalizeCollectionName(collectionName, collectionEnabled),
+                collectionNameForDb,
+                resolvedCollectionId,
                 parseBool01(allowSecondCreation),
                 parseBool01(commercialPromotion),
                 migratedStoragePath,
@@ -322,14 +335,14 @@ public class VideoSubmissionService {
                              copyright, `partition`, tags,
                              duration, cover_url, storage_path, source_file, file_size,
                              schedule_enabled, schedule_publish_at,
-                             collection_enabled, collection_name,
+                             collection_enabled, collection_name, collection_id,
                              allow_second_creation, commercial_promotion,
                              create_time, update_time)
                             SELECT s.submission_id, s.user_id, s.title, s.description,
                                    s.copyright, s.`partition`, s.tags,
                                    s.duration, s.cover_url, s.storage_path, s.source_file, s.file_size,
                                    s.schedule_enabled, s.schedule_publish_at,
-                                   s.collection_enabled, s.collection_name,
+                                   s.collection_enabled, s.collection_name, s.collection_id,
                                    s.allow_second_creation, s.commercial_promotion,
                                    NOW(), NOW()
                             FROM video_submissions s
@@ -349,6 +362,7 @@ public class VideoSubmissionService {
                                 schedule_publish_at=VALUES(schedule_publish_at),
                                 collection_enabled=VALUES(collection_enabled),
                                 collection_name=VALUES(collection_name),
+                                collection_id=VALUES(collection_id),
                                 allow_second_creation=VALUES(allow_second_creation),
                                 commercial_promotion=VALUES(commercial_promotion),
                                 update_time=NOW()
@@ -594,7 +608,8 @@ public class VideoSubmissionService {
                        cover_url, storage_path, source_file, file_size,
                        `partition`, tags,
                        schedule_enabled, schedule_publish_at,
-                       review_status, published_video_id
+                       review_status, published_video_id,
+                       collection_id
                 FROM video_submissions
                 WHERE submission_id=?
                 """, submissionId);
@@ -621,12 +636,18 @@ public class VideoSubmissionService {
         String randomSuffix = UUID.randomUUID().toString().replace("-", "").substring(0, 12);
         String videoId = "uv_" + row.get("user_id") + "_" + randomSuffix;
 
+        Long collectionIdForVideo = null;
+        Object cobj = row.get("collection_id");
+        if (cobj instanceof Number) {
+            collectionIdForVideo = ((Number) cobj).longValue();
+        }
+
         // 为兼容旧 videos 表结构，这里只写入基础字段
         jdbcTemplate.update("""
                         INSERT INTO videos
                         (video_id, title, description, `partition`, `tags`, duration, cover_url, storage_path, source_file,
-                         view_count, like_count, favorite_count, file_size, user_id, create_time)
-                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0, 0, ?, ?, NOW())
+                         view_count, like_count, favorite_count, file_size, user_id, collection_id, create_time)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0, 0, ?, ?, ?, NOW())
                         """,
                 videoId,
                 row.get("title"),
@@ -638,7 +659,8 @@ public class VideoSubmissionService {
                 row.get("storage_path"),
                 row.get("source_file"),
                 row.get("file_size"),
-                row.get("user_id")
+                row.get("user_id"),
+                collectionIdForVideo
         );
 
         jdbcTemplate.update("""
@@ -749,6 +771,51 @@ public class VideoSubmissionService {
         } catch (Exception e) {
             return null;
         }
+    }
+
+    /**
+     * 开启合集时：优先使用已存在的合集 ID；否则兼容旧版仅填写合集名称（不绑定 FK）。
+     */
+    private Long resolveSubmissionCollectionId(Long userId,
+                                               String collectionEnabled,
+                                               String collectionIdStr,
+                                               String collectionName) {
+        if (parseBool01(collectionEnabled) == 0) {
+            return null;
+        }
+        if (StringUtils.hasText(collectionIdStr)) {
+            try {
+                long cid = Long.parseLong(collectionIdStr.trim());
+                if (cid <= 0) {
+                    throw new IllegalArgumentException("请选择有效的合集");
+                }
+                if (!videoCollectionService.isOwnedByUser(cid, userId)) {
+                    throw new IllegalArgumentException("合集不存在或无权限");
+                }
+                return cid;
+            } catch (NumberFormatException e) {
+                throw new IllegalArgumentException("合集ID无效");
+            }
+        }
+        if (normalizeCollectionName(collectionName, "1") != null) {
+            return null;
+        }
+        throw new IllegalArgumentException("请选择要加入的合集");
+    }
+
+    /**
+     * 绑定合集 ID 时不写入自由文本合集名；未绑定 ID 时沿用旧字段。
+     */
+    private String submissionCollectionNameForInsert(Long resolvedCollectionId,
+                                                     String collectionEnabled,
+                                                     String collectionName) {
+        if (parseBool01(collectionEnabled) == 0) {
+            return null;
+        }
+        if (resolvedCollectionId != null) {
+            return null;
+        }
+        return normalizeCollectionName(collectionName, collectionEnabled);
     }
 
     private String normalizeCollectionName(String name, String enabled) {

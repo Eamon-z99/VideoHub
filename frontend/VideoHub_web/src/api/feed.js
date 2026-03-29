@@ -19,8 +19,22 @@ export const fetchFeeds = (page = 1, pageSize = 20, userId = null, followingOnly
   if (followingId) {
     params.followingId = followingId
   }
-  
+
   return request.get(API_BASE, { params })
+}
+
+/**
+ * 个人主页：某用户发布的动态（公开）
+ */
+export const fetchFeedsByAuthor = (authorId, page = 1, pageSize = 20) => {
+  return request.get(API_BASE, {
+    params: { authorId, page, pageSize }
+  })
+}
+
+/** 单条动态（用于动态页定位） */
+export const fetchFeedById = (feedId) => {
+  return request.get(`${API_BASE}/${encodeURIComponent(feedId)}`)
 }
 
 /**

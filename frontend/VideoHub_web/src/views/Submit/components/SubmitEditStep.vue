@@ -133,18 +133,51 @@
       <el-form-item label="加入合集">
         <div class="collection-row">
           <el-switch v-model="form.collectionEnabled" />
-          <span class="collection-hint">合集功能可用于收集整理系列投稿件</span>
+          <span class="collection-hint">开启后需选择已有合集；不开启则稿件不归属任何合集</span>
           <div v-if="form.collectionEnabled" class="collection-editor">
-            <el-input
-              v-model="form.collectionName"
-              placeholder="输入合集名称（示例：XX系列）"
+            <el-select
+              v-model="form.collectionId"
+              placeholder="选择合集"
+              filterable
+              clearable
               style="width: 260px"
-              maxlength="40"
-              show-word-limit
-            />
+            >
+              <el-option
+                v-for="c in videoCollections"
+                :key="c.id"
+                :label="c.name"
+                :value="c.id"
+              />
+            </el-select>
+            <el-button class="collection-new-btn" link type="primary" @click="newCollectionOpen = true">
+              新建合集
+            </el-button>
           </div>
         </div>
       </el-form-item>
+
+      <el-dialog
+        v-model="newCollectionOpen"
+        class="submit-new-coll-dialog"
+        title="新建投稿合集"
+        width="400px"
+        destroy-on-close
+        align-center
+        append-to-body
+        @closed="newCollectionName = ''"
+      >
+        <el-input
+          v-model="newCollectionName"
+          maxlength="100"
+          show-word-limit
+          placeholder="合集名称"
+          class="submit-new-coll-input"
+        />
+        <template #footer>
+          <el-button @click="newCollectionOpen = false">取消</el-button>
+          <el-button type="primary" :loading="creatingCollection" @click="createCollectionAndSelect">创建</el-button>
+        </template>
+      </el-dialog>
 
       <el-form-item label="二创设置">
         <el-checkbox v-model="form.allowSecondCreation">允许二创</el-checkbox>
@@ -174,9 +207,10 @@
 </template>
 
 <script setup>
-import { computed, ref, watch } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { ElMessage } from 'element-plus'
-import { updateVideoSubmission, uploadVideo } from '@/api/video'
+import { updateVideoSubmission, uploadVideo, listVideoCollections, createVideoCollection } from '@/api/video'
+import { useUserStore } from '@/stores/user'
 import FrameCoverPicker from './FrameCoverPicker.vue'
 
 const props = defineProps({
@@ -188,6 +222,53 @@ const props = defineProps({
 })
 
 const emit = defineEmits(['back', 'done', 'created'])
+
+const userStore = useUserStore()
+const videoCollections = ref([])
+const newCollectionOpen = ref(false)
+const newCollectionName = ref('')
+const creatingCollection = ref(false)
+
+const loadVideoCollections = async () => {
+  const uid = userStore.user?.userId || userStore.user?.id
+  if (!uid) return
+  try {
+    const { data } = await listVideoCollections(uid)
+    const list = data?.data?.collections
+    videoCollections.value = Array.isArray(list) ? list : []
+  } catch {
+    videoCollections.value = []
+  }
+}
+
+onMounted(() => {
+  loadVideoCollections()
+})
+
+const createCollectionAndSelect = async () => {
+  const name = (newCollectionName.value || '').trim()
+  if (!name) {
+    ElMessage.warning('请输入合集名称')
+    return
+  }
+  creatingCollection.value = true
+  try {
+    const { data } = await createVideoCollection({ name, description: '' })
+    if (data?.success && data?.data?.id != null) {
+      const id = Number(data.data.id)
+      await loadVideoCollections()
+      form.value.collectionId = id
+      newCollectionOpen.value = false
+      ElMessage.success('已创建合集')
+    } else {
+      ElMessage.error(data?.message || '创建失败')
+    }
+  } catch (e) {
+    ElMessage.error(e?.response?.data?.message || '创建失败')
+  } finally {
+    creatingCollection.value = false
+  }
+}
 
 const partitionOptions = [
   { label: '游戏', value: 'game' },
@@ -210,6 +291,7 @@ const form = ref({
   schedulePublishAt: '',
   collectionEnabled: false,
   collectionName: '',
+  collectionId: null,
   allowSecondCreation: false,
   commercialPromotion: false,
 })
@@ -242,6 +324,10 @@ watch(
     if (d.schedule_publish_at) form.value.schedulePublishAt = String(d.schedule_publish_at)
     form.value.collectionEnabled = Number(d.collection_enabled || 0) === 1
     if (d.collection_name) form.value.collectionName = String(d.collection_name)
+    if (d.collection_id != null && d.collection_id !== '') {
+      const cid = Number(d.collection_id)
+      if (Number.isFinite(cid)) form.value.collectionId = cid
+    }
     form.value.allowSecondCreation = Number(d.allow_second_creation || 0) === 1
     form.value.commercialPromotion = Number(d.commercial_promotion || 0) === 1
     if (d.cover_url && !coverPreview.value) {
@@ -251,6 +337,16 @@ watch(
     }
   },
   { immediate: true }
+)
+
+watch(
+  () => form.value.collectionEnabled,
+  (on) => {
+    if (!on) {
+      form.value.collectionId = null
+      form.value.collectionName = ''
+    }
+  }
 )
 
 const normalizeLocalVideoUrl = (path) => {
@@ -379,7 +475,9 @@ const buildUpdateFormData = () => {
     fd.append('schedulePublishAt', form.value.schedulePublishAt)
   }
   fd.append('collectionEnabled', form.value.collectionEnabled ? '1' : '0')
-  if (form.value.collectionEnabled && (form.value.collectionName || '').trim()) {
+  if (form.value.collectionEnabled && form.value.collectionId != null && form.value.collectionId !== '') {
+    fd.append('collectionId', String(form.value.collectionId))
+  } else if (form.value.collectionEnabled && (form.value.collectionName || '').trim()) {
     fd.append('collectionName', form.value.collectionName.trim())
   }
   fd.append('allowSecondCreation', form.value.allowSecondCreation ? '1' : '0')
@@ -432,6 +530,12 @@ const saveDraft = async () => {
     ElMessage.warning('请先设置封面')
     return
   }
+  if (form.value.collectionEnabled && (form.value.collectionId == null || form.value.collectionId === '')) {
+    if (!(form.value.collectionName || '').trim()) {
+      ElMessage.warning('请选择要加入的合集，或先新建合集')
+      return
+    }
+  }
   const sid = canSaveDraft.value ? props.submissionId : await ensureSubmissionId(true)
   if (!sid) {
     return
@@ -457,6 +561,12 @@ const submitNow = async () => {
   if (!hasCover.value) {
     ElMessage.warning('请先设置封面')
     return
+  }
+  if (form.value.collectionEnabled && (form.value.collectionId == null || form.value.collectionId === '')) {
+    if (!(form.value.collectionName || '').trim()) {
+      ElMessage.warning('请选择要加入的合集，或先新建合集')
+      return
+    }
   }
   const sid = canSaveDraft.value ? props.submissionId : await ensureSubmissionId(false)
   if (!sid) {
@@ -605,6 +715,7 @@ const submitNow = async () => {
   display: flex;
   align-items: center;
   gap: 10px;
+  flex-wrap: wrap;
 }
 
 .schedule-hint,
@@ -617,9 +728,17 @@ const submitNow = async () => {
 
 .schedule-picker,
 .collection-editor {
-  margin-top: 0;
-  margin-left: 12px; // 右侧框与左侧文字之间留出间距
-  flex-shrink: 0; // 避免输入框被挤压
+  margin-top: 8px;
+  margin-left: 0;
+  flex: 1 1 100%;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.collection-new-btn {
+  padding-left: 4px;
 }
 
 .form-actions {
@@ -632,6 +751,54 @@ const submitNow = async () => {
 
 .form-actions :deep(.el-button) {
   min-width: 120px;
+}
+</style>
+
+<!-- append-to-body 的 el-dialog 挂在 body 下，需单独块才能命中样式 -->
+<style lang="scss">
+.submit-new-coll-dialog.el-dialog {
+  border-radius: 12px;
+  border: 1px solid #e5e7eb;
+  box-shadow: 0 16px 48px rgba(15, 23, 42, 0.14);
+  background: #fff;
+}
+
+.submit-new-coll-dialog .el-dialog__header {
+  border-bottom: 1px solid #eef2f7;
+  padding-bottom: 12px;
+  margin-right: 0;
+}
+
+.submit-new-coll-dialog .el-dialog__title {
+  color: #18191c;
+  font-weight: 600;
+}
+
+.submit-new-coll-dialog .el-input__wrapper {
+  background-color: #f9fafb;
+  box-shadow: 0 0 0 1px #e5e7eb inset;
+}
+
+.submit-new-coll-dialog .el-input__wrapper:hover {
+  box-shadow: 0 0 0 1px #cbd5e1 inset;
+}
+
+.submit-new-coll-dialog .el-input__wrapper.is-focus {
+  box-shadow: 0 0 0 1px #00a1d6 inset;
+  background-color: #fff;
+}
+
+.submit-new-coll-dialog .el-input__inner {
+  color: #18191c;
+}
+
+.submit-new-coll-dialog .el-input__inner::placeholder {
+  color: #94a3b8;
+}
+
+.submit-new-coll-dialog .el-input__count {
+  color: #94a3b8;
+  background: transparent;
 }
 </style>
 

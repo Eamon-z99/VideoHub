@@ -10,7 +10,13 @@ public class FavoriteItem {
     private String coverUrl;
     private String videoUrl;
     private String duration;  // 视频时长（格式化字符串，如 "02:14"）
-    private String createTime;  // 收藏时间
+    private String createTime;  // 收藏时间（加入收藏夹时间）
+    /** 视频作者昵称 */
+    private String uploaderName;
+    private Integer viewCount;
+    private Integer commentCount;
+    /** 视频发布时间 */
+    private String videoCreateTime;
 
     public FavoriteItem() {
     }
@@ -81,6 +87,38 @@ public class FavoriteItem {
 
     public void setCreateTime(String createTime) {
         this.createTime = createTime;
+    }
+
+    public String getUploaderName() {
+        return uploaderName;
+    }
+
+    public void setUploaderName(String uploaderName) {
+        this.uploaderName = uploaderName;
+    }
+
+    public Integer getViewCount() {
+        return viewCount;
+    }
+
+    public void setViewCount(Integer viewCount) {
+        this.viewCount = viewCount;
+    }
+
+    public Integer getCommentCount() {
+        return commentCount;
+    }
+
+    public void setCommentCount(Integer commentCount) {
+        this.commentCount = commentCount;
+    }
+
+    public String getVideoCreateTime() {
+        return videoCreateTime;
+    }
+
+    public void setVideoCreateTime(String videoCreateTime) {
+        this.videoCreateTime = videoCreateTime;
     }
 }
 

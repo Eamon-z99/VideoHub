@@ -43,6 +43,7 @@ public class UserVideoSubmissionController {
                                     @RequestParam(required = false) String schedulePublishAt,
                                     @RequestParam(required = false) String collectionEnabled,
                                     @RequestParam(required = false) String collectionName,
+                                    @RequestParam(required = false) String collectionId,
                                     @RequestParam(required = false) String allowSecondCreation,
                                     @RequestParam(required = false) String commercialPromotion,
                                     @RequestParam(required = false, defaultValue = "0") int submitNow) {
@@ -64,6 +65,7 @@ public class UserVideoSubmissionController {
                     schedulePublishAt,
                     collectionEnabled,
                     collectionName,
+                    collectionId,
                     allowSecondCreation,
                     commercialPromotion,
                     submitNow == 1

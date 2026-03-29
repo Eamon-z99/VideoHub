@@ -98,7 +98,7 @@
           </div>
         </div>
       </nav>
-      <div class="content-inner user-profile-container" :class="{ 'no-left-panel': activeTab !== 'collections' }">
+      <div class="content-inner user-profile-container" :class="{ 'no-left-panel': activeTab !== 'collections' && activeTab !== 'submit' }">
         <aside class="left-panel" v-if="activeTab === 'collections'">
           <div class="panel-section">
             <div class="panel-title">{{ canManageCollections ? '我创建的收藏夹' : '公开收藏夹' }}</div>
@@ -165,6 +165,83 @@
           </div>
         </aside>
 
+        <aside v-if="activeTab === 'submit'" class="left-panel submit-left-panel">
+          <div class="panel-section">
+            <div class="panel-title-row submit-coll-title-row">
+              <span class="panel-title">投稿合集</span>
+              <button
+                v-if="canEditProfile"
+                type="button"
+                class="submit-coll-new-btn"
+                @click="openCreateSubmitCollection"
+              >
+                + 新建
+              </button>
+            </div>
+            <ul class="folder-list submit-folder-list">
+              <li
+                class="folder"
+                :class="{ active: submitActiveCollectionFilter === null }"
+                @click="selectSubmitCollectionFilter(null)"
+              >
+                <div class="folder-main">
+                  <span class="folder-name">全部稿件</span>
+                  <span class="folder-count">{{ submitPublishedTotalCount }}</span>
+                </div>
+              </li>
+              <li
+                class="folder"
+                :class="{ active: submitActiveCollectionFilter === 0 }"
+                @click="selectSubmitCollectionFilter(0)"
+              >
+                <div class="folder-main">
+                  <span class="folder-name">未加入合集</span>
+                  <span class="folder-count">{{ submitUncategorizedCount }}</span>
+                </div>
+              </li>
+              <li
+                v-for="c in submitVideoCollections"
+                :key="c.id"
+                class="folder"
+                :class="{ active: submitActiveCollectionFilter === c.id }"
+              >
+                <div class="folder-main" @click="selectSubmitCollectionFilter(c.id)">
+                  <svg class="folder-icon" width="18" height="18" viewBox="0 0 18 18" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M2 4C2 3.44772 2.44772 3 3 3H7.5L9 5H15C15.5523 5 16 5.44772 16 6V14C16 14.5523 15.5523 15 15 15H3C2.44772 15 2 14.5523 2 14V4Z" stroke="currentColor" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+                  </svg>
+                  <span class="folder-name">{{ c.name }}</span>
+                  <span class="folder-count">{{ c.video_count }}</span>
+                </div>
+                <div
+                  v-if="canEditProfile"
+                  class="folder-more"
+                  @click.stop
+                >
+                  <button
+                    class="folder-more-btn"
+                    @click.stop="toggleSubmitCollectionMenu(c.id)"
+                    aria-label="more"
+                  >
+                    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+                      <circle cx="8" cy="4" r="1.5" fill="currentColor"/>
+                      <circle cx="8" cy="8" r="1.5" fill="currentColor"/>
+                      <circle cx="8" cy="12" r="1.5" fill="currentColor"/>
+                    </svg>
+                  </button>
+                  <div
+                    v-if="submitCollectionMenuForId === c.id"
+                    class="folder-more-menu"
+                    @mouseleave="onSubmitCollectionMenuLeave(c.id)"
+                  >
+                    <button class="menu-item" @click.stop="onEditSubmitCollection(c)">编辑信息</button>
+                    <button class="menu-item danger" @click.stop="onDeleteSubmitCollection(c)">删除</button>
+                  </div>
+                </div>
+              </li>
+            </ul>
+          </div>
+        </aside>
+
         <section class="right-panel">
           <div v-if="activeTab === 'collections'" class="fav-header">
             <div class="fav-cover">
@@ -184,7 +261,7 @@
               <div class="fav-title">{{ activeFolder?.name || '默认收藏夹' }}</div>
               <div class="fav-sub">公开 · 视频数：{{ activeFolder?.count ?? 0 }}</div>
             </div>
-            <button v-if="!isBatchMode" class="play-all">播放全部</button>
+            <button v-if="!isBatchMode" type="button" class="play-all" @click="playAllFromCollection">播放全部</button>
             <div v-if="canManageCollections" class="fav-tools">
               <button v-if="!isBatchMode" class="tool-btn" @click="enterBatchMode">批量操作</button>
               <button v-else class="tool-btn" @click="exitBatchMode">退出管理</button>
@@ -224,78 +301,97 @@
 
           <div v-if="activeTab === 'collections'" class="toolbar">
             <div class="chips">
-              <button class="chip active">最近收藏</button>
-              <button class="chip">最多播放</button>
-              <button class="chip">最近投稿</button>
+              <button
+                type="button"
+                class="chip"
+                :class="{ active: collectionSortMode === 'favorite_time' }"
+                @click="setCollectionSort('favorite_time')"
+              >最近收藏</button>
+              <button
+                type="button"
+                class="chip"
+                :class="{ active: collectionSortMode === 'view_count' }"
+                @click="setCollectionSort('view_count')"
+              >最多播放</button>
+              <button
+                type="button"
+                class="chip"
+                :class="{ active: collectionSortMode === 'video_time' }"
+                @click="setCollectionSort('video_time')"
+              >最近投稿</button>
             </div>
             <div class="searchbar">
-              <input class="input" placeholder="请输入关键词" />
-              <button class="search-btn" aria-label="search">🔍</button>
+              <div class="page-search page-search--h34">
+                <div class="search-input-row search-input-row--live">
+                  <input
+                    v-model.trim="collectionKeyword"
+                    class="search-input"
+                    type="search"
+                    placeholder="搜索标题、简介、UP主"
+                    autocomplete="off"
+                  />
+                </div>
+              </div>
             </div>
           </div>
 
           <div v-if="activeTab === 'collections'" class="video-grid">
             <div v-if="loading && videos.length === 0" class="loading">加载中...</div>
             <div v-else-if="videos.length === 0" class="empty">暂无收藏</div>
-            <article
+            <div
               v-else
               v-for="v in videos"
               :key="v.id"
-              class="video-card"
-              :class="{ 
+              class="video-card-wrapper fav-video-card-wrapper"
+              :class="{
                 'batch-mode': isBatchMode && canManageCollections,
-                'selected': isBatchMode && canManageCollections && selectedFavoriteIds.includes(v.favoriteId)
+                selected: isBatchMode && canManageCollections && selectedFavoriteIds.includes(v.favoriteId)
               }"
             >
-              <div 
-                class="card-inner"
-                :class="{ 'selected': isBatchMode && canManageCollections && selectedFavoriteIds.includes(v.favoriteId) }"
+              <div
+                v-if="isBatchMode && canManageCollections"
+                class="fav-batch-checkbox"
+                @click.stop
               >
-                <!-- 批量选择复选框 -->
-                <div v-if="isBatchMode && canManageCollections" class="batch-checkbox">
-                  <input 
-                    type="checkbox" 
-                    :checked="selectedFavoriteIds.includes(v.favoriteId)"
-                    @change="toggleSelect(v.favoriteId)"
-                    @click.stop
-                  />
-                </div>
-                <div class="thumb" @click="isBatchMode && canManageCollections ? null : openVideoInNewTab(v.id)">
-                  <img v-if="v.cover" :src="v.cover" alt="" @error="onImageError" />
-                <div v-else class="thumb-ph" />
-                <span class="duration">{{ v.duration }}</span>
+                <input
+                  type="checkbox"
+                  :checked="selectedFavoriteIds.includes(v.favoriteId)"
+                  @change="toggleSelect(v.favoriteId)"
+                />
               </div>
-                <div class="v-title-row">
-                  <div class="v-title" :title="v.title" @click="openVideoInNewTab(v.id)">{{ v.title }}</div>
+              <div class="fav-card-click" @click="onFavoriteCardClick(v)">
+                <VideoCard
+                  :video="formatFavoriteVideoForCard(v)"
+                  :on-img-error="onImageError"
+                  lazy-cover
+                  :hover-preview="!(isBatchMode && canManageCollections)"
+                />
+              </div>
+              <div
+                v-if="canManageCollections && !isBatchMode"
+                class="fav-video-more"
+                @click.stop
+              >
+                <div class="fav-more-spacer" aria-hidden="true" />
+                <div class="fav-more-row">
+                  <button type="button" class="more-btn" @click.stop="toggleVideoMenu(v.id)" aria-label="更多操作">
+                    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+                      <circle cx="8" cy="4" r="1.5" fill="currentColor" />
+                      <circle cx="8" cy="8" r="1.5" fill="currentColor" />
+                      <circle cx="8" cy="12" r="1.5" fill="currentColor" />
+                    </svg>
+                  </button>
                   <div
-                    v-if="canManageCollections"
-                    class="video-more"
-                    @click.stop
+                    v-if="videoMenuForId === v.id"
+                    class="video-more-menu"
+                    @mouseleave="onVideoMenuLeave(v.id)"
                   >
-                    <button class="more-btn" @click.stop="toggleVideoMenu(v.id)" aria-label="更多操作">
-                      <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
-                        <circle cx="8" cy="4" r="1.5" fill="currentColor"/>
-                        <circle cx="8" cy="8" r="1.5" fill="currentColor"/>
-                        <circle cx="8" cy="12" r="1.5" fill="currentColor"/>
-                      </svg>
-                    </button>
-                    <div
-                      v-if="videoMenuForId === v.id"
-                      class="video-more-menu"
-                      @mouseleave="onVideoMenuLeave(v.id)"
-                    >
-                      <button class="menu-item" @click.stop="onUnfavorite(v)">取消收藏</button>
-                      <button class="menu-item" @click.stop="openMoveDialog(v)">移动至</button>
-                    </div>
+                    <button type="button" class="menu-item" @click.stop="onUnfavorite(v)">取消收藏</button>
+                    <button type="button" class="menu-item" @click.stop="openMoveDialog(v)">移动至</button>
                   </div>
                 </div>
-              <div class="v-meta">
-                <span>▶ {{ v.play }}</span>
-                <span>💬 {{ v.danmaku }}</span>
-                <span class="time">{{ v.time }}</span>
-                </div>
               </div>
-            </article>
+            </div>
             <div v-if="loading && videos.length > 0" class="loading-more">加载中...</div>
           </div>
 
@@ -324,11 +420,11 @@
                 <li
                   v-for="f in folders"
                   :key="f.id"
-                  class="move-folder-item"
+                  class="move-folder-item fav-move-item"
                   @click="confirmMove(f.id)"
                 >
-                  <span class="name">{{ f.name }}</span>
-                  <span class="count">{{ f.count }}</span>
+                  <span class="fav-move-label">{{ f.name }}</span>
+                  <span class="fav-move-count">{{ f.count }}</span>
                 </li>
               </ul>
             </div>
@@ -346,11 +442,11 @@
                 <li
                   v-for="f in folders"
                   :key="f.id"
-                  class="move-folder-item"
+                  class="move-folder-item fav-move-item"
                   @click="confirmBatchMove(f.id)"
                 >
-                  <span class="name">{{ f.name }}</span>
-                  <span class="count">{{ f.count }}</span>
+                  <span class="fav-move-label">{{ f.name }}</span>
+                  <span class="fav-move-count">{{ f.count }}</span>
                 </li>
               </ul>
             </div>
@@ -431,13 +527,259 @@
             </div>
           </div>
 
+          <!-- 投稿合集：新建/编辑 -->
+          <div
+            v-if="editSubmitCollectionDialog.visible"
+            class="edit-folder-dialog-mask edit-submit-coll-mask"
+            @click="closeEditSubmitCollectionDialog"
+          >
+            <div class="edit-folder-dialog edit-submit-coll-dialog" @click.stop>
+              <div class="edit-folder-header">
+                <div class="edit-folder-title">
+                  {{ editSubmitCollectionDialog.mode === 'create' ? '新建投稿合集' : '编辑投稿合集' }}
+                </div>
+                <button type="button" class="edit-folder-close" @click="closeEditSubmitCollectionDialog">×</button>
+              </div>
+              <div class="edit-folder-body">
+                <div class="edit-folder-field">
+                  <label class="edit-folder-label">名称 <span class="required-star">*</span></label>
+                  <div class="edit-folder-input-wrapper">
+                    <input
+                      v-model="editSubmitCollectionDialog.name"
+                      type="text"
+                      class="edit-folder-input"
+                      placeholder="合集名称"
+                      maxlength="100"
+                    />
+                    <span class="edit-folder-char-count">{{ (editSubmitCollectionDialog.name || '').length }} / 100</span>
+                  </div>
+                </div>
+                <div class="edit-folder-field">
+                  <label class="edit-folder-label">简介</label>
+                  <textarea
+                    v-model="editSubmitCollectionDialog.description"
+                    class="edit-folder-textarea edit-submit-coll-textarea"
+                    placeholder="选填"
+                    maxlength="500"
+                    rows="4"
+                  />
+                  <div class="edit-folder-char-count-right">{{ (editSubmitCollectionDialog.description || '').length }} / 500</div>
+                </div>
+              </div>
+              <div class="edit-folder-footer">
+                <button type="button" class="edit-folder-btn cancel" @click="closeEditSubmitCollectionDialog">取消</button>
+                <button type="button" class="edit-folder-btn confirm" @click="confirmEditSubmitCollectionDialog">
+                  {{ editSubmitCollectionDialog.mode === 'create' ? '创建' : '保存' }}
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- 投稿视频：移入/移出合集 -->
+          <div
+            v-if="submitVideoMoveDialog.visible"
+            class="move-dialog-mask submit-coll-move-mask"
+            @click="closeSubmitVideoMoveDialog"
+          >
+            <div class="move-dialog submit-coll-move-dialog" @click.stop>
+              <div class="move-dialog-title">移动到投稿合集</div>
+              <ul class="move-folder-list submit-coll-move-list">
+                <li
+                  class="move-folder-item submit-coll-move-item"
+                  @click="confirmSubmitVideoMove(null)"
+                >
+                  <span class="submit-coll-move-label">未加入合集</span>
+                </li>
+                <li
+                  v-for="c in submitVideoCollections"
+                  :key="c.id"
+                  class="move-folder-item submit-coll-move-item"
+                  @click="confirmSubmitVideoMove(c.id)"
+                >
+                  <span class="submit-coll-move-label">{{ c.name }}</span>
+                  <span class="submit-coll-move-count">{{ c.video_count }}</span>
+                </li>
+              </ul>
+            </div>
+          </div>
+
           <ProfileHome
             v-else-if="activeTab === 'home'"
             :user-id="currentUserId"
             @open-folder="handleOpenFolder"
           />
-          <div v-else-if="activeTab === 'dynamics'" class="empty">动态内容</div>
-          <div v-else-if="activeTab === 'submit'" class="empty">投稿内容</div>
+          <div v-else-if="activeTab === 'dynamics'" class="profile-dynamics">
+            <div class="dynamics-toolbar">
+              <span class="dynamics-title">动态</span>
+              <button
+                v-if="canEditProfile"
+                type="button"
+                class="dynamics-go-feed"
+                @click="openFeedCenter"
+              >
+                发布动态
+              </button>
+            </div>
+            <div v-if="dynamicsLoading && dynamicsFeeds.length === 0" class="loading">加载中...</div>
+            <div v-else-if="!dynamicsLoading && dynamicsFeeds.length === 0" class="dynamics-empty">
+              <p class="dynamics-empty-text">暂无动态内容</p>
+              <p v-if="canEditProfile" class="dynamics-empty-sub">在动态中心发布文字或图片，与粉丝分享日常</p>
+              <button
+                v-if="canEditProfile"
+                type="button"
+                class="dynamics-go-feed dynamics-go-feed--primary"
+                @click="openFeedCenter"
+              >
+                前往动态中心
+              </button>
+            </div>
+            <div v-else class="profile-feed-list">
+              <article
+                v-for="item in dynamicsFeeds"
+                :key="item.id"
+                class="profile-feed-card profile-feed-card--clickable"
+                role="button"
+                tabindex="0"
+                @click="openDynamicDetail(item.id)"
+                @keydown.enter.prevent="openDynamicDetail(item.id)"
+              >
+                <header class="profile-feed-meta">
+                  <div class="profile-feed-avatar">
+                    <img
+                      v-if="item.uploaderAvatar"
+                      :src="normalizeAvatarUrl(item.uploaderAvatar)"
+                      alt=""
+                      @error="onImageError"
+                    />
+                  </div>
+                  <div class="profile-feed-who">
+                    <div class="profile-feed-name">{{ item.uploaderName || nickname || '用户' }}</div>
+                    <div class="profile-feed-sub">{{ formatRelativeTime(item.createTime) }} · 发布了动态</div>
+                  </div>
+                </header>
+                <div class="profile-feed-body">
+                  <div v-if="item.title" class="profile-feed-title">{{ item.title }}</div>
+                  <div class="profile-feed-content">{{ item.content }}</div>
+                  <div v-if="item.images && item.images.length" class="profile-feed-images">
+                    <img
+                      v-for="(img, idx) in item.images"
+                      :key="idx"
+                      :src="normalizeImageUrl(img)"
+                      alt=""
+                      class="profile-feed-img"
+                      @error="onImageError"
+                    />
+                  </div>
+                </div>
+              </article>
+            </div>
+            <div v-if="dynamicsLoading && dynamicsFeeds.length > 0" class="loading-more">加载中...</div>
+            <div v-if="dynamicsTotal > 0" class="pagination-wrapper">
+              <el-config-provider :locale="zhCn">
+                <el-pagination
+                  v-model:current-page="dynamicsPage"
+                  :page-size="dynamicsPageSize"
+                  :total="dynamicsTotal"
+                  layout="prev, pager, next, jumper, total"
+                  @current-change="handleDynamicsPageChange"
+                />
+              </el-config-provider>
+            </div>
+          </div>
+          <div v-else-if="activeTab === 'submit'" class="submit-tab-wrap">
+            <div class="toolbar submit-toolbar">
+              <div class="chips">
+                <button type="button" class="chip active" @click="openSubmitUploadPage">发布新视频</button>
+              </div>
+              <div class="searchbar">
+                <div class="page-search page-search--h34">
+                  <div class="search-input-row search-input-row--live">
+                    <input
+                      v-model.trim="submitKeyword"
+                      class="search-input"
+                      type="search"
+                      placeholder="搜索视频标题、简介"
+                      autocomplete="off"
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div v-if="submitLoading && submitVideos.length === 0" class="loading">加载中...</div>
+            <div v-else-if="submitVideos.length === 0" class="submit-empty">
+              <div class="submit-empty-illus" aria-hidden="true">
+                <svg width="120" height="100" viewBox="0 0 120 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <ellipse cx="60" cy="88" rx="40" ry="8" fill="#e8ecf0" />
+                  <rect x="28" y="22" width="64" height="48" rx="8" fill="#dbe7ff" />
+                  <path d="M52 42L68 52L52 62V42Z" fill="#fff" />
+                </svg>
+              </div>
+              <p class="submit-empty-title">快来上传视频，成为UP主吧！</p>
+              <button
+                v-if="canEditProfile"
+                type="button"
+                class="submit-upload-btn"
+                @click="openSubmitUploadPage"
+              >
+                + 上传视频
+              </button>
+            </div>
+            <div v-else class="video-grid submit-video-grid">
+              <div
+                v-for="v in submitVideos"
+                :key="v.videoId || v.id"
+                class="video-card-wrapper submit-video-card-wrap fav-video-card-wrapper"
+              >
+                <div class="fav-card-click" @click="openVideoInNewTab(v.videoId || v.id)">
+                  <VideoCard
+                    :video="formatSubmitVideoForCard(v)"
+                    :on-img-error="onImageError"
+                    lazy-cover
+                  />
+                </div>
+                <div
+                  v-if="canEditProfile"
+                  class="fav-video-more submit-video-more"
+                  @click.stop
+                >
+                  <div class="fav-more-spacer" aria-hidden="true" />
+                  <div class="fav-more-row">
+                    <button
+                      type="button"
+                      class="more-btn"
+                      @click.stop="toggleSubmitVideoMenu(v.videoId || v.id)"
+                      aria-label="更多操作"
+                    >
+                      <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <circle cx="8" cy="4" r="1.5" fill="currentColor" />
+                        <circle cx="8" cy="8" r="1.5" fill="currentColor" />
+                        <circle cx="8" cy="12" r="1.5" fill="currentColor" />
+                      </svg>
+                    </button>
+                    <div
+                      v-if="submitVideoMenuForId === String(v.videoId || v.id)"
+                      class="video-more-menu"
+                      @mouseleave="onSubmitVideoMenuLeave(v.videoId || v.id)"
+                    >
+                      <button type="button" class="menu-item" @click.stop="openSubmitVideoMoveDialog(v)">调整合集</button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div v-if="submitLoading && submitVideos.length > 0" class="loading-more">加载中...</div>
+            <div v-if="submitTotal > 0" class="pagination-wrapper">
+              <el-config-provider :locale="zhCn">
+                <el-pagination
+                  v-model:current-page="submitPage"
+                  :page-size="submitPageSize"
+                  :total="submitTotal"
+                  layout="prev, pager, next, jumper, total"
+                  @current-change="handleSubmitPageChange"
+                />
+              </el-config-provider>
+            </div>
+          </div>
         </section>
       </div>
     </main>
@@ -446,11 +788,21 @@
 
 <script>
 import TopHeader from '@/components/TopHeader.vue'
+import VideoCard from '@/components/VideoCard.vue'
 import ProfileHome from './ProfileHome.vue'
+import {
+  fetchVideos,
+  listVideoCollections,
+  createVideoCollection,
+  updateVideoCollection,
+  deleteVideoCollection,
+  setVideoCollectionForVideo
+} from '@/api/video'
 import { getFavoriteListByFolder } from '@/api/favorite'
 import { getFavoriteFolderList, createFavoriteFolder } from '@/api/favoriteFolder'
 import { fetchMyProfile, fetchPublicProfile, updateAvatar as apiUpdateAvatar, updateBio as apiUpdateBio, recordProfileVisit } from '@/api/userProfile'
 import { getUserStats } from '@/api/follow'
+import { fetchFeedsByAuthor } from '@/api/feed'
 import { useUserStore } from '@/stores/user'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import zhCn from 'element-plus/dist/locale/zh-cn.mjs'
@@ -465,7 +817,7 @@ const DEFAULT_GREY_AVATAR = `data:image/svg+xml;charset=UTF-8,${encodeURICompone
 
 export default {
   name: 'UserProfile',
-  components: { TopHeader, ProfileHome },
+  components: { TopHeader, ProfileHome, VideoCard },
   data () {
     return {
       zhCn,
@@ -473,7 +825,7 @@ export default {
       activeTab: 'collections',
       tabs: [
         { key: 'home', label: '主页' },
-        { key: 'dynamics', label: '动态' },
+        { key: 'dynamics', label: '动态', count: null },
         { key: 'submit', label: '投稿' },
         { key: 'collections', label: '收藏', count: 0 }
       ],
@@ -516,7 +868,40 @@ export default {
         description: '',
         isPublic: true,
         coverUrl: ''
-      }
+      },
+      submitVideos: [],
+      submitLoading: false,
+      submitPage: 1,
+      submitPageSize: 20,
+      submitTotal: 0,
+      submitKeyword: '',
+      submitVideoCollections: [],
+      submitUncategorizedCount: 0,
+      submitActiveCollectionFilter: null,
+      submitCollectionMenuForId: null,
+      editSubmitCollectionDialog: {
+        visible: false,
+        mode: 'create',
+        collection: null,
+        name: '',
+        description: ''
+      },
+      submitVideoMoveDialog: {
+        visible: false,
+        video: null
+      },
+      submitVideoMenuForId: null,
+      /** 收藏排序：favorite_time 最近收藏 | view_count 最多播放 | video_time 最近投稿（视频发布时间） */
+      collectionSortMode: 'favorite_time',
+      collectionKeyword: '',
+      _collectionSearchTimer: null,
+      _submitSearchTimer: null,
+      dynamicsFeeds: [],
+      dynamicsLoading: false,
+      dynamicsPage: 1,
+      dynamicsPageSize: 10,
+      dynamicsTotal: 0,
+      _dynamicsLoadId: 0
     }
   },
   computed: {
@@ -553,6 +938,13 @@ export default {
     isAllSelected () {
       if (this.videos.length === 0) return false
       return this.videos.every(v => this.selectedFavoriteIds.includes(v.favoriteId))
+    },
+    /** 侧栏「全部稿件」数量：未分类 + 各合集已发布数（与关键字筛选无关） */
+    submitPublishedTotalCount () {
+      const u = Number(this.submitUncategorizedCount) || 0
+      const arr = this.submitVideoCollections || []
+      const sum = arr.reduce((s, c) => s + (Number(c.video_count) || 0), 0)
+      return u + sum
     }
   },
   created () {
@@ -574,12 +966,15 @@ export default {
     if (tab === 'collections') {
       this.activeTab = 'collections'
     }
+    if (tab === 'dynamics') {
+      this.activeTab = 'dynamics'
+    }
 
     const routeUid = this.$route?.params?.id
     const store = useUserStore()
     const myUid = store.user?.userId || store.user?.id
     const viewingOthers = routeUid && (!myUid || String(routeUid) !== String(myUid))
-    if (viewingOthers && tab !== 'collections') {
+    if (viewingOthers && tab !== 'collections' && tab !== 'dynamics') {
       this.activeTab = 'home'
     }
 
@@ -594,6 +989,9 @@ export default {
         if (this.activeTab === 'collections' && this.currentUserId) {
           this.initCollections()
         }
+        if (this.activeTab === 'dynamics' && this.currentUserId) {
+          this.loadDynamics(true)
+        }
 
         // 加载用户统计信息（关注/粉丝/获赞/播放）
         if (this.currentUserId) {
@@ -607,8 +1005,39 @@ export default {
       if (newTab === 'collections' && previousTab !== 'collections' && this.currentUserId) {
         this.initCollections()
       }
+      if (newTab === 'submit' && previousTab !== 'submit' && this.currentUserId) {
+        this.loadSubmitCollections()
+        this.loadSubmitVideos(true)
+      }
+      if (newTab === 'dynamics' && previousTab !== 'dynamics' && this.currentUserId) {
+        this.loadDynamics(true)
+      }
       previousTab = newTab
     })
+
+    // 投稿 / 收藏：输入防抖后请求，实时更新列表（无需按钮、回车）
+    this._scheduleCollectionSearch = () => {
+      clearTimeout(this._collectionSearchTimer)
+      this._collectionSearchTimer = setTimeout(() => {
+        this._collectionSearchTimer = null
+        if (this.activeTab !== 'collections' || !this.activeFolderId || !this.currentUserId) return
+        this.searchCollection()
+      }, 320)
+    }
+    this._scheduleSubmitSearch = () => {
+      clearTimeout(this._submitSearchTimer)
+      this._submitSearchTimer = setTimeout(() => {
+        this._submitSearchTimer = null
+        if (this.activeTab !== 'submit' || !this.currentUserId) return
+        this.loadSubmitVideos(true)
+      }, 320)
+    }
+    this.$watch('collectionKeyword', () => this._scheduleCollectionSearch())
+    this.$watch('submitKeyword', () => this._scheduleSubmitSearch())
+  },
+  beforeUnmount () {
+    clearTimeout(this._collectionSearchTimer)
+    clearTimeout(this._submitSearchTimer)
   },
   methods: {
     async recordVisitIfNeeded (profileUserId) {
@@ -620,11 +1049,372 @@ export default {
     },
     openVideoInNewTab (videoId) {
       if (!videoId) return
-      const base = window.__MICRO_APP_BASE_ROUTE__ || ''
-      const normalizedBase = base.replace(/\/$/, '')
+      const micro = window.__MICRO_APP_BASE_ROUTE__ || ''
+      const vite = String(import.meta.env.BASE_URL || '/').replace(/\/$/, '')
+      const base = micro ? String(micro).replace(/\/$/, '') : vite
       const path = `/video/${encodeURIComponent(videoId)}`
-      const url = `${normalizedBase}${path}`
-      window.open(url, '_blank')
+      const url = base ? `${base}${path}` : path
+      window.open(url, '_blank', 'noopener,noreferrer')
+    },
+    openSubmitUploadPage () {
+      const micro = window.__MICRO_APP_BASE_ROUTE__ || ''
+      const vite = String(import.meta.env.BASE_URL || '/').replace(/\/$/, '')
+      const base = micro ? String(micro).replace(/\/$/, '') : vite
+      const path = '/submitHome?view=submit'
+      const url = base ? `${base}${path}` : path
+      window.open(url, '_blank', 'noopener,noreferrer')
+    },
+    openFeedCenter () {
+      const micro = window.__MICRO_APP_BASE_ROUTE__ || ''
+      const vite = String(import.meta.env.BASE_URL || '/').replace(/\/$/, '')
+      const base = micro ? String(micro).replace(/\/$/, '') : vite
+      const path = '/feed'
+      const url = base ? `${base}${path}` : path
+      window.open(url, '_blank', 'noopener,noreferrer')
+    },
+    openDynamicDetail (feedId) {
+      if (feedId == null) return
+      const micro = window.__MICRO_APP_BASE_ROUTE__ || ''
+      const vite = String(import.meta.env.BASE_URL || '/').replace(/\/$/, '')
+      const base = micro ? String(micro).replace(/\/$/, '') : vite
+      const path = `/feed/${encodeURIComponent(String(feedId))}`
+      const url = base ? `${base}${path}` : path
+      window.open(url, '_blank', 'noopener,noreferrer')
+    },
+    async loadDynamics (reset) {
+      if (!this.currentUserId) return
+      const uid = Number(this.currentUserId)
+      if (!Number.isFinite(uid)) return
+      if (reset) this.dynamicsPage = 1
+      this._dynamicsLoadId = (this._dynamicsLoadId || 0) + 1
+      const reqId = this._dynamicsLoadId
+      this.dynamicsLoading = true
+      try {
+        const { data } = await fetchFeedsByAuthor(uid, this.dynamicsPage, this.dynamicsPageSize)
+        if (reqId !== this._dynamicsLoadId) return
+        const list = Array.isArray(data?.list) ? data.list : []
+        this.dynamicsFeeds = list
+        this.dynamicsTotal = typeof data?.total === 'number' ? data.total : list.length
+        const t = this.tabs.find(x => x.key === 'dynamics')
+        if (t) t.count = this.dynamicsTotal
+      } catch (e) {
+        if (reqId !== this._dynamicsLoadId) return
+        console.error('加载动态失败:', e)
+        this.dynamicsFeeds = []
+        this.dynamicsTotal = 0
+      } finally {
+        if (reqId === this._dynamicsLoadId) {
+          this.dynamicsLoading = false
+        }
+      }
+    },
+    handleDynamicsPageChange () {
+      this.loadDynamics(false)
+    },
+    selectSubmitCollectionFilter (filter) {
+      this.submitActiveCollectionFilter = filter
+      this.loadSubmitVideos(true)
+    },
+    async loadSubmitCollections () {
+      const uid = Number(this.currentUserId)
+      if (!Number.isFinite(uid)) return
+      try {
+        const { data } = await listVideoCollections(uid)
+        if (data?.success && data?.data) {
+          this.submitVideoCollections = Array.isArray(data.data.collections) ? data.data.collections : []
+          this.submitUncategorizedCount = typeof data.data.uncategorizedCount === 'number'
+            ? data.data.uncategorizedCount
+            : Number(data.data.uncategorizedCount) || 0
+        } else {
+          this.submitVideoCollections = []
+          this.submitUncategorizedCount = 0
+        }
+      } catch (e) {
+        console.error('加载投稿合集失败:', e)
+        this.submitVideoCollections = []
+        this.submitUncategorizedCount = 0
+      }
+    },
+    async loadSubmitVideos (resetPage) {
+      if (!this.currentUserId) return
+      if (resetPage) this.submitPage = 1
+      const uid = Number(this.currentUserId)
+      if (!Number.isFinite(uid)) return
+      this._submitListReqId = (this._submitListReqId || 0) + 1
+      const reqId = this._submitListReqId
+      this.submitLoading = true
+      try {
+        const kw = (this.submitKeyword || '').trim()
+        const col = this.submitActiveCollectionFilter
+        const collectionId = col === null || col === undefined ? undefined : col
+        const { data } = await fetchVideos(
+          this.submitPage,
+          this.submitPageSize,
+          uid,
+          false,
+          null,
+          null,
+          null,
+          kw || null,
+          collectionId
+        )
+        if (reqId !== this._submitListReqId) return
+        const list = Array.isArray(data?.list) ? data.list : []
+        this.submitVideos = list
+        this.submitTotal = typeof data?.total === 'number' ? data.total : list.length
+      } catch (e) {
+        if (reqId !== this._submitListReqId) return
+        console.error('加载投稿视频失败:', e)
+        this.submitVideos = []
+        this.submitTotal = 0
+      } finally {
+        if (reqId === this._submitListReqId) {
+          this.submitLoading = false
+        }
+      }
+    },
+    handleSubmitPageChange () {
+      this.loadSubmitVideos(false)
+    },
+    openCreateSubmitCollection () {
+      this.editSubmitCollectionDialog = {
+        visible: true,
+        mode: 'create',
+        collection: null,
+        name: '',
+        description: ''
+      }
+    },
+    toggleSubmitCollectionMenu (collectionId) {
+      this.submitCollectionMenuForId = this.submitCollectionMenuForId === collectionId ? null : collectionId
+    },
+    onSubmitCollectionMenuLeave (collectionId) {
+      if (this.submitCollectionMenuForId === collectionId) {
+        this.submitCollectionMenuForId = null
+      }
+    },
+    onEditSubmitCollection (c) {
+      if (!c || !c.id) return
+      this.submitCollectionMenuForId = null
+      this.editSubmitCollectionDialog = {
+        visible: true,
+        mode: 'edit',
+        collection: c,
+        name: c.name || '',
+        description: c.description || ''
+      }
+    },
+    closeEditSubmitCollectionDialog () {
+      this.editSubmitCollectionDialog.visible = false
+    },
+    async confirmEditSubmitCollectionDialog () {
+      const dlg = this.editSubmitCollectionDialog
+      const n = (dlg.name || '').trim()
+      if (!n) {
+        ElMessage.warning('名称不能为空')
+        return
+      }
+      try {
+        if (dlg.mode === 'create') {
+          const { data } = await createVideoCollection({
+            name: n,
+            description: (dlg.description || '').trim() || null
+          })
+          if (data?.success) {
+            ElMessage.success('已创建合集')
+            this.closeEditSubmitCollectionDialog()
+            await this.loadSubmitCollections()
+          } else {
+            ElMessage.warning(data?.message || '创建失败')
+          }
+        } else if (dlg.collection && dlg.collection.id) {
+          const { data } = await updateVideoCollection(dlg.collection.id, {
+            name: n,
+            description: (dlg.description || '').trim() || null
+          })
+          if (data?.success) {
+            ElMessage.success('已保存')
+            this.closeEditSubmitCollectionDialog()
+            await this.loadSubmitCollections()
+          } else {
+            ElMessage.warning(data?.message || '保存失败')
+          }
+        }
+      } catch (e) {
+        ElMessage.error(e?.response?.data?.message || '操作失败')
+      }
+    },
+    async onDeleteSubmitCollection (c) {
+      if (!c || !c.id) return
+      this.submitCollectionMenuForId = null
+      try {
+        await ElMessageBox.confirm(
+          `确定删除合集「${c.name}」吗？其中的视频将变为「未加入合集」。`,
+          '删除投稿合集',
+          { confirmButtonText: '删除', cancelButtonText: '取消', type: 'warning' }
+        )
+        const { data } = await deleteVideoCollection(c.id)
+        if (data?.success) {
+          ElMessage.success('已删除')
+          if (this.submitActiveCollectionFilter === c.id) {
+            this.submitActiveCollectionFilter = null
+          }
+          await this.loadSubmitCollections()
+          await this.loadSubmitVideos(true)
+        } else {
+          ElMessage.warning(data?.message || '删除失败')
+        }
+      } catch (e) {
+        if (e !== 'cancel') {
+          console.error(e)
+        }
+      }
+    },
+    toggleSubmitVideoMenu (videoId) {
+      const id = String(videoId)
+      this.submitVideoMenuForId = this.submitVideoMenuForId === id ? null : id
+    },
+    onSubmitVideoMenuLeave (videoId) {
+      const id = String(videoId)
+      if (this.submitVideoMenuForId === id) {
+        this.submitVideoMenuForId = null
+      }
+    },
+    openSubmitVideoMoveDialog (v) {
+      this.submitVideoMenuForId = null
+      this.submitVideoMoveDialog = { visible: true, video: v }
+    },
+    closeSubmitVideoMoveDialog () {
+      this.submitVideoMoveDialog = { visible: false, video: null }
+    },
+    async confirmSubmitVideoMove (collectionId) {
+      const raw = this.submitVideoMoveDialog.video
+      if (!raw) return
+      const videoId = raw.videoId || raw.id
+      if (!videoId) return
+      try {
+        const { data } = await setVideoCollectionForVideo(videoId, collectionId)
+        if (data?.success) {
+          ElMessage.success('已更新合集')
+          this.closeSubmitVideoMoveDialog()
+          await this.loadSubmitCollections()
+          await this.loadSubmitVideos(false)
+        } else {
+          ElMessage.warning(data?.message || '操作失败')
+        }
+      } catch (e) {
+        ElMessage.error(e?.response?.data?.message || '操作失败')
+      }
+    },
+    favoriteCacheKey (folderId) {
+      if (folderId == null) return ''
+      const kw = (this.collectionKeyword || '').trim()
+      return `${folderId}|${this.collectionSortMode}|${kw}`
+    },
+    clearFolderCache (folderId) {
+      if (folderId == null) return
+      const id = String(folderId)
+      Object.keys(this.videosCache).forEach((k) => {
+        if (k === id || k.startsWith(`${id}|`)) {
+          delete this.videosCache[k]
+        }
+      })
+    },
+    setCollectionSort (mode) {
+      this.collectionSortMode = mode
+      this.clearFolderCache(this.activeFolderId)
+      if (this.activeFolderId && this.currentUserId) {
+        this.loadFavorites(this.currentUserId, this.activeFolderId, true)
+      }
+    },
+    searchCollection () {
+      this.clearFolderCache(this.activeFolderId)
+      if (this.activeFolderId && this.currentUserId) {
+        this.loadFavorites(this.currentUserId, this.activeFolderId, true)
+      }
+    },
+    playAllFromCollection () {
+      if (!this.videos.length) {
+        ElMessage.info('暂无视频')
+        return
+      }
+      const first = this.videos[0]
+      this.openVideoInNewTab(first.id)
+    },
+    formatDurationSec (sec) {
+      if (sec == null || sec <= 0) return '00:00'
+      const m = Math.floor(sec / 60)
+      const s = sec % 60
+      return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`
+    },
+    formatRelativeTime (timeStr) {
+      if (!timeStr) return ''
+      try {
+        const normalized =
+          typeof timeStr === 'string' && /^\d{4}-\d{2}-\d{2} \d/.test(timeStr)
+            ? timeStr.replace(' ', 'T')
+            : timeStr
+        const date = new Date(normalized)
+        const now = new Date()
+        const diff = now - date
+        const days = Math.floor(diff / (1000 * 60 * 60 * 24))
+        if (days === 0) return '今天'
+        if (days === 1) return '昨天'
+        if (days < 7) return `${days}天前`
+        if (days < 30) return `${Math.floor(days / 7)}周前`
+        if (days < 365) return `${Math.floor(days / 30)}个月前`
+        return `${Math.floor(days / 365)}年前`
+      } catch {
+        return ''
+      }
+    },
+    formatSubmitVideoForCard (item) {
+      const vid = item.videoId || item.id
+      let dur = '00:00'
+      if (typeof item.duration === 'number') {
+        dur = this.formatDurationSec(item.duration)
+      } else if (item.duration) {
+        dur = String(item.duration)
+      }
+      return {
+        id: vid,
+        cover: this.normalizeImageUrl(item.coverUrl),
+        title: item.title || '无标题',
+        duration: dur,
+        playCount: item.viewCount ?? 0,
+        commentCount: item.commentCount ?? 0,
+        uploaderName: item.uploaderName || this.nickname || '',
+        up: item.uploaderName || '',
+        uploadDate: this.formatRelativeTime(item.createTime),
+        isVideo: true
+      }
+    },
+    /** 收藏列表：与投稿页共用 VideoCard；日期为作品发布时间，作者为视频 UP 主 */
+    formatFavoriteVideoForCard (v) {
+      const playCount = v.viewCount != null ? v.viewCount : 0
+      const cc = v.commentCount
+      const uploadDate = v.videoCreateTime
+        ? this.formatRelativeTime(v.videoCreateTime)
+        : (v.time || '')
+      return {
+        id: v.id,
+        cover: typeof v.cover === 'string' ? v.cover : '',
+        title: v.title || '无标题',
+        duration: typeof v.duration === 'string' ? v.duration : this.formatDurationSec(v.duration),
+        playCount,
+        commentCount: cc != null && cc !== '' ? cc : null,
+        uploaderName: v.uploaderName || '',
+        up: v.uploaderName || '',
+        uploadDate,
+        isVideo: true
+      }
+    },
+    onFavoriteCardClick (v) {
+      if (this.isBatchMode && this.canManageCollections) {
+        this.toggleSelect(v.favoriteId)
+      } else {
+        this.openVideoInNewTab(v.id)
+      }
     },
     syncProfileFromStore () {
       try {
@@ -746,12 +1536,9 @@ export default {
       if (!this.canManageCollections && this.isBatchMode) {
         this.exitBatchMode()
       }
-      // 如果切换到收藏tab，重置并加载数据
+      this.activeTab = key
       if (key === 'collections' && this.currentUserId) {
-        this.activeTab = key
         this.initCollections()
-      } else {
-        this.activeTab = key
       }
     },
 
@@ -862,7 +1649,7 @@ export default {
       if (targetFolderId) {
         this.activeFolderId = targetFolderId
         // 检查缓存
-        const cached = this.videosCache[targetFolderId]
+        const cached = this.videosCache[this.favoriteCacheKey(targetFolderId)]
         if (cached) {
           // 使用缓存数据
           this.videos = cached.videos
@@ -949,7 +1736,7 @@ export default {
       if (folder.id === this.activeFolderId) return
       
       // 检查缓存中是否有该收藏夹的数据
-      const cached = this.videosCache[folder.id]
+      const cached = this.videosCache[this.favoriteCacheKey(folder.id)]
       if (cached) {
         // 使用缓存数据
         this.activeFolderId = folder.id
@@ -1014,37 +1801,41 @@ export default {
     },
 
     async loadFavorites (userId, folderId, reset = false) {
-      if (this.loading) return
-      
+      // 分页请求中时不重复请求；重置（搜索/排序/首屏）时允许打断进行中的请求
+      if (this.loading && !reset) return
+
+      this._favListReqId = (this._favListReqId || 0) + 1
+      const reqId = this._favListReqId
+
       // 重置时清空数据并重置分页
       if (reset) {
         this.page = 1
         this.videos = []
       }
-      
+
       this.loading = true
       try {
-        const { data } = await getFavoriteListByFolder(userId, folderId, this.page, this.pageSize)
+        const kw = (this.collectionKeyword || '').trim()
+        const { data } = await getFavoriteListByFolder(userId, folderId, this.page, this.pageSize, {
+          sort: this.collectionSortMode,
+          keyword: kw || undefined
+        })
+        if (reqId !== this._favListReqId) return
         if (data.success) {
-          let list = data.list || []
+          const list = data.list || []
           const total = data.total || 0
-          
-          // 按收藏时间倒序排序（最新收藏的排在最前）
-          list = list.slice().sort((a, b) => {
-            const ta = a.createTime ? new Date(a.createTime).getTime() : 0
-            const tb = b.createTime ? new Date(b.createTime).getTime() : 0
-            return tb - ta
-          })
-          
+
           // 格式化视频数据
           const formattedVideos = list.map(item => ({
             id: item.videoId || item.id,
             favoriteId: item.id,
-            cover: item.coverUrl || '',
+            cover: this.normalizeImageUrl(item.coverUrl || ''),
             title: item.title || '未知标题',
             duration: item.duration || '00:00',
-            play: '--',
-            danmaku: '--',
+            viewCount: item.viewCount != null ? item.viewCount : 0,
+            commentCount: item.commentCount != null ? item.commentCount : null,
+            uploaderName: (item.uploaderName && String(item.uploaderName).trim()) || '',
+            videoCreateTime: item.videoCreateTime || null,
             time: this.formatTime(item.createTime)
           }))
           
@@ -1059,20 +1850,23 @@ export default {
             currentFolder.count = total
           }
           
-          // 缓存数据
-          this.videosCache[folderId] = {
+          // 缓存数据（按收藏夹 + 排序 + 关键词区分）
+          this.videosCache[this.favoriteCacheKey(folderId)] = {
             videos: formattedVideos,
             total: total,
             page: this.page
           }
         }
       } catch (error) {
+        if (reqId !== this._favListReqId) return
         console.error('加载收藏列表失败:', error)
         if (reset) {
           this.videos = []
         }
       } finally {
-        this.loading = false
+        if (reqId === this._favListReqId) {
+          this.loading = false
+        }
       }
     },
 
@@ -1081,7 +1875,7 @@ export default {
       this.page = newPage
       if (this.activeFolderId) {
         // 检查缓存中是否有该页的数据
-        const cached = this.videosCache[this.activeFolderId]
+        const cached = this.videosCache[this.favoriteCacheKey(this.activeFolderId)]
         if (cached && cached.page === newPage) {
           // 使用缓存数据
           this.videos = cached.videos
@@ -1801,6 +2595,34 @@ export default {
   margin-bottom: 10px;
 }
 
+.panel-title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 10px;
+
+  .panel-title {
+    margin-bottom: 0;
+  }
+}
+
+.submit-coll-new-btn {
+  flex-shrink: 0;
+  border: none;
+  background: #e8f7ff;
+  color: #00a1d6;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 4px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+
+  &:hover {
+    background: #d7f0fc;
+  }
+}
+
 .new-folder {
   width: 100%;
   border: 1px solid #e5e7eb;
@@ -2073,8 +2895,16 @@ export default {
   }
 }
 
+.fav-tools {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .fav-left {
   flex: 1;
+  min-width: 0;
 }
 
 .fav-title {
@@ -2099,17 +2929,20 @@ export default {
 }
 
 .tool-btn {
-  border: 1px solid #e5e7eb;
-  background: #fff;
+  border: 1px solid #cbd5e1;
+  background: #f1f5f9;
   border-radius: 8px;
-  padding: 9px 12px;
+  padding: 9px 14px;
   cursor: pointer;
   font-size: 14px;
+  font-weight: 500;
+  color: #334155;
   transition: all 0.2s;
 
   &:hover {
     border-color: #00a1d6;
     color: #00a1d6;
+    background: #e0f7ff;
   }
 }
 
@@ -2143,28 +2976,181 @@ export default {
 }
 
 .searchbar {
-  display: grid;
-  grid-template-columns: 1fr 38px;
-  gap: 10px;
-  align-items: center;
+  flex: 1;
+  min-width: 0;
+  max-width: 345px;
+  display: flex;
+  justify-content: flex-end;
 }
 
-.input {
-  height: 34px;
-  border: 1px solid #e5e7eb;
-  border-radius: 8px;
-  padding: 0 10px;
-  outline: none;
+.search-input-row--live .search-input {
+  flex: 1;
+  min-width: 0;
   width: 100%;
 }
 
-.search-btn {
-  height: 34px;
-  width: 38px;
+/* ---------- 动态 Tab（与全站 Feed 风格一致，贴合个人中心主色） ---------- */
+.profile-dynamics {
+  width: 100%;
+  min-height: 200px;
+}
+
+.dynamics-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid #eee;
+}
+
+.dynamics-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: #222;
+}
+
+.dynamics-go-feed {
   border: 1px solid #e5e7eb;
   background: #fff;
+  color: #61666d;
   border-radius: 8px;
+  padding: 6px 14px;
+  font-size: 13px;
   cursor: pointer;
+  transition: all 0.2s;
+
+  &:hover {
+    border-color: #00a1d6;
+    color: #00a1d6;
+  }
+
+  &--primary {
+    background: #00a1d6;
+    border-color: #00a1d6;
+    color: #fff;
+
+    &:hover {
+      background: #0096c7;
+      border-color: #0096c7;
+      color: #fff;
+    }
+  }
+}
+
+.dynamics-empty {
+  text-align: center;
+  padding: 48px 20px;
+  background: #fafbfc;
+  border-radius: 10px;
+  border: 1px dashed #e5e7eb;
+}
+
+.dynamics-empty-text {
+  margin: 0 0 8px;
+  font-size: 15px;
+  color: #61666d;
+}
+
+.dynamics-empty-sub {
+  margin: 0 0 20px;
+  font-size: 13px;
+  color: #9499a0;
+}
+
+.profile-feed-list {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.profile-feed-card {
+  background: #fff;
+  border: 1px solid #eee;
+  border-radius: 10px;
+  padding: 16px 18px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+  transition: box-shadow 0.2s;
+
+  &:hover {
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.07);
+  }
+
+  &--clickable {
+    cursor: pointer;
+
+    &:focus-visible {
+      outline: 2px solid #00a1d6;
+      outline-offset: 2px;
+    }
+  }
+}
+
+.profile-feed-meta {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.profile-feed-avatar {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  overflow: hidden;
+  background: #f1f2f3;
+  flex-shrink: 0;
+
+  img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+}
+
+.profile-feed-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: #222;
+}
+
+.profile-feed-sub {
+  margin-top: 2px;
+  font-size: 12px;
+  color: #9499a0;
+}
+
+.profile-feed-body {
+  margin-top: 12px;
+}
+
+.profile-feed-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: #18191c;
+  margin-bottom: 8px;
+}
+
+.profile-feed-content {
+  font-size: 14px;
+  line-height: 1.75;
+  color: #333;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.profile-feed-images {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.profile-feed-img {
+  width: 100%;
+  max-height: 220px;
+  object-fit: cover;
+  border-radius: 8px;
+  background: #f5f5f5;
 }
 
 .video-grid {
@@ -2174,113 +3160,73 @@ export default {
   gap: 14px;
 }
 
-.video-card {
-  cursor: pointer;
+/* 收藏列表：VideoCard 样式与投稿一致，栅格仍用本页 .video-grid（五列等宽，与改版前相同） */
+.fav-video-card-wrapper {
   position: relative;
+  cursor: pointer;
 
   &.batch-mode {
     cursor: default;
   }
 
-  .card-inner {
-    position: relative;
-
-    .batch-checkbox {
-      position: absolute;
-      top: 8px;
-      left: 8px;
-      z-index: 10;
-      border-radius: 4px;
-      padding: 4px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      width: 20px;
-      height: 20px;
-
-      input[type="checkbox"] {
-        cursor: pointer;
-        width: 16px;
-        height: 16px;
-      }
-    }
-  }
-
-  .thumb {
-    position: relative;
-    width: 100%;
+  &.selected {
     border-radius: 8px;
-    overflow: hidden;
-    background: #f1f2f3;
-    padding-bottom: 56%;
-
-    img,
-    .thumb-ph {
-      position: absolute;
-      inset: 0;
-      width: 100%;
-      height: 100%;
-      object-fit: cover;
-    }
-
-    .duration {
-      position: absolute;
-      right: 6px;
-      bottom: 6px;
-      font-size: 12px;
-      color: #fff;
-      background: rgba(0, 0, 0, 0.55);
-      padding: 2px 6px;
-      border-radius: 4px;
-    }
+    box-shadow: 0 0 0 2px #00a1d6;
   }
 
-  .v-title-row {
-    margin-top: 8px;
+  :deep(.v-title) {
+    padding-right: 24px;
+  }
+
+  .fav-batch-checkbox {
+    position: absolute;
+    top: 8px;
+    left: 8px;
+    z-index: 14;
+    border-radius: 4px;
+    padding: 2px;
+    background: rgba(255, 255, 255, 0.92);
     display: flex;
-    align-items: flex-start;
-    gap: 8px;
-    min-height: 36px;
-  }
+    align-items: center;
+    justify-content: center;
 
-  .v-title {
-    flex: 1;
-    font-size: 13px;
-    color: #222;
-    line-height: 1.4;
-    height: 36px;
-    overflow: hidden;
-    display: -webkit-box;
-    line-clamp: 2;
-    -webkit-line-clamp: 2;
-    -webkit-box-orient: vertical;
-    cursor: pointer;
-    transition: color 0.2s;
-
-    &:hover {
-      color: #00a1d6;
+    input[type='checkbox'] {
+      cursor: pointer;
+      width: 16px;
+      height: 16px;
     }
   }
 
-  .v-meta {
+  .fav-card-click {
+    width: 100%;
+  }
+
+  .fav-video-more {
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 0;
+    z-index: 8;
+    pointer-events: none;
+  }
+
+  .fav-more-spacer {
+    width: 100%;
+    /* 与 VideoCard .thumb-outer 的 padding-bottom: 56% 同高，用于对齐「更多」按钮 */
+    padding-top: 56%;
+  }
+
+  .fav-more-row {
+    display: flex;
+    justify-content: flex-end;
     margin-top: 6px;
-    font-size: 12px;
-    color: #999;
-    display: flex;
-    gap: 8px;
-
-    .time {
-      margin-left: auto;
-    }
-  }
-
-  .video-more {
+    padding-right: 2px;
     position: relative;
-    flex-shrink: 0;
-    margin-top: 2px;
+    pointer-events: none;
   }
 
-  .more-btn {
+  .fav-more-row .more-btn {
+    pointer-events: auto;
     width: 24px;
     height: 24px;
     border-radius: 4px;
@@ -2289,7 +3235,7 @@ export default {
     display: flex;
     align-items: center;
     justify-content: center;
-    color: #999;
+    color: #9499a0;
     cursor: pointer;
     transition: all 0.2s;
 
@@ -2304,7 +3250,8 @@ export default {
     }
   }
 
-  .video-more-menu {
+  .fav-more-row .video-more-menu {
+    pointer-events: auto;
     position: absolute;
     top: 28px;
     right: 0;
@@ -2316,7 +3263,7 @@ export default {
     z-index: 20;
   }
 
-  .video-more-menu .menu-item {
+  .fav-more-row .video-more-menu .menu-item {
     width: 100%;
     padding: 6px 14px;
     text-align: left;
@@ -2375,22 +3322,27 @@ export default {
   justify-content: space-between;
   font-size: 13px;
   cursor: pointer;
+  color: #18191c;
 
   &:hover {
     background: #f5f7fa;
   }
 
-  .name {
+  .fav-move-label {
     flex: 1;
+    min-width: 0;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+    color: #18191c;
+    font-weight: 500;
   }
 
-  .count {
+  .fav-move-count {
     margin-left: 8px;
+    flex-shrink: 0;
     font-size: 12px;
-    color: #999;
+    color: #64748b;
   }
 }
 
@@ -2691,12 +3643,243 @@ export default {
   }
 }
 
+/* 投稿合集：新建/编辑弹层 — 遮罩层级、输入区浅色底、简介不可拖拽缩放、滚动条配色 */
+.edit-submit-coll-mask {
+  z-index: 1100;
+  background: rgba(15, 23, 42, 0.48);
+  backdrop-filter: blur(3px);
+}
+
+.edit-submit-coll-dialog.edit-folder-dialog {
+  border: 1px solid #e5e7eb;
+  box-shadow: 0 16px 48px rgba(15, 23, 42, 0.18);
+  z-index: 1;
+}
+
+.edit-submit-coll-dialog {
+  .edit-folder-input {
+    background: #f9fafb;
+    border-color: #e5e7eb;
+    color: #18191c;
+
+    &:focus {
+      border-color: #00a1d6;
+      background: #fff;
+    }
+  }
+
+  .edit-folder-textarea.edit-submit-coll-textarea {
+    resize: none;
+    min-height: 96px;
+    max-height: 168px;
+    overflow-y: auto;
+    background: #f9fafb;
+    border-color: #e5e7eb;
+    color: #18191c;
+    line-height: 1.55;
+
+    &:focus {
+      border-color: #00a1d6;
+      background: #fff;
+    }
+
+    &::-webkit-scrollbar {
+      width: 6px;
+    }
+
+    &::-webkit-scrollbar-track {
+      background: #eef2f7;
+      border-radius: 6px;
+    }
+
+    &::-webkit-scrollbar-thumb {
+      background: #c5cdd6;
+      border-radius: 6px;
+
+      &:hover {
+        background: #00a1d6;
+      }
+    }
+
+    scrollbar-width: thin;
+    scrollbar-color: #c5cdd6 #eef2f7;
+  }
+}
+
+/* 投稿合集：调整合集弹层 — 避免被页面元素盖住、列表过长时可滚动 */
+.submit-coll-move-mask.move-dialog-mask {
+  z-index: 1100;
+  background: rgba(15, 23, 42, 0.48);
+  backdrop-filter: blur(3px);
+}
+
+.submit-coll-move-dialog.move-dialog {
+  border: 1px solid #e5e7eb;
+  box-shadow: 0 16px 48px rgba(15, 23, 42, 0.18);
+  background: #fff;
+}
+
+.submit-coll-move-dialog .move-dialog-title {
+  color: #18191c;
+  border-bottom-color: #eef2f7;
+}
+
+/* 避免与页面内通用 .name 等样式冲突，选项文字强制深色 */
+.submit-coll-move-dialog .submit-coll-move-item {
+  color: #18191c;
+
+  .submit-coll-move-label {
+    flex: 1;
+    min-width: 0;
+    font-size: 13px;
+    font-weight: 500;
+    color: #18191c;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .submit-coll-move-count {
+    margin-left: 8px;
+    flex-shrink: 0;
+    font-size: 12px;
+    color: #64748b;
+  }
+
+  &:hover {
+    background: #f1f5f9;
+
+    .submit-coll-move-label {
+      color: #18191c;
+    }
+
+    .submit-coll-move-count {
+      color: #475569;
+    }
+  }
+}
+
+.submit-coll-move-list.move-folder-list {
+  max-height: 320px;
+  padding-right: 4px;
+
+  &::-webkit-scrollbar {
+    width: 6px;
+  }
+
+  &::-webkit-scrollbar-track {
+    background: #eef2f7;
+    border-radius: 6px;
+  }
+
+  &::-webkit-scrollbar-thumb {
+    background: #c5cdd6;
+    border-radius: 6px;
+
+    &:hover {
+      background: #00a1d6;
+    }
+  }
+
+  scrollbar-width: thin;
+  scrollbar-color: #c5cdd6 #eef2f7;
+}
+
 .loading,
 .loading-more {
   text-align: center;
   color: #999;
   padding: 20px 0;
   grid-column: 1 / -1;
+}
+
+.submit-left-panel {
+  .submit-type-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+  }
+
+  .submit-type-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 10px;
+    border-radius: 8px;
+    color: #222;
+
+    &.active {
+      background: #e8f7ff;
+      color: #00a1d6;
+    }
+
+    .submit-type-label {
+      font-size: 14px;
+    }
+  }
+}
+
+.submit-tab-wrap {
+  width: 100%;
+  min-height: 320px;
+}
+
+.submit-toolbar {
+  margin-top: 0;
+}
+
+.submit-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 56px 24px 40px;
+  color: #9499a0;
+
+  .submit-empty-illus {
+    margin-bottom: 16px;
+    opacity: 0.9;
+  }
+
+  .submit-empty-title {
+    margin: 0 0 20px;
+    font-size: 15px;
+    color: #61666d;
+  }
+
+  .submit-upload-btn {
+    border: none;
+    border-radius: 8px;
+    padding: 10px 28px;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    background: #00aeec;
+    color: #fff;
+
+    &:hover {
+      background: #009dd9;
+    }
+  }
+}
+
+.submit-video-grid {
+  grid-template-columns: repeat(auto-fill, minmax(246px, 1fr));
+
+  .video-card-wrapper {
+    cursor: pointer;
+    width: 100%;
+
+    :deep(.video-card) {
+      width: 100%;
+
+      .thumb-wrap {
+        width: 100%;
+        aspect-ratio: 246 / 137;
+        padding-bottom: 0;
+      }
+    }
+  }
 }
 
 @media (max-width: 960px) {

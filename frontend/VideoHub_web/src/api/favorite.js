@@ -37,9 +37,21 @@ export const getFavoriteList = (userId, page = 1, pageSize = 20) => {
 
 /**
  * 获取某个收藏夹下的收藏列表
+ * @param {object} [options] sort: favorite_time | view_count | video_time；keyword: 搜索关键词
  */
-export const getFavoriteListByFolder = (userId, folderId, page = 1, pageSize = 20) => {
-  return request.get('/api/favorites/list', { params: { userId, folderId, page, pageSize } })
+export const getFavoriteListByFolder = (userId, folderId, page = 1, pageSize = 20, options = {}) => {
+  const params = {
+    userId,
+    folderId,
+    page,
+    pageSize,
+    // 与后端一致：favorite_time=收藏时间 | video_time=作品发布时间 | view_count=播放量
+    sort: options.sort || 'favorite_time'
+  }
+  if (options.keyword != null && String(options.keyword).trim() !== '') {
+    params.keyword = String(options.keyword).trim()
+  }
+  return request.get('/api/favorites/list', { params })
 }
 
 /**

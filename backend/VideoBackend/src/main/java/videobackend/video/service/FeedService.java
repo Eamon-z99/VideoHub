@@ -124,6 +124,38 @@ public class FeedService {
     }
 
     /**
+     * 个人主页：某用户发布的动态（公开，无需登录）
+     */
+    public List<FeedItem> listPageByAuthor(Long authorId, int page, int pageSize) {
+        if (authorId == null) {
+            return List.of();
+        }
+        int safeSize = Math.max(1, Math.min(pageSize, 100));
+        int safePage = Math.max(1, page);
+        int offset = (safePage - 1) * safeSize;
+        String sql = """
+                SELECT f.id, f.user_id, f.title, f.content, f.images, f.like_count, f.comment_count, f.share_count, f.create_time,
+                       u.username AS uploader_name, u.avatar AS uploader_avatar, u.id AS uploader_id
+                FROM feeds f
+                LEFT JOIN users u ON f.user_id = u.id
+                WHERE f.user_id = ?
+                  AND f.status = 1
+                ORDER BY f.create_time DESC
+                LIMIT ? OFFSET ?
+                """;
+        return jdbcTemplate.query(sql, (rs, i) -> mapToFeed(rs), authorId, safeSize, offset);
+    }
+
+    public long countByAuthor(Long authorId) {
+        if (authorId == null) {
+            return 0;
+        }
+        String sql = "SELECT COUNT(*) FROM feeds WHERE user_id = ? AND status = 1";
+        Long total = jdbcTemplate.queryForObject(sql, Long.class, authorId);
+        return total == null ? 0 : total;
+    }
+
+    /**
      * 获取关注用户的动态总数
      * 包含自己发布的动态
      */

@@ -16,13 +16,21 @@
             </div>
           </div>
           <div class="nav-right">
-            <input
-              v-model="localKeyword"
-              class="search-input"
-              placeholder="搜索视频 / UP 主"
-              @keyup.enter="triggerSearch"
-            />
-            <button class="search-btn" @click="triggerSearch">搜索</button>
+            <div class="page-search page-search--h36 page-search--w320">
+              <div class="search-input-row">
+                <input
+                  v-model="localKeyword"
+                  class="search-input"
+                  type="search"
+                  placeholder="搜索视频 / UP 主"
+                  autocomplete="off"
+                  @keyup.enter="triggerSearch"
+                />
+                <button type="button" class="search-btn" aria-label="搜索" @click="triggerSearch">
+                  <img class="search-btn-img" src="/assets/search-button.png" alt="" />
+                </button>
+              </div>
+            </div>
           </div>
         </nav>
 
@@ -345,31 +353,6 @@ onUnmounted(() => {
     display: flex;
     align-items: center;
     gap: 12px;
-  }
-
-  .search-input {
-    width: 320px;
-    height: 36px;
-    padding: 0 12px;
-    border: 1px solid #e3e3e3;
-    border-radius: 4px;
-    font-size: 14px;
-
-    &:focus {
-      outline: none;
-      border-color: #00a1d6;
-    }
-  }
-
-  .search-btn {
-    height: 36px;
-    padding: 0 20px;
-    border-radius: 4px;
-    border: none;
-    background: #00a1d6;
-    color: #fff;
-    font-size: 14px;
-    cursor: pointer;
   }
 
   .content {

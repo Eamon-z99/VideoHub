@@ -19,7 +19,9 @@ import java.text.Normalizer;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
@@ -313,6 +315,57 @@ public class LocalVideoService {
     }
 
     /**
+     * 按给定 video_id 顺序返回完整 {@link VideoItem}（用于 ES 检索后回表）。
+     */
+    public List<VideoItem> listByVideoIdsPreserveOrder(List<String> orderedVideoIds) {
+        if (orderedVideoIds == null || orderedVideoIds.isEmpty()) {
+            return List.of();
+        }
+        LinkedHashSet<String> unique = new LinkedHashSet<>();
+        for (String id : orderedVideoIds) {
+            if (StringUtils.hasText(id)) {
+                unique.add(id.trim());
+            }
+        }
+        List<String> ids = new ArrayList<>(unique);
+        if (ids.isEmpty()) {
+            return List.of();
+        }
+        String placeholders = ids.stream().map(x -> "?").collect(Collectors.joining(","));
+        String sql = """
+                SELECT v.video_id,
+                       v.title,
+                       v.description,
+                       v.duration,
+                       v.cover_url,
+                       v.storage_path,
+                       v.source_file,
+                       v.view_count,
+                       (SELECT COUNT(*)
+                        FROM comments c
+                        WHERE c.video_id = v.video_id
+                          AND c.status = 1
+                       ) AS comment_count,
+                       v.like_count,
+                       v.favorite_count,
+                       v.file_size,
+                       u.username AS uploader_name,
+                       u.avatar AS uploader_avatar,
+                       u.id AS uploader_id,
+                       v.create_time
+                FROM videos v
+                LEFT JOIN users u ON v.user_id = u.id
+                WHERE v.video_id IN (%s)
+                  AND (v.status IS NULL OR UPPER(TRIM(v.status)) NOT IN ('FAILED','DOWN'))
+                ORDER BY FIELD(v.video_id, %s)
+                """.formatted(placeholders, placeholders);
+        List<Object> args = new ArrayList<>();
+        args.addAll(ids);
+        args.addAll(ids);
+        return jdbcTemplate.query(sql, (rs, i) -> mapToVideo(rs), args.toArray());
+    }
+
+    /**
      * 获取关注用户的视频列表（分页）
      */
     public List<VideoItem> listPageByFollowing(Long userId, Long followingId, int page, int pageSize) {
@@ -472,6 +525,163 @@ public class LocalVideoService {
                 """;
         return jdbcTemplate.query(sql, (rs, i) -> mapToVideo(rs),
                 uploaderId, excludeVideoId, excludeVideoId, safeLimit);
+    }
+
+    /**
+     * 指定 UP 主已发布视频分页（投稿 Tab），按创建时间倒序。
+     *
+     * @param collectionFilter null 表示全部；0 表示仅未加入合集（collection_id IS NULL）；正数为某合集 ID
+     */
+    public List<VideoItem> listPageByUploader(Long uploaderId, int page, int pageSize, Long collectionFilter) {
+        if (uploaderId == null) {
+            return List.of();
+        }
+        int safeSize = Math.max(1, Math.min(pageSize, 100));
+        int safePage = Math.max(1, page);
+        int offset = (safePage - 1) * safeSize;
+        String coll = uploaderCollectionPredicate(collectionFilter);
+        String sql = """
+                SELECT v.video_id,
+                       v.title,
+                       v.description,
+                       v.duration,
+                       v.cover_url,
+                       v.storage_path,
+                       v.source_file,
+                       v.view_count,
+                       (SELECT COUNT(*)
+                        FROM comments c
+                        WHERE c.video_id = v.video_id
+                          AND c.status = 1
+                       ) AS comment_count,
+                       v.like_count,
+                       v.favorite_count,
+                       v.file_size,
+                       u.username AS uploader_name,
+                       u.avatar AS uploader_avatar,
+                       u.id AS uploader_id,
+                       v.create_time
+                FROM videos v
+                LEFT JOIN users u ON v.user_id = u.id
+                WHERE v.user_id = ?
+                """ + coll + """
+                  AND (v.status IS NULL OR UPPER(TRIM(v.status)) NOT IN ('FAILED','DOWN'))
+                ORDER BY v.create_time DESC
+                LIMIT ? OFFSET ?
+                """;
+        if (collectionFilter != null && collectionFilter != 0L) {
+            return jdbcTemplate.query(sql, (rs, i) -> mapToVideo(rs), uploaderId, collectionFilter, safeSize, offset);
+        }
+        return jdbcTemplate.query(sql, (rs, i) -> mapToVideo(rs), uploaderId, safeSize, offset);
+    }
+
+    /**
+     * 指定 UP 的投稿列表 + 关键字（标题 / 描述）
+     */
+    public List<VideoItem> listPageByUploaderKeyword(Long uploaderId, String keyword, int page, int pageSize, Long collectionFilter) {
+        if (uploaderId == null) {
+            return List.of();
+        }
+        if (keyword == null || keyword.isBlank()) {
+            return listPageByUploader(uploaderId, page, pageSize, collectionFilter);
+        }
+        int safeSize = Math.max(1, Math.min(pageSize, 100));
+        int safePage = Math.max(1, page);
+        int offset = (safePage - 1) * safeSize;
+        String like = "%" + keyword.trim() + "%";
+        String coll = uploaderCollectionPredicate(collectionFilter);
+        String sql = """
+                SELECT v.video_id,
+                       v.title,
+                       v.description,
+                       v.duration,
+                       v.cover_url,
+                       v.storage_path,
+                       v.source_file,
+                       v.view_count,
+                       (SELECT COUNT(*)
+                        FROM comments c
+                        WHERE c.video_id = v.video_id
+                          AND c.status = 1
+                       ) AS comment_count,
+                       v.like_count,
+                       v.favorite_count,
+                       v.file_size,
+                       u.username AS uploader_name,
+                       u.avatar AS uploader_avatar,
+                       u.id AS uploader_id,
+                       v.create_time
+                FROM videos v
+                LEFT JOIN users u ON v.user_id = u.id
+                WHERE v.user_id = ?
+                  AND (v.title LIKE ? OR COALESCE(v.description, '') LIKE ?)
+                """ + coll + """
+                  AND (v.status IS NULL OR UPPER(TRIM(v.status)) NOT IN ('FAILED','DOWN'))
+                ORDER BY v.create_time DESC
+                LIMIT ? OFFSET ?
+                """;
+        if (collectionFilter != null && collectionFilter != 0L) {
+            return jdbcTemplate.query(sql, (rs, i) -> mapToVideo(rs), uploaderId, like, like, collectionFilter, safeSize, offset);
+        }
+        return jdbcTemplate.query(sql, (rs, i) -> mapToVideo(rs), uploaderId, like, like, safeSize, offset);
+    }
+
+    public long countByUploaderKeyword(Long uploaderId, String keyword, Long collectionFilter) {
+        if (uploaderId == null) {
+            return 0;
+        }
+        if (keyword == null || keyword.isBlank()) {
+            return countByUploader(uploaderId, collectionFilter);
+        }
+        String like = "%" + keyword.trim() + "%";
+        String coll = uploaderCollectionPredicate(collectionFilter);
+        String sql = """
+                SELECT COUNT(*)
+                FROM videos v
+                WHERE v.user_id = ?
+                  AND (v.title LIKE ? OR COALESCE(v.description, '') LIKE ?)
+                """ + coll + """
+                  AND (v.status IS NULL OR UPPER(TRIM(v.status)) NOT IN ('FAILED','DOWN'))
+                """;
+        if (collectionFilter != null && collectionFilter != 0L) {
+            Long total = jdbcTemplate.queryForObject(sql, Long.class, uploaderId, like, like, collectionFilter);
+            return total == null ? 0 : total;
+        }
+        Long total = jdbcTemplate.queryForObject(sql, Long.class, uploaderId, like, like);
+        return total == null ? 0 : total;
+    }
+
+    public long countByUploader(Long uploaderId, Long collectionFilter) {
+        if (uploaderId == null) {
+            return 0;
+        }
+        String coll = uploaderCollectionPredicate(collectionFilter);
+        String sql = """
+                SELECT COUNT(*)
+                FROM videos v
+                WHERE v.user_id = ?
+                """ + coll + """
+                  AND (v.status IS NULL OR UPPER(TRIM(v.status)) NOT IN ('FAILED','DOWN'))
+                """;
+        if (collectionFilter != null && collectionFilter != 0L) {
+            Long total = jdbcTemplate.queryForObject(sql, Long.class, uploaderId, collectionFilter);
+            return total == null ? 0 : total;
+        }
+        Long total = jdbcTemplate.queryForObject(sql, Long.class, uploaderId);
+        return total == null ? 0 : total;
+    }
+
+    /**
+     * 投稿合集筛选：null=不筛选；0=未加入合集；正数=指定合集。
+     */
+    private static String uploaderCollectionPredicate(Long collectionFilter) {
+        if (collectionFilter == null) {
+            return "";
+        }
+        if (collectionFilter == 0L) {
+            return " AND v.collection_id IS NULL ";
+        }
+        return " AND v.collection_id = ? ";
     }
 
     private VideoItem mapToVideo(ResultSet rs) throws SQLException {

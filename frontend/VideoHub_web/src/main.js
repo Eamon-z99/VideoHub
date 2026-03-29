@@ -1,5 +1,6 @@
 import { createApp } from 'vue';
 import { createPinia } from 'pinia';
+import './assets/page-search-topheader.css';
 import App from './App.vue';
 import { createAppRouter } from './router';
 import ElementPlus from 'element-plus';

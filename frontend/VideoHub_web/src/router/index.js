@@ -71,7 +71,7 @@ const routes = [
     component: UserProfile
   },
   {
-    path: '/feed',//动态页
+    path: '/feed/:feedId?', // 动态页，可选 feedId 用于定位某条动态
     name: 'feed',
     component: FeedHome
   },

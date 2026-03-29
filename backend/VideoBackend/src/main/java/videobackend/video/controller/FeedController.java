@@ -32,11 +32,16 @@ public class FeedController {
                                      @RequestParam(defaultValue = "20") int pageSize,
                                      @RequestParam(required = false) Long userId,
                                      @RequestParam(required = false) Boolean followingOnly,
-                                     @RequestParam(required = false) Long followingId) {
+                                     @RequestParam(required = false) Long followingId,
+                                     @RequestParam(required = false) Long authorId) {
         List<FeedItem> items;
         long total;
 
-        if (followingOnly != null && followingOnly && userId != null) {
+        if (authorId != null) {
+            // 个人主页：指定 UP 发布的动态（公开）
+            items = feedService.listPageByAuthor(authorId, page, pageSize);
+            total = feedService.countByAuthor(authorId);
+        } else if (followingOnly != null && followingOnly && userId != null) {
             // 只返回关注用户的动态
             items = feedService.listPageByFollowing(userId, followingId, page, pageSize);
             total = feedService.countByFollowing(userId, followingId);
@@ -52,6 +57,18 @@ public class FeedController {
                 "pageSize", pageSize,
                 "total", total
         );
+    }
+
+    /**
+     * 单条动态详情（用于从个人主页跳转定位）
+     */
+    @GetMapping("/{feedId}")
+    public ResponseEntity<?> getById(@PathVariable Long feedId) {
+        FeedItem item = feedService.getFeedById(feedId);
+        if (item == null) {
+            return ResponseEntity.notFound().build();
+        }
+        return ResponseEntity.ok(Map.of("success", true, "data", item));
     }
 
     /**

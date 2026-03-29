@@ -100,11 +100,13 @@ public class FavoriteController {
             @RequestParam(required = false) Long folderId,
             @RequestParam(defaultValue = "1") Integer page,
             @RequestParam(defaultValue = "20") Integer pageSize,
+            @RequestParam(required = false, defaultValue = "favorite_time") String sort,
+            @RequestParam(required = false) String keyword,
             HttpServletRequest request) {
         try {
             Long viewerUserId = getUserIdFromRequest(request);
-            List<FavoriteItem> list = favoriteService.getUserFavorites(userId, folderId, page, pageSize, viewerUserId);
-            Long total = favoriteService.getUserFavoriteCount(userId, folderId, viewerUserId);
+            List<FavoriteItem> list = favoriteService.getUserFavorites(userId, folderId, page, pageSize, viewerUserId, sort, keyword);
+            Long total = favoriteService.getUserFavoriteCount(userId, folderId, viewerUserId, keyword);
             
             // 使用 HashMap 而不是 Map.of()，因为 folderId 可能为 null
             Map<String, Object> response = new java.util.HashMap<>();

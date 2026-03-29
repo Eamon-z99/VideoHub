@@ -87,7 +87,7 @@ public class UserVideoDraftController {
                            copyright, `partition`, tags, duration,
                            cover_url, storage_path, source_file, file_size,
                            schedule_enabled, schedule_publish_at,
-                           collection_enabled, collection_name,
+                           collection_enabled, collection_name, collection_id,
                            allow_second_creation, commercial_promotion,
                            create_time, update_time
                     FROM video_drafts

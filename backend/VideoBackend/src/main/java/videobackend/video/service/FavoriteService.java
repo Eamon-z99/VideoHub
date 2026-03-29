@@ -16,6 +16,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
+import org.springframework.util.StringUtils;
+
 @Service
 public class FavoriteService {
 
@@ -121,9 +123,12 @@ public class FavoriteService {
     }
 
     /**
-     * 获取用户的收藏列表（按收藏时间倒序）
+     * 获取用户的收藏列表。
+     * sort: favorite_time（最近收藏）| view_count（最多播放）| video_time（最近投稿，按视频发布时间）
+     * keyword: 可选，匹配视频标题 / 描述 / UP 昵称
      */
-    public List<FavoriteItem> getUserFavorites(Long userId, Long folderId, Integer page, Integer pageSize, Long viewerUserId) {
+    public List<FavoriteItem> getUserFavorites(Long userId, Long folderId, Integer page, Integer pageSize, Long viewerUserId,
+                                                String sort, String keyword) {
         try {
             boolean isOwner = viewerUserId != null && viewerUserId.equals(userId);
             Long defaultFolderIdForSql = isOwner
@@ -147,20 +152,48 @@ public class FavoriteService {
             }
 
             int offset = (page - 1) * pageSize;
+            String orderBy = resolveFavoriteSortOrder(sort);
+            boolean hasKeyword = StringUtils.hasText(keyword);
+            String like = hasKeyword ? "%" + keyword.trim() + "%" : "";
+
+            String keywordClause = hasKeyword
+                    ? """
+                      AND (
+                        v.title LIKE ?
+                        OR COALESCE(v.description, '') LIKE ?
+                        OR COALESCE(u.username, '') LIKE ?
+                      )
+                      """
+                    : "";
 
             String sql = """
-                    SELECT f.id, f.video_id, f.create_time,
-                           v.title, v.cover_url, v.duration, v.storage_path, v.source_file
+                    SELECT f.id, f.video_id, f.create_time AS favorite_time,
+                           v.title, v.cover_url, v.duration, v.storage_path, v.source_file,
+                           COALESCE(v.view_count, 0) AS view_count,
+                           v.create_time AS video_create_time,
+                           u.username AS uploader_name,
+                           (SELECT COUNT(*) FROM comments c
+                            WHERE c.video_id = v.video_id AND c.status = 1) AS comment_count
                     FROM favorites f
                     LEFT JOIN videos v ON f.video_id = v.video_id
+                    LEFT JOIN users u ON v.user_id = u.id
                     WHERE f.user_id = ?
                       AND (
                             (? = ? AND (f.folder_id IS NULL OR f.folder_id = ?))
                             OR (? <> ? AND f.folder_id = ?)
                           )
-                    ORDER BY f.create_time DESC
+                    """ + keywordClause + orderBy + """
                     LIMIT ? OFFSET ?
                     """;
+
+            if (hasKeyword) {
+                return jdbcTemplate.query(sql, (rs, i) -> mapToFavoriteItem(rs),
+                        userId,
+                        targetFolderId, defaultFolderIdForSql, defaultFolderIdForSql,
+                        targetFolderId, defaultFolderIdForSql, targetFolderId,
+                        like, like, like,
+                        pageSize, offset);
+            }
             return jdbcTemplate.query(sql, (rs, i) -> mapToFavoriteItem(rs),
                     userId,
                     targetFolderId, defaultFolderIdForSql, defaultFolderIdForSql,
@@ -172,10 +205,25 @@ public class FavoriteService {
         }
     }
 
+    private static String resolveFavoriteSortOrder(String sort) {
+        if (!StringUtils.hasText(sort)) {
+            return " ORDER BY f.create_time DESC ";
+        }
+        switch (sort.trim().toLowerCase()) {
+            case "view_count":
+                return " ORDER BY COALESCE(v.view_count, 0) DESC, f.create_time DESC ";
+            case "video_time":
+                return " ORDER BY (v.create_time IS NULL) ASC, v.create_time DESC, f.create_time DESC ";
+            case "favorite_time":
+            default:
+                return " ORDER BY f.create_time DESC ";
+        }
+    }
+
     /**
-     * 获取用户收藏总数
+     * 获取用户收藏总数（keyword 与列表接口一致，用于搜索时分页 total）
      */
-    public Long getUserFavoriteCount(Long userId, Long folderId, Long viewerUserId) {
+    public Long getUserFavoriteCount(Long userId, Long folderId, Long viewerUserId, String keyword) {
         try {
             boolean isOwner = viewerUserId != null && viewerUserId.equals(userId);
             Long defaultFolderIdForSql = isOwner
@@ -198,18 +246,52 @@ public class FavoriteService {
                 return 0L;
             }
 
-            String sql = """
-                    SELECT COUNT(*) FROM favorites
-                    WHERE user_id = ?
+            boolean hasKeyword = StringUtils.hasText(keyword);
+            String like = hasKeyword ? "%" + keyword.trim() + "%" : "";
+
+            String keywordClause = hasKeyword
+                    ? """
                       AND (
-                            (? = ? AND (folder_id IS NULL OR folder_id = ?))
-                            OR (? <> ? AND folder_id = ?)
-                          )
-                    """;
-            Object countObj = jdbcTemplate.queryForObject(sql, Object.class,
-                    userId,
-                    targetFolderId, defaultFolderIdForSql, defaultFolderIdForSql,
-                    targetFolderId, defaultFolderIdForSql, targetFolderId);
+                        v.title LIKE ?
+                        OR COALESCE(v.description, '') LIKE ?
+                        OR COALESCE(u.username, '') LIKE ?
+                      )
+                      """
+                    : "";
+
+            String sql;
+            Object countObj;
+            if (hasKeyword) {
+                sql = """
+                        SELECT COUNT(DISTINCT f.id)
+                        FROM favorites f
+                        LEFT JOIN videos v ON f.video_id = v.video_id
+                        LEFT JOIN users u ON v.user_id = u.id
+                        WHERE f.user_id = ?
+                          AND (
+                                (? = ? AND (f.folder_id IS NULL OR f.folder_id = ?))
+                                OR (? <> ? AND f.folder_id = ?)
+                              )
+                        """ + keywordClause;
+                countObj = jdbcTemplate.queryForObject(sql, Object.class,
+                        userId,
+                        targetFolderId, defaultFolderIdForSql, defaultFolderIdForSql,
+                        targetFolderId, defaultFolderIdForSql, targetFolderId,
+                        like, like, like);
+            } else {
+                sql = """
+                        SELECT COUNT(*) FROM favorites
+                        WHERE user_id = ?
+                          AND (
+                                (? = ? AND (folder_id IS NULL OR folder_id = ?))
+                                OR (? <> ? AND folder_id = ?)
+                              )
+                        """;
+                countObj = jdbcTemplate.queryForObject(sql, Object.class,
+                        userId,
+                        targetFolderId, defaultFolderIdForSql, defaultFolderIdForSql,
+                        targetFolderId, defaultFolderIdForSql, targetFolderId);
+            }
             if (countObj == null) {
                 return 0L;
             }
@@ -339,7 +421,8 @@ public class FavoriteService {
             coverUrlFinal = buildSimpleUrl(sourceFile, coverUrl);
         }
 
-        Timestamp createTime = rs.getTimestamp("create_time");
+        Timestamp favoriteTime = rs.getTimestamp("favorite_time");
+        Timestamp videoCreateTs = rs.getTimestamp("video_create_time");
 
         // 安全地读取Long类型的id，处理BigInteger转换
         Long id = null;
@@ -358,16 +441,46 @@ public class FavoriteService {
         if (title == null) {
             title = "未知标题";
         }
-        
-        return new FavoriteItem(
+
+        Integer viewCount = null;
+        Object vcObj = rs.getObject("view_count");
+        if (vcObj != null) {
+            if (vcObj instanceof Number) {
+                viewCount = ((Number) vcObj).intValue();
+            } else {
+                viewCount = Integer.parseInt(vcObj.toString());
+            }
+        }
+
+        Integer commentCount = null;
+        Object ccObj = rs.getObject("comment_count");
+        if (ccObj != null) {
+            if (ccObj instanceof Number) {
+                commentCount = ((Number) ccObj).intValue();
+            } else {
+                commentCount = Integer.parseInt(ccObj.toString());
+            }
+        }
+
+        String uploaderName = rs.getString("uploader_name");
+        if (uploaderName != null) {
+            uploaderName = uploaderName.trim();
+        }
+
+        FavoriteItem item = new FavoriteItem(
             id,
             videoId != null ? videoId : "",
             title,
             coverUrlFinal != null ? coverUrlFinal : "",
             videoUrl != null ? videoUrl : "",
             formatDuration(durationSeconds),
-            createTime != null ? createTime.toLocalDateTime().format(DATE_FORMATTER) : null
+            favoriteTime != null ? favoriteTime.toLocalDateTime().format(DATE_FORMATTER) : null
         );
+        item.setUploaderName(uploaderName != null && !uploaderName.isEmpty() ? uploaderName : null);
+        item.setViewCount(viewCount);
+        item.setCommentCount(commentCount);
+        item.setVideoCreateTime(videoCreateTs != null ? videoCreateTs.toLocalDateTime().format(DATE_FORMATTER) : null);
+        return item;
     }
 
     private String buildSimpleUrl(String sourceFile, String fileName) {

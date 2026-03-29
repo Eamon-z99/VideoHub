@@ -8,7 +8,9 @@ export const fetchVideos = (
   followingOnly = false,
   followingId = null,
   tag = null,
-  partitionTag = null
+  partitionTag = null,
+  keyword = null,
+  collectionId = undefined
 ) => {
   const params = { page, pageSize }
   if (userId) {
@@ -26,7 +28,38 @@ export const fetchVideos = (
   if (partitionTag) {
     params.partitionTag = partitionTag
   }
+  if (keyword != null && String(keyword).trim() !== '') {
+    params.keyword = String(keyword).trim()
+  }
+  if (collectionId !== undefined && collectionId !== null) {
+    params.collectionId = collectionId
+  }
   return request.get('/api/db/videos', { params })
+}
+
+/** UP 主投稿合集列表（含未分类稿件数 uncategorizedCount） */
+export const listVideoCollections = (userId) => {
+  return request.get('/api/db/video-collections', { params: { userId } })
+}
+
+export const createVideoCollection = (payload) => {
+  return request.post('/api/db/video-collections', payload)
+}
+
+export const updateVideoCollection = (collectionId, payload) => {
+  return request.put(`/api/db/video-collections/${collectionId}`, payload)
+}
+
+export const deleteVideoCollection = (collectionId) => {
+  return request.delete(`/api/db/video-collections/${collectionId}`)
+}
+
+/** 将已发布视频移入某合集；collectionId 为 null 表示移出合集 */
+export const setVideoCollectionForVideo = (videoId, collectionId) => {
+  return request.put(
+    `/api/db/video-collections/videos/${encodeURIComponent(videoId)}/collection`,
+    { collectionId: collectionId === undefined ? null : collectionId }
+  )
 }
 
 export const fetchVideoDetail = (id) => {

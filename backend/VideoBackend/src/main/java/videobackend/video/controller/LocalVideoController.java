@@ -7,9 +7,14 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 import videobackend.video.dto.VideoSearchRequest;
 import videobackend.video.model.VideoItem;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import videobackend.video.service.LocalVideoService;
+import videobackend.video.service.VideoElasticsearchService;
 import videobackend.video.service.VideoSubmissionService;
 import videobackend.video.util.JwtUtil;
+
+import org.springframework.beans.factory.annotation.Autowired;
 
 import java.io.IOException;
 import java.util.Locale;
@@ -22,16 +27,21 @@ import org.springframework.util.StringUtils;
 @RequestMapping("/api/db/videos")
 public class LocalVideoController {
 
+    private static final Logger log = LoggerFactory.getLogger(LocalVideoController.class);
+
     private final LocalVideoService localVideoService;
     private final VideoSubmissionService videoSubmissionService;
     private final JwtUtil jwtUtil;
+    private final VideoElasticsearchService videoElasticsearchService;
 
     public LocalVideoController(LocalVideoService localVideoService,
                                 VideoSubmissionService videoSubmissionService,
-                                JwtUtil jwtUtil) {
+                                JwtUtil jwtUtil,
+                                @Autowired(required = false) VideoElasticsearchService videoElasticsearchService) {
         this.localVideoService = localVideoService;
         this.videoSubmissionService = videoSubmissionService;
         this.jwtUtil = jwtUtil;
+        this.videoElasticsearchService = videoElasticsearchService;
     }
 
     @GetMapping
@@ -41,7 +51,9 @@ public class LocalVideoController {
                                     @RequestParam(required = false) Boolean followingOnly,
                                     @RequestParam(required = false) Long followingId,
                                     @RequestParam(required = false) String tag,
-                                    @RequestParam(required = false) String partitionTag) {
+                                    @RequestParam(required = false) String partitionTag,
+                                    @RequestParam(required = false) String keyword,
+                                    @RequestParam(required = false) Long collectionId) {
         List<VideoItem> items;
         long total;
 
@@ -54,6 +66,12 @@ public class LocalVideoController {
         } else if (StringUtils.hasText(tag)) {
             items = localVideoService.listPageByTag(tag.trim(), page, pageSize);
             total = localVideoService.countByTag(tag.trim());
+        } else if (userId != null && StringUtils.hasText(keyword)) {
+            items = localVideoService.listPageByUploaderKeyword(userId, keyword.trim(), page, pageSize, collectionId);
+            total = localVideoService.countByUploaderKeyword(userId, keyword.trim(), collectionId);
+        } else if (userId != null) {
+            items = localVideoService.listPageByUploader(userId, page, pageSize, collectionId);
+            total = localVideoService.countByUploader(userId, collectionId);
         } else {
             items = localVideoService.listPage(page, pageSize);
             total = localVideoService.count();
@@ -84,6 +102,7 @@ public class LocalVideoController {
                                     @RequestParam(required = false) String schedulePublishAt,
                                     @RequestParam(required = false) String collectionEnabled,
                                     @RequestParam(required = false) String collectionName,
+                                    @RequestParam(required = false) String collectionId,
                                     @RequestParam(required = false) String allowSecondCreation,
                                     @RequestParam(required = false) String commercialPromotion,
                                     @RequestParam(required = false, defaultValue = "0") int draftOnly) {
@@ -107,6 +126,7 @@ public class LocalVideoController {
                     schedulePublishAt,
                     collectionEnabled,
                     collectionName,
+                    collectionId,
                     allowSecondCreation,
                     commercialPromotion,
                     draftOnly == 1
@@ -131,6 +151,14 @@ public class LocalVideoController {
         int page = req.getPage() <= 0 ? 1 : req.getPage();
         int pageSize = req.getPageSize() <= 0 ? 20 : req.getPageSize();
         String keyword = req.getKeyword();
+
+        if (videoElasticsearchService != null && StringUtils.hasText(keyword)) {
+            try {
+                return videoElasticsearchService.search(keyword.trim(), page, pageSize);
+            } catch (Exception e) {
+                log.warn("Elasticsearch search failed, fallback to MySQL: {}", e.toString());
+            }
+        }
 
         List<VideoItem> items = localVideoService.listPageByKeyword(keyword, page, pageSize);
         long total = localVideoService.countByKeyword(keyword);

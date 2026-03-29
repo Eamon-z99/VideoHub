@@ -71,11 +71,20 @@
             </div>
           </div>
           <div class="nav-right">
-            <input 
-              v-model="keyword" 
-              class="search-input" 
-              placeholder="搜索标题/up主昵称" 
-            />
+            <div class="page-search page-search--w200">
+              <div class="search-input-row">
+                <input
+                  v-model="keyword"
+                  class="search-input"
+                  type="search"
+                  placeholder="搜索标题/up主昵称"
+                  autocomplete="off"
+                />
+                <button type="button" class="search-btn" aria-label="搜索">
+                  <img class="search-btn-img" src="/assets/search-button.png" alt="" />
+                </button>
+              </div>
+            </div>
             <button class="action-btn" @click="clearAll">清空历史</button>
             <button class="action-btn" @click="enterBatchMode">批量管理</button>
           </div>
@@ -922,20 +931,6 @@ onUnmounted(() => {
     display: flex;
     align-items: center;
     gap: 12px;
-  }
-
-  .search-input {
-    width: 200px;
-    height: 32px;
-    padding: 0 12px;
-    border: 1px solid #e3e3e3;
-    border-radius: 4px;
-    font-size: 14px;
-    outline: none;
-
-    &:focus {
-      border-color: #00a1d6;
-    }
   }
 
   .action-btn {

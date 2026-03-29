@@ -188,6 +188,7 @@
           <article 
             v-for="item in feedList" 
             :key="`${item.type}-${item.id}`" 
+            :id="item.type === 'feed' ? 'feed-card-' + item.id : undefined"
             class="feed-card"
             :class="{ 'feed-text-card': item.type === 'feed' }"
             @click="item.type === 'video' ? openVideoInNewTab(item.videoId) : null"
@@ -224,11 +225,6 @@
                 </div>
               </template>
             </div>
-            <footer class="actions" @click.stop>
-              <span>赞 {{ item.likeCount || 0 }}</span>
-              <span>评 {{ item.commentCount || 0 }}</span>
-              <span>转 {{ item.shareCount || 0 }}</span>
-            </footer>
           </article>
           <!-- 加载更多触发器 -->
           <div 
@@ -269,16 +265,17 @@
 
 <script setup>
 import { ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRouter, useRoute } from 'vue-router'
 import TopHeader from '@/components/TopHeader.vue'
 import { useUserStore } from '@/stores/user'
 import { fetchVideos } from '@/api/video'
-import { fetchFeeds, createFeed, uploadImage } from '@/api/feed'
+import { fetchFeeds, fetchFeedById, createFeed, uploadImage } from '@/api/feed'
 import { fetchMyProfile } from '@/api/userProfile'
 import { getFollowingUsers } from '@/api/follow'
 import { ElMessage } from 'element-plus'
 
 const router = useRouter()
+const route = useRoute()
 const userStore = useUserStore()
 
 const fileInputRef = ref(null)
@@ -515,6 +512,49 @@ const loadFeed = async (reset = false, options = { keepListOnReset: false }) => 
   } finally {
     loading.value = false
     loadingMore.value = false
+  }
+}
+
+/** 将接口返回的单条动态转为列表项（与 loadFeed 中 mappedFeeds 一致） */
+const mapApiFeedToListItem = (item) => ({
+  type: 'feed',
+  id: item.id,
+  feedId: item.id,
+  title: item.title || '',
+  content: item.content || '',
+  images: Array.isArray(item.images) ? item.images : [],
+  uploaderName: item.uploaderName || '未知用户',
+  uploaderAvatar: item.uploaderAvatar ? normalizeAvatarUrl(item.uploaderAvatar) : '',
+  uploaderId: item.uploaderId || null,
+  publishTime: item.createTime || new Date().toISOString(),
+  likeCount: item.likeCount || 0,
+  commentCount: item.commentCount || 0,
+  shareCount: item.shareCount || 0
+})
+
+/** 路由带 /feed/:feedId 时插入列表并滚动到对应卡片 */
+const highlightFeedFromRoute = async () => {
+  const fid = route.params.feedId
+  if (fid === undefined || fid === null || String(fid).trim() === '') return
+  try {
+    const res = await fetchFeedById(fid)
+    const data = res?.data
+    const raw = data?.data ?? data
+    if (!raw || raw.id == null) return
+    const mapped = mapApiFeedToListItem(raw)
+    const exists = feedList.value.some(
+      (x) => x.type === 'feed' && String(x.id) === String(raw.id)
+    )
+    if (!exists) {
+      feedList.value = [mapped, ...feedList.value]
+    }
+    await nextTick()
+    requestAnimationFrame(() => {
+      const el = document.getElementById(`feed-card-${raw.id}`)
+      el?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    })
+  } catch (e) {
+    console.warn('定位动态失败', e)
   }
 }
 
@@ -828,14 +868,14 @@ const loadUserProfile = async () => {
   }
 }
 
-onMounted(() => {
-  loadFeed(true)
+onMounted(async () => {
+  await loadFeed(true)
   loadFollowingUsers()
-  // 等待 DOM 渲染完成
+  await highlightFeedFromRoute()
   nextTick(() => {
     setupIntersectionObserver()
   })
-  
+
   // 如果用户已登录但没有头像，自动加载用户资料
   if (userStore.isAuthenticated) {
     const currentUser = user.value || {}
@@ -843,6 +883,10 @@ onMounted(() => {
       loadUserProfile()
     }
   }
+})
+
+watch(() => route.params.feedId, () => {
+  highlightFeedFromRoute()
 })
 
 // 监听用户状态变化，确保头像正确更新
