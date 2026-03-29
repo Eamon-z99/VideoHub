@@ -6,6 +6,7 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 import videobackend.video.model.User;
 import videobackend.video.service.ProfileVisitService;
+import videobackend.video.service.UserLevelService;
 import videobackend.video.service.UserProfileService;
 import videobackend.video.util.JwtUtil;
 
@@ -20,13 +21,16 @@ public class UserProfileController {
 
     private final UserProfileService userProfileService;
     private final ProfileVisitService profileVisitService;
+    private final UserLevelService userLevelService;
     private final JwtUtil jwtUtil;
 
     public UserProfileController(UserProfileService userProfileService,
                                  ProfileVisitService profileVisitService,
+                                 UserLevelService userLevelService,
                                  JwtUtil jwtUtil) {
         this.userProfileService = userProfileService;
         this.profileVisitService = profileVisitService;
+        this.userLevelService = userLevelService;
         this.jwtUtil = jwtUtil;
     }
 
@@ -37,7 +41,7 @@ public class UserProfileController {
             return ResponseEntity.status(401).body(Map.of("success", false, "message", "未登录或登录已过期"));
         }
         return userProfileService.getUserById(userId)
-                .<ResponseEntity<?>>map(user -> ResponseEntity.ok(buildUserPayload(user)))
+                .<ResponseEntity<?>>map(user -> ResponseEntity.ok(buildUserPayload(user, userId)))
                 .orElseGet(() -> ResponseEntity.status(404).body(Map.of("success", false, "message", "用户不存在")));
     }
 
@@ -47,7 +51,7 @@ public class UserProfileController {
     @GetMapping("/public/{userId}")
     public ResponseEntity<?> getPublicProfile(@PathVariable Long userId) {
         return userProfileService.getUserById(userId)
-                .<ResponseEntity<?>>map(user -> ResponseEntity.ok(buildPublicUserPayload(user)))
+                .<ResponseEntity<?>>map(user -> ResponseEntity.ok(buildPublicUserPayload(user, userId)))
                 .orElseGet(() -> ResponseEntity.status(404).body(Map.of("success", false, "message", "用户不存在")));
     }
 
@@ -123,7 +127,7 @@ public class UserProfileController {
         return null;
     }
 
-    private Map<String, Object> buildUserPayload(User user) {
+    private Map<String, Object> buildUserPayload(User user, Long userIdForLevel) {
         // Map.of 不允许 null，这里用可写 Map，避免 email/avatar/bio 为空时 500
         Map<String, Object> payload = new HashMap<>();
         payload.put("success", true);
@@ -133,17 +137,29 @@ public class UserProfileController {
         payload.put("email", user.getEmail());
         payload.put("avatar", user.getAvatar());
         payload.put("bio", user.getBio());
+        putLevel(payload, userIdForLevel);
         return payload;
     }
 
-    private Map<String, Object> buildPublicUserPayload(User user) {
+    private Map<String, Object> buildPublicUserPayload(User user, Long userIdForLevel) {
         Map<String, Object> payload = new HashMap<>();
         payload.put("success", true);
         payload.put("id", user.getId());
         payload.put("username", user.getUsername());
         payload.put("avatar", user.getAvatar());
         payload.put("bio", user.getBio() != null ? user.getBio() : "");
+        putLevel(payload, userIdForLevel);
         return payload;
+    }
+
+    private void putLevel(Map<String, Object> payload, Long userId) {
+        try {
+            Map<String, Object> prog = userLevelService.getUserLevelProgress(userId);
+            Object lv = prog.get("level");
+            payload.put("level", lv instanceof Number ? ((Number) lv).intValue() : 0);
+        } catch (Exception e) {
+            payload.put("level", 0);
+        }
     }
 }
 

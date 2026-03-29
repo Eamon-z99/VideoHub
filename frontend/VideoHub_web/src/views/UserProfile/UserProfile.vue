@@ -27,7 +27,13 @@
             <div class="user-meta">
               <div class="name-row">
                 <div class="name">{{ nickname }}</div>
-                <span class="badge level">LV5</span>
+                <span class="badge level">
+                  <img
+                    class="badge-level-icon"
+                    :src="profileLevelIconUrl"
+                    :alt="`LV${profileLevelClamped}`"
+                  />
+                </span>
                 <span class="badge vip">大会员</span>
               </div>
               <div
@@ -54,7 +60,7 @@
             v-for="t in tabs"
             :key="t.key"
             class="tab"
-            :class="{ active: t.key === activeTab }"
+            :class="{ active: t.key === activeTab && !relationsView }"
             @click="onTabChange(t.key)"
           >
             <span class="tab-icon" :class="t.key">
@@ -80,26 +86,34 @@
           </button>
         </div>
         <div class="user-stats">
-          <div class="stat">
-            <div class="num">{{ stats.following }}</div>
+          <div
+            class="stat stat--clickable"
+            :class="{ 'stat--relations-active': relationsView === 'following' }"
+            @click="goProfileRelations('following')"
+          >
             <div class="label">关注数</div>
+            <div class="num">{{ stats.following }}</div>
           </div>
-          <div class="stat">
-            <div class="num">{{ stats.followers }}</div>
+          <div
+            class="stat stat--clickable"
+            :class="{ 'stat--relations-active': relationsView === 'fans' }"
+            @click="goProfileRelations('fans')"
+          >
             <div class="label">粉丝数</div>
+            <div class="num">{{ stats.followers }}</div>
           </div>
           <div class="stat">
-            <div class="num">{{ stats.likes }}</div>
             <div class="label">获赞数</div>
+            <div class="num">{{ stats.likes }}</div>
           </div>
           <div class="stat">
-            <div class="num">{{ stats.views }}</div>
             <div class="label">播放数</div>
+            <div class="num">{{ stats.views }}</div>
           </div>
         </div>
       </nav>
-      <div class="content-inner user-profile-container" :class="{ 'no-left-panel': activeTab !== 'collections' && activeTab !== 'submit' }">
-        <aside class="left-panel" v-if="activeTab === 'collections'">
+      <div class="content-inner user-profile-container" :class="{ 'no-left-panel': activeTab !== 'collections' && activeTab !== 'submit' && !relationsView }">
+        <aside class="left-panel" v-if="activeTab === 'collections' && !relationsView">
           <div class="panel-section">
             <div class="panel-title">{{ canManageCollections ? '我创建的收藏夹' : '公开收藏夹' }}</div>
             <button v-if="canManageCollections" class="new-folder" @click="onCreateFolder">
@@ -198,7 +212,7 @@
           </div>
         </aside>
 
-        <aside v-if="activeTab === 'submit'" class="left-panel submit-left-panel">
+        <aside v-if="activeTab === 'submit' && !relationsView" class="left-panel submit-left-panel">
           <div class="panel-section">
             <div class="panel-title-row submit-coll-title-row">
               <span class="panel-title">投稿合集</span>
@@ -275,7 +289,13 @@
           </div>
         </aside>
 
-        <section class="right-panel">
+        <ProfileRelationsPanel
+          v-if="relationsView"
+          v-model:mode="relationsView"
+          :profile-user-id="currentUserId"
+        />
+        <section v-else class="right-panel">
+          <div class="profile-tab-main">
           <div v-if="activeTab === 'collections'" class="fav-header">
             <template v-if="activeFollowedCollectionId && activeFollowedCollection">
               <div class="fav-cover">
@@ -843,6 +863,7 @@
               </el-config-provider>
             </div>
           </div>
+          </div>
         </section>
       </div>
     </main>
@@ -853,6 +874,7 @@
 import TopHeader from '@/components/TopHeader.vue'
 import VideoCard from '@/components/VideoCard.vue'
 import ProfileHome from './ProfileHome.vue'
+import ProfileRelationsPanel from './ProfileRelationsPanel.vue'
 import {
   fetchVideos,
   listVideoCollections,
@@ -866,6 +888,7 @@ import {
 import { getFavoriteListByFolder } from '@/api/favorite'
 import { getFavoriteFolderList, createFavoriteFolder } from '@/api/favoriteFolder'
 import { fetchMyProfile, fetchPublicProfile, updateAvatar as apiUpdateAvatar, updateBio as apiUpdateBio, recordProfileVisit } from '@/api/userProfile'
+import { getUserLevelProgress, getPublicUserLevelProgress } from '@/api/userLevel'
 import { getUserStats } from '@/api/follow'
 import { fetchFeedsByAuthor } from '@/api/feed'
 import { useUserStore } from '@/stores/user'
@@ -882,12 +905,28 @@ const DEFAULT_GREY_AVATAR = `data:image/svg+xml;charset=UTF-8,${encodeURICompone
 
 export default {
   name: 'UserProfile',
-  components: { TopHeader, ProfileHome, VideoCard },
+  components: { TopHeader, ProfileHome, ProfileRelationsPanel, VideoCard },
+  beforeRouteUpdate (to, from, next) {
+    next()
+    this.$nextTick(() => {
+      this.applyTabQueryFromRoute()
+      const raw = to.query.tab
+      const tab = typeof raw === 'string' ? raw : (Array.isArray(raw) && raw[0] ? raw[0] : null)
+      if (tab === 'dynamics' && this.currentUserId) {
+        this.loadDynamics(true)
+      }
+      if (tab === 'collections' && this.currentUserId && !this.relationsView) {
+        this.initCollections()
+      }
+    })
+  },
   data () {
     return {
       zhCn,
       coverImage: '/assets/topheader/favorite.png',
       activeTab: 'collections',
+      /** 由关注数/粉丝数点击触发，非主导航 Tab */
+      relationsView: null,
       tabs: [
         { key: 'home', label: '主页' },
         { key: 'dynamics', label: '动态', count: null },
@@ -972,10 +1011,21 @@ export default {
       dynamicsPage: 1,
       dynamicsPageSize: 10,
       dynamicsTotal: 0,
-      _dynamicsLoadId: 0
+      _dynamicsLoadId: 0,
+      /** 个人主页徽章等级 0–6，与 /assets/level_n.svg 一致 */
+      headerLevel: 0
     }
   },
   computed: {
+    profileLevelClamped () {
+      const n = Number(this.headerLevel)
+      if (!Number.isFinite(n) || n < 0) return 0
+      if (n > 6) return 6
+      return n
+    },
+    profileLevelIconUrl () {
+      return `/assets/level_${this.profileLevelClamped}.svg?v=${this.profileLevelClamped}`
+    },
     activeFolder () {
       return this.folders.find(f => f.id === this.activeFolderId)
     },
@@ -1040,24 +1090,7 @@ export default {
     )
   },
   mounted () {
-    // 检查URL参数，如果有tab参数，切换到对应tab
-    const urlParams = new URLSearchParams(window.location.search)
-    const tab = urlParams.get('tab')
-    
-    if (tab === 'collections') {
-      this.activeTab = 'collections'
-    }
-    if (tab === 'dynamics') {
-      this.activeTab = 'dynamics'
-    }
-
-    const routeUid = this.$route?.params?.id
-    const store = useUserStore()
-    const myUid = store.user?.userId || store.user?.id
-    const viewingOthers = routeUid && (!myUid || String(routeUid) !== String(myUid))
-    if (viewingOthers && tab !== 'collections' && tab !== 'dynamics') {
-      this.activeTab = 'home'
-    }
+    this.applyTabQueryFromRoute()
 
     // 先加载当前用户资料（头像 + 签名）或他人公开资料
     this.loadProfile()
@@ -1067,10 +1100,10 @@ export default {
           this.recordVisitIfNeeded(this.currentUserId)
         }
         // 如果初始就是收藏tab，则加载数据（initCollections 会处理 folder 参数）
-        if (this.activeTab === 'collections' && this.currentUserId) {
+        if (this.activeTab === 'collections' && this.currentUserId && !this.relationsView) {
           this.initCollections()
         }
-        if (this.activeTab === 'dynamics' && this.currentUserId) {
+        if (this.activeTab === 'dynamics' && this.currentUserId && !this.relationsView) {
           this.loadDynamics(true)
         }
 
@@ -1128,6 +1161,44 @@ export default {
       } catch (e) {
         // 访问记录失败不影响页面主流程
       }
+    },
+
+    /** 与顶部下拉「关注/粉丝/动态」及 ?tab= 同步：收藏区主导航 + 关注/粉丝浮层 */
+    applyTabQueryFromRoute () {
+      const raw = this.$route.query.tab
+      const tab = typeof raw === 'string' ? raw : (Array.isArray(raw) && raw[0] ? raw[0] : null)
+
+      const routeUid = this.$route?.params?.id
+      const store = useUserStore()
+      const myUid = store.user?.userId || store.user?.id
+      const viewingOthers = routeUid && (!myUid || String(routeUid) !== String(myUid))
+
+      if (tab === 'collections') {
+        this.activeTab = 'collections'
+        this.relationsView = null
+      }
+      if (tab === 'dynamics') {
+        this.activeTab = 'dynamics'
+        this.relationsView = null
+      }
+      if (tab === 'following') {
+        this.activeTab = 'collections'
+        this.relationsView = 'following'
+      }
+      if (tab === 'fans') {
+        this.activeTab = 'collections'
+        this.relationsView = 'fans'
+      }
+
+      if (viewingOthers && tab !== 'collections' && tab !== 'dynamics' && tab !== 'following' && tab !== 'fans') {
+        this.activeTab = 'home'
+      }
+    },
+
+    goProfileRelations (type) {
+      const uid = this.currentUserId
+      if (uid == null || uid === '') return
+      this.relationsView = type === 'fans' ? 'fans' : 'following'
     },
     onFollowedCollectionSelect (f) {
       if (!f || f.id == null) return
@@ -1634,6 +1705,11 @@ export default {
       // 其他情况，当作相对路径处理
       return '/' + url
     },
+    applyHeaderLevelFromProgress (payload) {
+      if (!payload || payload.level == null || payload.level === '') return
+      const n = Number(payload.level)
+      this.headerLevel = Number.isFinite(n) ? n : 0
+    },
     async loadProfile () {
       try {
         const userStore = this.userStore || useUserStore()
@@ -1642,24 +1718,49 @@ export default {
         const isOthersSpace = routeUserId && (!myUserId || String(routeUserId) !== String(myUserId))
 
         if (isOthersSpace) {
-          const { data } = await fetchPublicProfile(routeUserId)
+          const [pubRes, lvlRes] = await Promise.all([
+            fetchPublicProfile(routeUserId),
+            getPublicUserLevelProgress(routeUserId).catch(() => ({ data: null }))
+          ])
+          const data = pubRes?.data
+          const ld = lvlRes?.data
           if (data && data.success !== false && data.id != null) {
             this.nickname = data.username || '-'
             this.avatar = data.avatar ? this.normalizeAvatarUrl(data.avatar) : DEFAULT_GREY_AVATAR
             this.bio = typeof data.bio === 'string' ? data.bio : ''
+            if (ld && (ld.success !== false) && ld.level != null) {
+              this.applyHeaderLevelFromProgress(ld)
+            } else if (data.level != null) {
+              this.applyHeaderLevelFromProgress({ level: data.level })
+            } else {
+              this.headerLevel = 0
+            }
           }
           return
         }
 
         if (!userStore.isAuthenticated) return
 
-        const { data } = await fetchMyProfile()
+        const [profileRes, lvlRes] = await Promise.all([
+          fetchMyProfile(),
+          getUserLevelProgress().catch(() => ({ data: null }))
+        ])
+        const data = profileRes?.data
+        const ld = lvlRes?.data
         if (data && data.id) {
           this.nickname = data.username || this.nickname
           if (data.avatar) {
             this.avatar = this.normalizeAvatarUrl(data.avatar)
           }
           this.bio = data.bio || ''
+          // 与顶部下拉一致：以 /api/user/level/progress 为准
+          if (ld && (ld.success !== false) && ld.level != null) {
+            this.applyHeaderLevelFromProgress(ld)
+          } else if (data.level != null) {
+            this.applyHeaderLevelFromProgress({ level: data.level })
+          } else {
+            this.headerLevel = 0
+          }
           // 同步到全局 userStore，保证顶部头像一致
           const currentUser = userStore.user || {}
           const normalizedAvatar = data.avatar ? this.normalizeAvatarUrl(data.avatar) : (currentUser.avatar || '')
@@ -1699,6 +1800,7 @@ export default {
       if (!this.canManageCollections && this.isBatchMode) {
         this.exitBatchMode()
       }
+      this.relationsView = null
       this.activeTab = key
       if (key === 'collections' && this.currentUserId) {
         this.initCollections()
@@ -2685,8 +2787,32 @@ export default {
       backdrop-filter: blur(2px);
     }
 
+    /* 仅展示等级 SVG，不要药丸底与描边（与 .badge 默认样式区分） */
+    .badge.level {
+      display: inline-flex;
+      align-items: center;
+      padding: 0;
+      margin: 0;
+      background: transparent !important;
+      border: none !important;
+      backdrop-filter: none !important;
+      box-shadow: none !important;
+      font-size: 0;
+      line-height: 0;
+
+      .badge-level-icon {
+        height: 40px;
+        width: auto;
+        max-width: 86px;
+        object-fit: contain;
+        display: block;
+        flex-shrink: 0;
+      }
+    }
+
     .badge.vip {
       background: rgba(255, 255, 255, 0.18);
+      margin-left: -8px;
     }
   }
 }
@@ -2706,6 +2832,22 @@ export default {
     gap: 18px;
   }
 
+  .user-stats .stat--clickable {
+    cursor: pointer;
+    border-radius: 8px;
+    transition: color 0.15s;
+
+    &.stat--relations-active {
+      .num {
+        color: #00a1d6;
+      }
+
+      .label {
+        color: #00a1d6;
+      }
+    }
+  }
+
   .user-stats {
     display: grid;
     grid-auto-flow: column;
@@ -2714,20 +2856,27 @@ export default {
     font-size: 14px;
 
     .stat {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
       text-align: center;
       min-width: 60px;
-    }
-
-    .num {
-      font-weight: 700;
-      font-size: 16px;
-      color: #222;
+      padding: 4px 10px;
+      box-sizing: border-box;
     }
 
     .label {
-      margin-top: 2px;
-      font-size: 12px;
+      margin: 0 0 2px;
+      font-size: 13px;
+      line-height: 1.2;
       color: #999;
+    }
+
+    .num {
+      // font-weight: 700;
+      font-size: 14px;
+      line-height: 1.2;
+      color: #222;
     }
   }
 

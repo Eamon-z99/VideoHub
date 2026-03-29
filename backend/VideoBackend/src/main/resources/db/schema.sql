@@ -193,19 +193,40 @@ CREATE TABLE IF NOT EXISTS `comment_likes` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='评论点赞表';
 
 -- ============================================
--- 9. 关注表（已重命名为 fans）
+-- 9. 关注分组（须先于 fans 创建，供 fans.group_id 外键引用）
+-- 每条关注关系最多归属一个自定义分组；NULL 表示仅在「全部关注」中展示、未归入某组
+-- ============================================
+CREATE TABLE IF NOT EXISTS `follow_group` (
+    `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '分组ID',
+    `user_id` BIGINT UNSIGNED NOT NULL COMMENT '分组所有者（即关注方，对应 fans.follower_id）',
+    `name` VARCHAR(100) NOT NULL COMMENT '分组名称',
+    `sort_order` INT NOT NULL DEFAULT 0 COMMENT '排序（越小越靠前）',
+    `create_time` DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    `update_time` DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+    PRIMARY KEY (`id`),
+    UNIQUE KEY `uk_user_group_name` (`user_id`, `name`),
+    INDEX `idx_user_id` (`user_id`),
+    INDEX `idx_user_sort` (`user_id`, `sort_order`),
+    FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='关注分组表';
+
+-- ============================================
+-- 10. 关注表（已重命名为 fans）
 -- ============================================
 CREATE TABLE IF NOT EXISTS `fans` (
     `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '关注ID',
     `follower_id` BIGINT UNSIGNED NOT NULL COMMENT '关注者ID',
     `following_id` BIGINT UNSIGNED NOT NULL COMMENT '被关注者ID',
+    `group_id` BIGINT UNSIGNED DEFAULT NULL COMMENT '所属自定义分组（NULL=未归入分组；须属于 follow_group 且 follow_group.user_id=follower_id）',
     `create_time` DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
     PRIMARY KEY (`id`),
     UNIQUE KEY `uk_follower_following` (`follower_id`, `following_id`),
     INDEX `idx_follower_id` (`follower_id`),
     INDEX `idx_following_id` (`following_id`),
+    INDEX `idx_follower_group` (`follower_id`, `group_id`),
     FOREIGN KEY (`follower_id`) REFERENCES `users` (`id`) ON DELETE CASCADE,
     FOREIGN KEY (`following_id`) REFERENCES `users` (`id`) ON DELETE CASCADE,
+    FOREIGN KEY (`group_id`) REFERENCES `follow_group` (`id`) ON DELETE SET NULL,
     CHECK (`follower_id` != `following_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='关注表';
 

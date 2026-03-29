@@ -139,7 +139,9 @@ public class FollowController {
                 return ResponseEntity.status(401).body(Map.of("success", false, "message", "未登录或登录已过期"));
             }
 
-            List<Map<String, Object>> followingUsers = followService.getFollowingUsers(userId);
+            long viewer = userId;
+            String sort = request.getParameter("sort");
+            List<Map<String, Object>> followingUsers = followService.getFollowingUsers(userId, viewer, sort != null ? sort : "recent");
             return ResponseEntity.ok(Map.of("success", true, "users", followingUsers));
         } catch (Exception e) {
             return ResponseEntity.status(500).body(Map.of("success", false, "message", "获取关注用户列表失败: " + e.getMessage()));
@@ -156,7 +158,9 @@ public class FollowController {
             if (userId == null) {
                 return ResponseEntity.status(401).body(Map.of("success", false, "message", "未登录或登录已过期"));
             }
-            List<Map<String, Object>> fans = followService.getFollowerUsers(userId);
+            long viewer = userId;
+            String sort = request.getParameter("sort");
+            List<Map<String, Object>> fans = followService.getFollowerUsers(userId, viewer, sort != null ? sort : "recent");
             return ResponseEntity.ok(Map.of("success", true, "users", fans));
         } catch (Exception e) {
             return ResponseEntity.status(500).body(Map.of("success", false, "message", "获取粉丝列表失败: " + e.getMessage()));
@@ -188,6 +192,130 @@ public class FollowController {
     }
 
     /**
+     * 公开：某用户关注列表（可选登录；登录时返回当前用户对每项的 iFollow）
+     */
+    @GetMapping("/profile/{profileUserId}/following")
+    public ResponseEntity<?> getProfileFollowing(@PathVariable Long profileUserId,
+                                                   @RequestParam(required = false, defaultValue = "recent") String sort,
+                                                   HttpServletRequest request) {
+        try {
+            Long viewer = getOptionalUserIdFromRequest(request);
+            long v = viewer != null ? viewer : -1L;
+            List<Map<String, Object>> users = followService.getFollowingUsers(profileUserId, v, sort);
+            return ResponseEntity.ok(Map.of("success", true, "users", users));
+        } catch (Exception e) {
+            return ResponseEntity.status(500).body(Map.of("success", false, "message", "获取失败: " + e.getMessage()));
+        }
+    }
+
+    /**
+     * 公开：某用户粉丝列表
+     */
+    @GetMapping("/profile/{profileUserId}/fans")
+    public ResponseEntity<?> getProfileFans(@PathVariable Long profileUserId,
+                                            @RequestParam(required = false, defaultValue = "recent") String sort,
+                                            HttpServletRequest request) {
+        try {
+            Long viewer = getOptionalUserIdFromRequest(request);
+            long v = viewer != null ? viewer : -1L;
+            List<Map<String, Object>> users = followService.getFollowerUsers(profileUserId, v, sort);
+            return ResponseEntity.ok(Map.of("success", true, "users", users));
+        } catch (Exception e) {
+            return ResponseEntity.status(500).body(Map.of("success", false, "message", "获取失败: " + e.getMessage()));
+        }
+    }
+
+    /**
+     * 我的关注分组列表（需登录）
+     */
+    @GetMapping("/groups")
+    public ResponseEntity<?> listFollowGroups(HttpServletRequest request) {
+        try {
+            Long userId = getUserIdFromRequest(request);
+            if (userId == null) {
+                return ResponseEntity.status(401).body(Map.of("success", false, "message", "未登录或登录已过期"));
+            }
+            var groups = followService.listFollowGroups(userId);
+            return ResponseEntity.ok(Map.of("success", true, "groups", groups));
+        } catch (Exception e) {
+            return ResponseEntity.status(500).body(Map.of("success", false, "message", "获取分组失败: " + e.getMessage()));
+        }
+    }
+
+    /**
+     * 新建关注分组（需登录）
+     */
+    @PostMapping("/groups")
+    public ResponseEntity<?> createFollowGroup(HttpServletRequest request, @RequestBody Map<String, Object> body) {
+        try {
+            Long userId = getUserIdFromRequest(request);
+            if (userId == null) {
+                return ResponseEntity.status(401).body(Map.of("success", false, "message", "未登录或登录已过期"));
+            }
+            Object nameObj = body != null ? body.get("name") : null;
+            String name = nameObj != null ? nameObj.toString() : "";
+            Map<String, Object> created = followService.createFollowGroup(userId, name);
+            return ResponseEntity.ok(Map.of("success", true, "group", created));
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(Map.of("success", false, "message", e.getMessage()));
+        } catch (Exception e) {
+            return ResponseEntity.status(500).body(Map.of("success", false, "message", "创建分组失败: " + e.getMessage()));
+        }
+    }
+
+    /**
+     * 删除关注分组（需登录）
+     */
+    @DeleteMapping("/groups/{groupId}")
+    public ResponseEntity<?> deleteFollowGroup(HttpServletRequest request, @PathVariable Long groupId) {
+        try {
+            Long userId = getUserIdFromRequest(request);
+            if (userId == null) {
+                return ResponseEntity.status(401).body(Map.of("success", false, "message", "未登录或登录已过期"));
+            }
+            boolean ok = followService.deleteFollowGroup(userId, groupId);
+            return ResponseEntity.ok(Map.of("success", ok));
+        } catch (Exception e) {
+            return ResponseEntity.status(500).body(Map.of("success", false, "message", "删除分组失败: " + e.getMessage()));
+        }
+    }
+
+    /**
+     * 将某个已关注用户移入/移出分组（groupId 为空则未分组）
+     */
+    @PutMapping("/following/group")
+    public ResponseEntity<?> setFollowingGroup(HttpServletRequest request, @RequestBody Map<String, Object> body) {
+        try {
+            Long followerId = getUserIdFromRequest(request);
+            if (followerId == null) {
+                return ResponseEntity.status(401).body(Map.of("success", false, "message", "未登录或登录已过期"));
+            }
+            if (body == null) {
+                return ResponseEntity.badRequest().body(Map.of("success", false, "message", "请求体为空"));
+            }
+            Object fid = body.get("followingId");
+            if (fid == null) {
+                return ResponseEntity.badRequest().body(Map.of("success", false, "message", "缺少 followingId"));
+            }
+            long followingId = (fid instanceof Number n) ? n.longValue() : Long.parseLong(fid.toString());
+            Long groupId = null;
+            if (body.containsKey("groupId") && body.get("groupId") != null) {
+                Object g = body.get("groupId");
+                groupId = (g instanceof Number n) ? n.longValue() : Long.parseLong(g.toString());
+            }
+            boolean ok = followService.setFollowingGroup(followerId, followingId, groupId);
+            if (!ok) {
+                return ResponseEntity.badRequest().body(Map.of("success", false, "message", "未关注该用户或更新失败"));
+            }
+            return ResponseEntity.ok(Map.of("success", true));
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(Map.of("success", false, "message", e.getMessage()));
+        } catch (Exception e) {
+            return ResponseEntity.status(500).body(Map.of("success", false, "message", "设置分组失败: " + e.getMessage()));
+        }
+    }
+
+    /**
      * 获取用户统计信息（关注数、粉丝数、视频数）
      */
     @GetMapping("/stats")
@@ -214,6 +342,30 @@ public class FollowController {
                     try {
                         return Long.parseLong((String) userIdObj);
                     } catch (NumberFormatException ignore) {
+                    }
+                }
+            }
+        }
+        return null;
+    }
+
+    /** 不校验是否登录；无/无效 token 时返回 null */
+    private Long getOptionalUserIdFromRequest(HttpServletRequest request) {
+        String bearerToken = request.getHeader("Authorization");
+        if (bearerToken != null && bearerToken.startsWith("Bearer ")) {
+            String token = bearerToken.substring(7);
+            if (jwtUtil.validateToken(token)) {
+                Claims claims = jwtUtil.getClaimsFromToken(token);
+                if (claims != null) {
+                    Object userIdObj = claims.get("userId");
+                    if (userIdObj instanceof Number) {
+                        return ((Number) userIdObj).longValue();
+                    }
+                    if (userIdObj instanceof String) {
+                        try {
+                            return Long.parseLong((String) userIdObj);
+                        } catch (NumberFormatException ignore) {
+                        }
                     }
                 }
             }

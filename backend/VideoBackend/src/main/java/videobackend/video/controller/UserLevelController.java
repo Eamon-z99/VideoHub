@@ -23,6 +23,25 @@ public class UserLevelController {
     }
 
     /**
+     * 公开：任意用户等级进度（个人主页徽章用，与 /progress 计算一致）
+     */
+    @GetMapping("/public/{userId}")
+    public ResponseEntity<?> getPublicProgress(@PathVariable Long userId) {
+        try {
+            return ResponseEntity.ok(userLevelService.getUserLevelProgress(userId));
+        } catch (Exception e) {
+            return ResponseEntity.ok(Map.of(
+                    "success", true,
+                    "level", 0,
+                    "nextLevel", 1,
+                    "currentExp", 0,
+                    "needExp", 50,
+                    "progressPercent", 0.0
+            ));
+        }
+    }
+
+    /**
      * 获取用户等级进度（给前端顶部下拉展示用）
      */
     @GetMapping("/progress")

@@ -49,15 +49,15 @@
           
           <!-- 统计数据 -->
           <div class="user-stats">
-            <div class="stat-item">
+            <div class="stat-item" role="button" tabindex="0" @click="goToProfileTab('following')" @keydown.enter.prevent="goToProfileTab('following')">
               <div class="stat-value">{{ following }}</div>
               <div class="stat-label">关注</div>
             </div>
-            <div class="stat-item">
+            <div class="stat-item" role="button" tabindex="0" @click="goToProfileTab('fans')" @keydown.enter.prevent="goToProfileTab('fans')">
               <div class="stat-value">{{ fans }}</div>
               <div class="stat-label">粉丝</div>
             </div>
-            <div class="stat-item">
+            <div class="stat-item" role="button" tabindex="0" @click="goToProfileTab('dynamics')" @keydown.enter.prevent="goToProfileTab('dynamics')">
               <div class="stat-value">{{ dynamics }}</div>
               <div class="stat-label">动态</div>
             </div>
@@ -513,6 +513,21 @@ const goToProfile = () => {
   emit('update:visible', false)
 }
 
+/** 跳转个人主页（收藏页布局）下对应状态：新标签页打开，避免占用当前页 */
+const goToProfileTab = (tab) => {
+  const uid = user.value?.id || user.value?.userId
+  if (!uid) {
+    ElMessage.warning('请先登录')
+    return
+  }
+  const r = router.resolve({ name: 'profile', params: { id: String(uid) }, query: { tab } })
+  const path = r.href || r.fullPath
+  const url = /^https?:\/\//i.test(path) ? path : new URL(path, window.location.origin).href
+  window.open(url, '_blank', 'noopener,noreferrer')
+  emit('close')
+  emit('update:visible', false)
+}
+
 const goToSubmit = () => {
   openInNewTab('/submitHome')
   emit('close')
@@ -742,13 +757,23 @@ const handleLogout = async () => {
         text-align: center;
         cursor: pointer;
         padding: 6px 0;
-        border-radius: 8px;
-        transition: background 0.15s ease, color 0.2s ease;
+        border-radius: 0;
+        background: transparent;
+        transition: color 0.15s ease;
 
-        // &:hover {
-        //   color: #00a1d6;
-        //   background: rgba(245, 247, 250, 0.9);
-        // }
+        &:hover,
+        &:focus-visible {
+          background: transparent;
+
+          .stat-value,
+          .stat-label {
+            color: #00a1d6;
+          }
+        }
+
+        &:focus-visible {
+          outline: none;
+        }
       }
 
       .stat-value {
@@ -756,12 +781,14 @@ const handleLogout = async () => {
         line-height: 1.1;
         font-weight: 500;
         color: #18191c;
+        transition: color 0.15s ease;
       }
 
       .stat-label {
         margin-top: 6px;
         font-size: 13px;
         color: #61666d;
+        transition: color 0.15s ease;
       }
     }
   }

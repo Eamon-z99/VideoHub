@@ -69,7 +69,13 @@ public class JwtInterceptor implements HandlerInterceptor {
             // 动态列表 GET（含个人主页 authorId 查询）允许未登录访问
             (path.equals("/api/feeds") && "GET".equals(request.getMethod())) ||
             // 单条动态详情 GET：/api/feeds/数字
-            ("GET".equals(request.getMethod()) && path.matches("/api/feeds/\\d+"))) {
+            ("GET".equals(request.getMethod()) && path.matches("/api/feeds/\\d+")) ||
+            // 个人关注/粉丝列表（公开可读，登录则带 iFollow）
+            ("GET".equals(request.getMethod()) && path.matches("/api/follows/profile/\\d+/following")) ||
+            ("GET".equals(request.getMethod()) && path.matches("/api/follows/profile/\\d+/fans")) ||
+            // 用户公开资料、公开等级（访客可看个人主页）
+            ("GET".equals(request.getMethod()) && path.matches("/api/user/profile/public/\\d+")) ||
+            ("GET".equals(request.getMethod()) && path.matches("/api/user/level/public/\\d+"))) {
             return true;
         }
 
