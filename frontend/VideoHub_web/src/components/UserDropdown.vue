@@ -25,6 +25,7 @@
             <div class="level-info">
               <img
                 class="level-icon"
+                :class="{ 'level-icon--lv1': isCurrentLevelOne }"
                 :src="currentLevelIconUrlWithCache"
                 :alt="`LV${currentLevel}`"
               />
@@ -33,6 +34,7 @@
               </div>
               <img
                 class="level-icon"
+                :class="{ 'level-icon--lv1': isNextLevelOne }"
                 :src="nextLevelIconUrlWithCache"
                 :alt="`LV${nextLevelForIcon}`"
               />
@@ -207,6 +209,9 @@ const nextLevelIconUrl = computed(() => `/assets/level_${nextLevelForIcon.value}
 // 带一个轻量 cache bust，避免浏览器缓存导致不刷新
 const currentLevelIconUrlWithCache = computed(() => `${currentLevelIconUrl.value}?v=${clampLevel(currentLevel.value)}`)
 const nextLevelIconUrlWithCache = computed(() => `${nextLevelIconUrl.value}?v=${nextLevelForIcon.value}`)
+
+const isCurrentLevelOne = computed(() => clampLevel(currentLevel.value) === 1)
+const isNextLevelOne = computed(() => nextLevelForIcon.value === 1)
 
 const themeText = ref('浅色')
 
@@ -713,9 +718,19 @@ const handleLogout = async () => {
         .level-icon {
           width: 60px;
           height: 32px;
-          flex: 0 0 40px;
-          display: inline-block;
-          object-fit: contain;
+          flex: 0 0 auto; /* 防止 flex 基础尺寸影响 svg 实际渲染宽度 */
+          display: block;
+          /* 资源本身 viewBox 留白不一致（例如 level_0/2 是 30x30，level_1 是 26x14），
+             为保证视觉尺寸一致，这里强制铺满盒子 */
+          object-fit: fill;
+          margin: 0;
+          padding: 0;
+        }
+
+        /* 仅 LV1：长减 20px、宽减 10px */
+        .level-icon.level-icon--lv1 {
+          width: 52px;
+          height: 13px;
         }
 
         .progress-bar {

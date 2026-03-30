@@ -1305,6 +1305,8 @@ const loadCommentTotalWithReplies = async () => {
 
 const normalizeAvatarUrl = (url) => {
   if (!url) return ''
+  // data URL（默认灰头像）直接返回
+  if (url.startsWith('data:')) return url
   if (url.startsWith('http://') || url.startsWith('https://')) {
     return url
   }

@@ -983,7 +983,7 @@ const onRefreshVideos = () => {
 .section {
   max-width: 1350px;
   width: 100%;
-  margin: 80px auto 40px;
+  margin: 55px auto 40px;
   // padding: 0 20px;
   box-sizing: border-box;
 

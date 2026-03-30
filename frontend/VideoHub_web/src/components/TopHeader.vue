@@ -89,11 +89,10 @@
         />
       </div>
       <div 
-        class="user-area" 
-        @click="handleUserClick"
+        class="user-area guest-user-area"
         v-else
       >
-        <div class="avatar" />
+        <button class="login-btn" type="button" @click="handleUserClick">登录</button>
       </div>
       <div class="action-col" @click="goTo('/vip')">
         <img src="/assets/vip.png" class="action-icon" /><span>大会员</span>
@@ -301,6 +300,8 @@ function onDocClick(e: MouseEvent) {
 // 规范化头像 URL
 const normalizeAvatarUrl = (url: string) => {
   if (!url) return ''
+  // data URL（默认灰头像）直接返回
+  if (url.startsWith('data:')) return url
   // 如果已经是完整 URL（http/https），直接返回
   if (url.startsWith('http://') || url.startsWith('https://')) {
     return url
@@ -856,6 +857,39 @@ onUnmounted(() => {
   border-radius: 20px;
   transition: background 0.2s;
   overflow: visible;
+}
+
+.guest-user-area {
+  cursor: default;
+  padding: 0;
+}
+
+.login-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  border: 0;
+  border-radius: 50%;
+  background: #00aeec;
+  color: #fff;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1;
+  cursor: pointer;
+  user-select: none;
+  white-space: nowrap;
+  writing-mode: horizontal-tb;
+  text-orientation: mixed;
+}
+
+.login-btn:hover {
+  background: #00aeec;
+}
+
+.login-btn:active {
+  transform: translateY(0.5px);
 }
 
 .avatar {

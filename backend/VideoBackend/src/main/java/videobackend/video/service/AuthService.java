@@ -1,6 +1,7 @@
 package videobackend.video.service;
 
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
 import videobackend.video.dto.LoginRequest;
 import videobackend.video.dto.LoginResponse;
@@ -28,10 +29,23 @@ public class AuthService {
     }
 
     public LoginResponse login(LoginRequest request) {
-        // 查找用户
-        Optional<User> userOpt = userRepository.findByAccount(request.getAccount());
+        String account = request.getAccount() == null ? "" : request.getAccount().trim();
+        String inputPassword = request.getPassword() == null ? "" : request.getPassword().trim();
+
+        // 账号不存在时自动注册；并发场景下若被抢先注册，直接回查即可
+        Optional<User> userOpt = userRepository.findByAccount(account);
         if (userOpt.isEmpty()) {
-            throw new RuntimeException("账号或密码错误");
+            try {
+                String encodedPassword = passwordEncoder.encode(inputPassword);
+                String username = account;
+                userRepository.createUser(account, username, encodedPassword);
+            } catch (DuplicateKeyException ignore) {
+                // ignore and re-query
+            }
+            userOpt = userRepository.findByAccount(account);
+        }
+        if (userOpt.isEmpty()) {
+            throw new RuntimeException("登录失败，请稍后重试");
         }
 
         User user = userOpt.get();
@@ -43,8 +57,7 @@ public class AuthService {
 
         // 验证密码
         String storedPassword = user.getPassword();
-        String inputPassword = request.getPassword();
-        
+
         // 检查存储的密码是否是BCrypt格式
         if (storedPassword == null || storedPassword.trim().isEmpty()) {
             throw new RuntimeException("账号或密码错误");

@@ -297,6 +297,8 @@ const openImagePanel = () => {
 // 规范化头像 URL
 const normalizeAvatarUrl = (url) => {
   if (!url) return ''
+  // data URL（默认灰头像）直接返回
+  if (url.startsWith('data:')) return url
   // 如果已经是完整 URL（http/https），直接返回
   if (url.startsWith('http://') || url.startsWith('https://')) {
     return url

@@ -104,7 +104,7 @@ function toggleSelect(row: VideoRow, checked: boolean) {
   if (checked) {
     if (!exists) {
       if (selectedVideos.value.length >= MAX_HERO_SLOTS) {
-        ElMessage.warning(`最多只能选择 ${MAX_HERO_SLOTS} 个视频作为 hero-grid 轮播位`)
+        ElMessage.warning(`最多只能选择 ${MAX_HERO_SLOTS} 个视频作为轮播位`)
         return
       }
       selectedVideos.value = [...selectedVideos.value, normalizeVideoRow(row)]
@@ -136,7 +136,7 @@ async function onSave() {
       .slice(0, MAX_HERO_SLOTS)
     const resp = await saveHomeHeroConfig(ids)
     if (resp?.data?.success) {
-      ElMessage.success('保存成功，首页 hero-grid 将按顺序展示你选中的视频')
+      ElMessage.success('保存成功，首页轮播图将按顺序展示你选中的视频')
     } else {
       ElMessage.error(resp?.data?.message || '保存失败')
     }
@@ -178,7 +178,7 @@ async function onPageSizeChange(s: number) {
     <el-card shadow="never">
       <template #header>
         <div style="display: flex; align-items: center; justify-content: space-between; gap: 12px; width: 100%">
-          <span>首页轮播图配置（hero-grid）</span>
+          <span>首页轮播图配置</span>
           <span style="color: #6b7280; font-size: 12px">勾选指定视频；不勾选则回退随机；最多展示前 6 个</span>
         </div>
       </template>
@@ -199,7 +199,7 @@ async function onPageSizeChange(s: number) {
       </div>
 
       <el-table v-loading="loading" :data="videos" stripe empty-text="暂无视频" row-key="videoId">
-        <el-table-column label="选中" width="90">
+        <el-table-column label="选中" width="60" align="center">
           <template #default="{ row }">
             <el-checkbox
               :model-value="selectedSet.has(row.videoId as string)"
@@ -208,7 +208,7 @@ async function onPageSizeChange(s: number) {
           </template>
         </el-table-column>
 
-        <el-table-column label="封面" width="120">
+        <el-table-column label="封面" width="180">
           <template #default="{ row }">
             <div class="cover" :style="coverStyle(row)" />
           </template>
@@ -302,13 +302,14 @@ async function onPageSizeChange(s: number) {
 
 <style scoped>
 .cover {
-  width: 90px;
-  height: 60px;
-  border-radius: 6px;
+  width: 154px;
+  height: 87px;
+  border-radius: 8px;
   background-size: cover;
   background-position: center;
-  background-color: #f1f2f3;
+  background-color: #f3f4f6;
   border: 1px solid #e5e7eb;
+  flex-shrink: 0;
 }
 
 .selected-list {

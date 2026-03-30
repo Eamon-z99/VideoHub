@@ -34,6 +34,14 @@ public class UserRepository {
         }
     }
 
+    public int createUser(String account, String username, String encodedPassword) {
+        String sql = """
+                INSERT INTO users (username, account, password, status)
+                VALUES (?, ?, ?, 1)
+                """;
+        return jdbcTemplate.update(sql, username, account, encodedPassword);
+    }
+
     public Optional<User> findById(Long id) {
         String sql = """
                 SELECT id, username, account, password, email, avatar, bio, status,

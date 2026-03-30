@@ -1680,7 +1680,9 @@ export default {
       }
     },
     normalizeAvatarUrl (url) {
-      if (!url) return '/public/favicon.ico'
+      if (!url) return DEFAULT_GREY_AVATAR
+      // data URL（默认灰头像）直接返回
+      if (url.startsWith('data:')) return url
       // 如果已经是完整 URL（http/https），直接返回
       if (url.startsWith('http://') || url.startsWith('https://')) {
         return url
