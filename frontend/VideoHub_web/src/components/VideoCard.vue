@@ -120,7 +120,8 @@
     </div>
 
     <div class="uploader-row">
-      <svg class="uploader-icon" viewBox="0 0 1024 1024">
+      <span v-if="showLikeBadge" class="like-badge">{{ likeBadgeText }}</span>
+      <svg v-else class="uploader-icon" viewBox="0 0 1024 1024">
         <path
           d="M800 128H224C134.4 128 64 198.4 64 288v448c0 89.6 70.4 160 160 160h576c89.6 0 160-70.4 160-160V288c0-89.6-70.4-160-160-160z m96 608c0 54.4-41.6 96-96 96H224c-54.4 0-96-41.6-96-96V288c0-54.4 41.6-96 96-96h576c54.4 0 96 41.6 96 96v448z"
         />
@@ -376,6 +377,32 @@ const formatPlayCount = (count) => {
   }
   return num.toString()
 }
+
+const parseLikeCount = (raw) => {
+  if (raw === null || raw === undefined || raw === '') return 0
+  if (typeof raw === 'number') return Number.isFinite(raw) ? Math.floor(raw) : 0
+  // 兼容后端可能返回 likeCount / like_count / likes
+  const n = parseInt(String(raw), 10)
+  return Number.isFinite(n) ? n : 0
+}
+
+const likeCount = computed(() => {
+  const v = props.video?.likeCount ?? props.video?.like_count ?? props.video?.likes
+  return parseLikeCount(v)
+})
+
+const showLikeBadge = computed(() => likeCount.value > 6000)
+
+const likeBadgeText = computed(() => {
+  const n = likeCount.value
+  // 规则：单位为千/万；向下取整数
+  if (n >= 10000) {
+    const w = Math.floor(n / 10000)
+    return `${w}万点赞`
+  }
+  const k = Math.floor(n / 1000)
+  return `${k}千点赞`
+})
 </script>
 
 <style scoped>
@@ -612,6 +639,21 @@ const formatPlayCount = (count) => {
 
 .uploader-name,
 .upload-date {
+  white-space: nowrap;
+  transform: translateY(-1px);
+}
+
+.like-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 18px;
+  padding: 0px 6px;
+  border-radius: 5px;
+  background-color: #FFEDE2;
+  color: #FF661A;
+  font-size: 12px;
+  line-height: 18px;
   white-space: nowrap;
   transform: translateY(-1px);
 }

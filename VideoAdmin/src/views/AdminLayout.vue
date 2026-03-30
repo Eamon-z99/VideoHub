@@ -64,6 +64,13 @@ function logout() {
               <span class="menu-label">举报处理</span>
             </div>
           </el-menu-item>
+
+          <el-menu-item index="/home-hero">
+            <div class="menu-item-inner">
+              <el-icon class="menu-icon"><List /></el-icon>
+              <span class="menu-label">首页轮播配置</span>
+            </div>
+          </el-menu-item>
         </el-menu>
       </el-aside>
 

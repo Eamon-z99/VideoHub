@@ -302,6 +302,49 @@ public class LocalVideoService {
                 like, like, like, safeSize, offset);
     }
 
+    /**
+     * 管理端视频列表：用于「勾选首页 hero-grid 轮播内容」。
+     * - keyword 为空：按创建时间倒序（避免 listPage 的 ORDER BY RAND() 随机翻页）
+     * - keyword 非空：复用 listPageByKeyword（按 create_time desc）
+     */
+    public List<VideoItem> listAdminPage(int page, int pageSize, String keyword) {
+        if (keyword != null && !keyword.isBlank()) {
+            return listPageByKeyword(keyword, page, pageSize);
+        }
+
+        int safeSize = Math.max(1, Math.min(pageSize, 100));
+        int safePage = Math.max(1, page);
+        int offset = (safePage - 1) * safeSize;
+
+        String sql = """
+                SELECT v.video_id,
+                       v.title,
+                       v.description,
+                       v.duration,
+                       v.cover_url,
+                       v.storage_path,
+                       v.source_file,
+                       v.view_count,
+                       v.like_count,
+                       v.favorite_count,
+                       v.file_size,
+                       u.username AS uploader_name,
+                       u.avatar AS uploader_avatar,
+                       u.id AS uploader_id,
+                       v.create_time
+                FROM videos v
+                LEFT JOIN users u ON v.user_id = u.id
+                WHERE (v.status IS NULL OR UPPER(TRIM(v.status)) NOT IN ('FAILED','DOWN'))
+                ORDER BY v.create_time DESC
+                LIMIT ? OFFSET ?
+                """;
+        return jdbcTemplate.query(sql, (rs, i) -> mapToVideo(rs), safeSize, offset);
+    }
+
+    public long countAdminByKeyword(String keyword) {
+        return countByKeyword(keyword);
+    }
+
     public long countByKeyword(String keyword) {
         if (keyword == null || keyword.isBlank()) {
             return count();

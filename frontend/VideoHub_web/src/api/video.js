@@ -88,6 +88,11 @@ export const fetchTopVideos = (limit = 6) => {
   return request.get('/api/db/videos/top', { params: { limit } })
 }
 
+// 首页 hero-grid 轮播内容（管理端可控；无配置时后端自动回退随机）
+export const fetchHomeHeroVideos = (limit = 6) => {
+  return request.get('/api/db/home-hero', { params: { limit } })
+}
+
 // 获取指定UP的其它视频
 export const fetchVideosByUploader = (uploaderId, limit = 4, excludeVideoId = null) => {
   const params = { uploaderId, limit }

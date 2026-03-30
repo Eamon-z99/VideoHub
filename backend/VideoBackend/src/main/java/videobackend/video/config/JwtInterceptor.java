@@ -50,6 +50,10 @@ public class JwtInterceptor implements HandlerInterceptor {
                 path.startsWith("/api/db/search/") &&
                 (("GET".equals(request.getMethod())) || ("POST".equals(request.getMethod())));
 
+        // 首页 hero-grid 轮播内容（管理端可控；但对普通用户开放）
+        boolean isPublicHomeHeroRead =
+                ("GET".equals(request.getMethod()) && path.equals("/api/db/home-hero"));
+
         if (path.startsWith("/api/auth/login") ||
             path.startsWith("/api/auth/register") ||
             path.startsWith("/api/auth/logout") ||
@@ -66,6 +70,7 @@ public class JwtInterceptor implements HandlerInterceptor {
             path.startsWith("/error") ||
             isPublicVideoRead ||
             isPublicSearchRead ||
+            isPublicHomeHeroRead ||
             // 动态列表 GET（含个人主页 authorId 查询）允许未登录访问
             (path.equals("/api/feeds") && "GET".equals(request.getMethod())) ||
             // 单条动态详情 GET：/api/feeds/数字

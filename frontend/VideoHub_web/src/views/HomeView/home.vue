@@ -207,7 +207,7 @@ import VideoCard from '@/components/VideoCard.vue'
 import Refresh from '@/components/Refresh.vue'
 import BackToTop from '@/components/BackToTop.vue'
 import WatchLaterFab from '@/components/WatchLaterFab.vue'
-import { fetchVideos, fetchTopVideos, searchVideos } from '@/api/video'
+import { fetchVideos, fetchHomeHeroVideos, searchVideos } from '@/api/video'
 import { useUserStore } from '@/stores/user'
 import { useWatchLaterStore } from '@/stores/watchLater'
 import { VIDEO_NAV_TAGS } from '@/constants/videoNavTags'
@@ -228,9 +228,20 @@ const router = useRouter()
 const slides = ref<any[]>([])
 const slideIndex = ref(0)
 let timer: any
-const next = () => { slideIndex.value = (slideIndex.value + 1) % slides.value.length }
-const prev = () => { slideIndex.value = (slideIndex.value - 1 + slides.value.length) % slides.value.length }
-const go = (i: number) => { slideIndex.value = i }
+const next = () => {
+  if (!slides.value.length) return
+  slideIndex.value = (slideIndex.value + 1) % slides.value.length
+}
+const prev = () => {
+  if (!slides.value.length) return
+  slideIndex.value = (slideIndex.value - 1 + slides.value.length) % slides.value.length
+}
+const go = (i: number) => {
+  if (!slides.value.length) return
+  const idx = Number(i)
+  if (Number.isNaN(idx)) return
+  slideIndex.value = Math.max(0, Math.min(idx, slides.value.length - 1))
+}
 
 const recommends = ref<any[]>([])
 
@@ -345,10 +356,10 @@ const normalizeList = (data: any) => {
   return list.map((item: any) => normalizeVideoItem(item))
 }
 
-// 加载播放量最高的视频用于顶部轮播和右侧推荐
-const loadTopVideos = async () => {
+// hero-grid：左侧轮播 slides 优先读取管理端配置；无配置时后端自动回退随机
+const loadHeroConfiguredVideos = async () => {
   try {
-    const { data } = await fetchTopVideos(6)
+    const { data } = await fetchHomeHeroVideos(6)
     const list = Array.isArray(data?.list) ? data.list : []
     const mapped = list.map((item: any) => {
       const v = normalizeVideoItem(item)
@@ -358,9 +369,20 @@ const loadTopVideos = async () => {
       }
     })
     slides.value = mapped
-    recommends.value = mapped
+    slideIndex.value = 0
   } catch (e) {
     // 失败时保持默认空状态，主列表仍可正常加载
+  }
+}
+
+// hero-grid：右侧推荐 recommends 保持随机展示（与 slides 不需要一致）
+const loadRandomRecommends = async () => {
+  try {
+    const { data } = await fetchVideos(1, 6)
+    const list = Array.isArray(data?.list) ? data.list : []
+    recommends.value = list.map((item: any) => normalizeVideoItem(item))
+  } catch {
+    // ignore
   }
 }
 
@@ -484,7 +506,8 @@ let handleResize: (() => void) | null = null
 onMounted(() => {
   timer = setInterval(next, 4000)
   fetchVideosData()
-  loadTopVideos()
+  loadHeroConfiguredVideos()
+  loadRandomRecommends()
   const uid = userStore.user?.userId || userStore.user?.id
   if (uid) {
     watchLaterStore.load(uid as number)
@@ -584,7 +607,8 @@ const playVideo = (video: any) => {
 /** 换一换：重新拉取首页列表与顶部推荐 */
 const onRefreshVideos = () => {
   fetchVideosData(true)
-  loadTopVideos()
+  loadHeroConfiguredVideos()
+  loadRandomRecommends()
 }
 </script>
 
@@ -859,6 +883,7 @@ const onRefreshVideos = () => {
               justify-content: center;
               background: rgba(0, 0, 0, 0.3);
               opacity: 0;
+              pointer-events: none;
               transition: opacity 0.3s ease;
               z-index: 1;
 
@@ -876,9 +901,6 @@ const onRefreshVideos = () => {
               }
             }
 
-            &:hover .play-overlay {
-              opacity: 1;
-            }
           }
 
           .slide-caption {
@@ -1108,6 +1130,7 @@ const onRefreshVideos = () => {
         justify-content: center;
         background: rgba(0, 0, 0, 0.3);
         opacity: 0;
+        pointer-events: none;
         transition: opacity 0.3s ease;
         z-index: 1;
 
@@ -1125,8 +1148,9 @@ const onRefreshVideos = () => {
         }
       }
 
+      // 首页轮播/推荐：鼠标覆盖不再显示“待播放按钮”
       &:hover .play-overlay {
-        opacity: 1;
+        opacity: 0;
       }
     }
 

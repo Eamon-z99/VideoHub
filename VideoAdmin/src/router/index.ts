@@ -34,6 +34,12 @@ const router = createRouter({
           component: () => import('@/views/VideoComplaintsView.vue'),
           meta: { title: '举报处理' },
         },
+        {
+          path: 'home-hero',
+          name: 'home-hero',
+          component: () => import('@/views/HomeHeroCarouselView.vue'),
+          meta: { title: '首页轮播配置' },
+        },
       ],
     },
   ],
