@@ -26,7 +26,7 @@ public class AvatarResourceController {
 
     private static final Logger logger = LoggerFactory.getLogger(AvatarResourceController.class);
 
-    @Value("${avatar.storage.root:E:\\\\Avatars}")
+    @Value("${avatar.storage.root}")
     private String avatarStorageRoot;
 
     @GetMapping("/**")

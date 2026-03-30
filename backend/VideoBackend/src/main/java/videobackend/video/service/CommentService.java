@@ -16,10 +16,12 @@ import java.util.List;
 public class CommentService {
 
     private final JdbcTemplate jdbcTemplate;
+    private final MediaUrlResolver mediaUrlResolver;
     private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
 
-    public CommentService(JdbcTemplate jdbcTemplate) {
+    public CommentService(JdbcTemplate jdbcTemplate, MediaUrlResolver mediaUrlResolver) {
         this.jdbcTemplate = jdbcTemplate;
+        this.mediaUrlResolver = mediaUrlResolver;
     }
 
     /**
@@ -207,7 +209,7 @@ public class CommentService {
         Long id = rs.getLong("id");
         String videoId = rs.getString("video_id");
         Long userId = rs.getLong("user_id");
-        String content = rs.getString("content");
+        String content = mediaUrlResolver.resolveFeedImageInText(rs.getString("content"));
         Long parentId = rs.getObject("parent_id") != null ? rs.getLong("parent_id") : null;
         Long replyToUserId = rs.getObject("reply_to_user_id") != null ? rs.getLong("reply_to_user_id") : null;
         Long likeCount = rs.getObject("like_count") != null ? rs.getLong("like_count") : 0L;
@@ -217,7 +219,7 @@ public class CommentService {
                 : DATE_FORMATTER.format(LocalDateTime.now());
         String username = rs.getString("username");
         Integer level = rs.getObject("level") != null ? rs.getInt("level") : 0;
-        String avatar = rs.getString("avatar");
+        String avatar = mediaUrlResolver.resolveAvatar(rs.getString("avatar"));
         String replyToUsername = rs.getString("reply_to_username");
 
         return new CommentItem(

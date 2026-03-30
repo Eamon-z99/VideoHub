@@ -15,13 +15,13 @@ import java.util.UUID;
 @Service
 public class AvatarStorageService {
 
-    @Value("${avatar.storage.root:E:\\\\Avatars}")
+    @Value("${avatar.storage.root}")
     private String avatarStorageRoot;
 
-    @Value("${media.cdn.enabled:false}")
+    @Value("${avatar.cdn.enabled:${media.cdn.enabled:false}}")
     private boolean useCdn;
 
-    @Value("${media.cdn.base-url:}")
+    @Value("${avatar.cdn.base-url:${media.cdn.base-url:}}")
     private String cdnBaseUrl;
 
     /**
@@ -55,6 +55,9 @@ public class AvatarStorageService {
             // 启用 CDN 时，仅生成 CDN 访问 URL，具体文件同步到 CDN 由运维/后续任务处理
             String base = cdnBaseUrl.replaceAll("/+$", "");
             return base + "/" + relativePath;
+        }
+        if (useCdn) {
+            throw new IllegalStateException("avatar.cdn.enabled=true 但未配置 avatar.cdn.base-url");
         }
 
         // 本地存储：写入 avatar.storage.root 目录

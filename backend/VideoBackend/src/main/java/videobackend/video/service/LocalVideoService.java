@@ -35,11 +35,13 @@ public class LocalVideoService {
     private final Path mediaRoot;
     private final String cdnBaseUrl;
     private final boolean useCdn;
+    private final MediaUrlResolver mediaUrlResolver;
 
     public LocalVideoService(JdbcTemplate jdbcTemplate,
                              @Value("${media.storage.root}") String mediaStorageRoot,
                              @Value("${media.cdn.base-url:}") String cdnBaseUrl,
-                             @Value("${media.cdn.enabled:false}") boolean useCdn) {
+                             @Value("${media.cdn.enabled:false}") boolean useCdn,
+                             MediaUrlResolver mediaUrlResolver) {
         this.jdbcTemplate = jdbcTemplate;
         this.mediaRoot = Paths.get(mediaStorageRoot);
         // 统一去掉末尾 /，便于后续拼接
@@ -47,7 +49,11 @@ public class LocalVideoService {
                 ? cdnBaseUrl.replaceAll("/+$", "")
                 : "";
         this.useCdn = useCdn;
+        if (this.useCdn && !StringUtils.hasText(this.cdnBaseUrl)) {
+            throw new IllegalStateException("media.cdn.enabled=true 但未配置 media.cdn.base-url");
+        }
         log.info("Media CDN enabled: {}, baseUrl: {}", this.useCdn, this.cdnBaseUrl);
+        this.mediaUrlResolver = mediaUrlResolver;
     }
 
     private static final DateTimeFormatter UPLOAD_DATE_FORMATTER =
@@ -762,7 +768,7 @@ public class LocalVideoService {
                 rs.getObject("file_size") == null ? null : rs.getLong("file_size"),
                 uploaderName,
                 uploadDate,
-                uploaderAvatar,
+                mediaUrlResolver.resolveAvatar(uploaderAvatar),
                 uploaderId,
                 tagsJson,
                 partition,

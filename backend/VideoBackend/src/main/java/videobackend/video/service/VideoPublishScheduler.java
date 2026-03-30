@@ -3,6 +3,7 @@ package videobackend.video.service;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
@@ -13,6 +14,11 @@ import org.springframework.transaction.annotation.Transactional;
  * 使用 MySQL GET_LOCK/RELEASE_LOCK 确保多实例时不会重复发布（锁基于连接/会话）。
  */
 @Component
+@ConditionalOnProperty(
+        name = "video.publish.scheduler.enabled",
+        havingValue = "true",
+        matchIfMissing = true
+)
 public class VideoPublishScheduler {
 
     private static final Logger log = LoggerFactory.getLogger(VideoPublishScheduler.class);
@@ -29,7 +35,7 @@ public class VideoPublishScheduler {
         this.jdbcTemplate = jdbcTemplate;
     }
 
-    @Scheduled(cron = "*/1 * * * * *") // 每 1 秒执行一次
+    @Scheduled(cron = "${video.publish.scheduler.cron}") // 仅使用配置文件
     @Transactional
     public void publishDueScheduled() {
         Integer locked = null;
@@ -42,7 +48,6 @@ public class VideoPublishScheduler {
             );
 
             if (locked == null || locked != 1) {
-                log.info("publishDueScheduled: 未获取到锁（locked={}），本次跳过", locked);
                 return;
             }
 
@@ -51,9 +56,13 @@ public class VideoPublishScheduler {
             int limit = 200;
             var resp = videoSubmissionService.publishDue(limit, 0L);
 
-            log.info("publishDueScheduled: 扫描完成，processed={}, published={}",
-                    resp.getOrDefault("processed", 0),
-                    resp.getOrDefault("published", 0));
+            Number processedNum = (Number) resp.getOrDefault("processed", 0);
+            Number publishedNum = (Number) resp.getOrDefault("published", 0);
+            int processed = processedNum.intValue();
+            int published = publishedNum.intValue();
+            if (processed > 0 || published > 0) {
+                log.info("publishDueScheduled: 扫描完成，processed={}, published={}", processed, published);
+            }
         } catch (Exception e) {
             log.error("publishDueScheduled: 定时发布失败", e);
         } finally {

@@ -12,9 +12,11 @@ import java.util.Map;
 public class FollowService {
 
     private final JdbcTemplate jdbcTemplate;
+    private final MediaUrlResolver mediaUrlResolver;
 
-    public FollowService(JdbcTemplate jdbcTemplate) {
+    public FollowService(JdbcTemplate jdbcTemplate, MediaUrlResolver mediaUrlResolver) {
         this.jdbcTemplate = jdbcTemplate;
+        this.mediaUrlResolver = mediaUrlResolver;
     }
 
     /**
@@ -161,7 +163,7 @@ public class FollowService {
         Map<String, Object> user = new java.util.HashMap<>();
         user.put("id", rs.getLong("id"));
         user.put("username", rs.getString("username"));
-        user.put("avatar", rs.getString("avatar"));
+        user.put("avatar", mediaUrlResolver.resolveAvatar(rs.getString("avatar")));
         user.put("account", rs.getString("account"));
         user.put("bio", rs.getString("bio"));
         long gid = rs.getLong("group_id");
@@ -223,7 +225,7 @@ public class FollowService {
         Map<String, Object> user = new java.util.HashMap<>();
         user.put("id", rs.getLong("id"));
         user.put("username", rs.getString("username"));
-        user.put("avatar", rs.getString("avatar"));
+        user.put("avatar", mediaUrlResolver.resolveAvatar(rs.getString("avatar")));
         user.put("account", rs.getString("account"));
         user.put("bio", rs.getString("bio"));
         user.put("followerCount", rs.getLong("follower_count"));

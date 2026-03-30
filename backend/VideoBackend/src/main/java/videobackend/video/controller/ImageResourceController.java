@@ -26,7 +26,7 @@ public class ImageResourceController {
 
     private static final Logger logger = LoggerFactory.getLogger(ImageResourceController.class);
 
-    @Value("${feed.image.storage.root:E:\\\\FeedImages}")
+    @Value("${feed.image.storage.root}")
     private String imageStorageRoot;
 
     @GetMapping("/**")

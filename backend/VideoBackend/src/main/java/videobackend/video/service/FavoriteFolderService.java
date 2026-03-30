@@ -291,7 +291,7 @@ public class FavoriteFolderService {
     
     private String buildSimpleUrl(String fileName) {
         if (fileName != null && !fileName.trim().isEmpty()) {
-            return "/local-videos/" + fileName.replace("\\", "/");
+            return localVideoService.buildCoverPublicUrl(fileName, fileName);
         }
         return "";
     }

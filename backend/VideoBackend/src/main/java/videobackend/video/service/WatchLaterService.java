@@ -172,7 +172,7 @@ public class WatchLaterService {
 
     private String buildSimpleUrl(String sourceFile, String fileName) {
         if (fileName != null) {
-            return "/local-videos/" + fileName.replace("\\", "/");
+            return localVideoService.buildCoverPublicUrl(sourceFile, fileName);
         }
         return "";
     }

@@ -24,12 +24,14 @@
 
     <div ref="topEditorRef" class="comment-editor">
       <div class="editor-avatar">
-        <img
-          v-if="userStore.user?.avatar"
-          :src="normalizeAvatarUrl(userStore.user.avatar)"
-          alt="avatar"
-        />
-        <div v-else class="avatar-placeholder"></div>
+        <template v-if="userStore.user?.avatar && !editorAvatarFailed">
+          <img
+            :src="normalizeAvatarUrl(userStore.user.avatar)"
+            alt=""
+            @error="editorAvatarFailed = true"
+          />
+        </template>
+        <div v-else class="avatar-placeholder" aria-hidden="true" />
       </div>
       <div
         class="editor-main"
@@ -194,7 +196,12 @@
         还没有评论，来抢沙发吧~
       </div>
       <div v-else v-for="item in comments" :key="item.id" class="comment-item">
-        <img :src="item.avatar || '/images/default-avatar.png'" class="avatar" />
+        <img
+          :src="item.avatar || '/images/default-avatar.png'"
+          class="avatar"
+          alt=""
+          @error="onCommentListAvatarError"
+        />
         <div class="content">
           <div class="header">
             <span class="name-with-badge">
@@ -266,7 +273,12 @@
               :key="reply.id"
               class="reply-item"
             >
-              <img :src="reply.avatar || '/images/default-avatar.png'" class="reply-avatar" />
+              <img
+                :src="reply.avatar || '/images/default-avatar.png'"
+                class="reply-avatar"
+                alt=""
+                @error="onCommentListAvatarError"
+              />
               <div class="reply-content">
                 <!-- 回复：昵称+等级+UP 与正文同一行连续排列（仅回复区；父评论仍为上下结构） -->
                 <div class="reply-line">
@@ -571,12 +583,14 @@
       >
         <div class="comment-editor-sticky-inner">
           <div class="editor-avatar">
-            <img
-              v-if="userStore.user?.avatar"
-              :src="normalizeAvatarUrl(userStore.user.avatar)"
-              alt="avatar"
-            />
-            <div v-else class="avatar-placeholder"></div>
+            <template v-if="userStore.user?.avatar && !editorAvatarFailed">
+              <img
+                :src="normalizeAvatarUrl(userStore.user.avatar)"
+                alt=""
+                @error="editorAvatarFailed = true"
+              />
+            </template>
+            <div v-else class="avatar-placeholder" aria-hidden="true" />
           </div>
           <div
             class="editor-main"
@@ -754,6 +768,15 @@ const props = defineProps({
 const emit = defineEmits(['comment-total-change'])
 
 const userStore = useUserStore()
+
+/** 主评输入区头像：URL 存在但加载失败时显示灰色圆形占位 */
+const editorAvatarFailed = ref(false)
+watch(
+  () => userStore.user?.avatar,
+  () => {
+    editorAvatarFailed.value = false
+  }
+)
 
 const commentText = ref('')
 /** 主评论草稿中的配图（上传成功后的 URL），提交时合并进 content，不在输入框里显示 Markdown */
@@ -1291,6 +1314,24 @@ const normalizeAvatarUrl = (url) => {
   return '/' + url
 }
 
+/** 评论列表 / 回复行头像加载失败时回退默认图（避免破损图标与异常宽高） */
+const onCommentListAvatarError = (e) => {
+  const el = e?.target
+  if (!el || el.tagName !== 'IMG') return
+  const fallback = '/images/default-avatar.png'
+  try {
+    const abs = new URL(fallback, window.location.origin).href
+    if (el.src === abs || el.src.endsWith('/images/default-avatar.png')) {
+      el.onerror = null
+      return
+    }
+  } catch {
+    /* ignore */
+  }
+  el.onerror = null
+  el.src = fallback
+}
+
 const IMG_INLINE_RE = /!\[([^\]]*)\]\(([^)]+)\)/g
 /** 存储格式 @[userId:展示名]，展示名内不允许 ]（插入时剔除） */
 const MENTION_INLINE_RE = /@\[(\d+):([^\]]+)\]/g
@@ -1338,11 +1379,14 @@ const parseCommentSegments = (raw) => {
 const isAllowedCommentImageUrl = (url) => {
   const u = (url || '').trim()
   if (!u) return false
-  if (u.startsWith('/feed-images/')) return true
-  if (u.startsWith('http://') || u.startsWith('https://')) {
+  const lower = u.toLowerCase()
+  // 本地或同源代理：/feed-images/...
+  if (lower.startsWith('/feed-images/')) return true
+  if (lower.startsWith('http://') || lower.startsWith('https://')) {
     try {
-      const pathname = new URL(u).pathname
-      return pathname.startsWith('/feed-images/')
+      const pathname = new URL(u).pathname.toLowerCase()
+      // CDN 常见：桶路径 /FeedImages/feed-images/...，pathname 不以 /feed-images/ 开头
+      return pathname.includes('/feed-images/')
     } catch {
       return false
     }
@@ -2104,11 +2148,14 @@ $comment-textarea-max-height: 115px;
 
       img,
       .avatar-placeholder {
+        display: block;
         width: 40px;
         height: 40px;
         border-radius: 50%;
         object-fit: cover;
         background: #e3e5e7;
+        overflow: hidden;
+        box-sizing: border-box;
       }
     }
 
@@ -2361,12 +2408,15 @@ $comment-textarea-max-height: 115px;
       border-bottom: 1px solid #f1f2f3;
 
       .avatar {
+        display: block;
         width: 40px;
         height: 40px;
         border-radius: 50%;
         flex: 0 0 40px;
         object-fit: cover;
         background: #e3e5e7;
+        overflow: hidden;
+        box-sizing: border-box;
       }
 
       .content {
@@ -2581,11 +2631,16 @@ $comment-textarea-max-height: 115px;
             margin-bottom: 8px;
 
             .reply-avatar {
+              display: block;
               width: 24px;
               height: 24px;
               border-radius: 50%;
               flex-shrink: 0;
               margin-top: 2px;
+              object-fit: cover;
+              background: #e3e5e7;
+              overflow: hidden;
+              box-sizing: border-box;
             }
 
             .reply-content {
@@ -2954,11 +3009,14 @@ $comment-textarea-max-height: 115px;
 
     img,
     .avatar-placeholder {
+      display: block;
       width: 40px;
       height: 40px;
       border-radius: 50%;
       object-fit: cover;
       background: #e3e5e7;
+      overflow: hidden;
+      box-sizing: border-box;
     }
   }
 

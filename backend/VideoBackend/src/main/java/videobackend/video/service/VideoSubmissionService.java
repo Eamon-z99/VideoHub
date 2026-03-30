@@ -25,13 +25,17 @@ public class VideoSubmissionService {
 
     private final JdbcTemplate jdbcTemplate;
     private final VideoCollectionService videoCollectionService;
+    private final LocalVideoService localVideoService;
 
     @Value("${media.storage.root}")
     private String mediaStorageRoot;
 
-    public VideoSubmissionService(JdbcTemplate jdbcTemplate, VideoCollectionService videoCollectionService) {
+    public VideoSubmissionService(JdbcTemplate jdbcTemplate,
+                                  VideoCollectionService videoCollectionService,
+                                  LocalVideoService localVideoService) {
         this.jdbcTemplate = jdbcTemplate;
         this.videoCollectionService = videoCollectionService;
+        this.localVideoService = localVideoService;
     }
 
     @Transactional
@@ -890,7 +894,7 @@ public class VideoSubmissionService {
         if (!StringUtils.hasText(file)) {
             return "";
         }
-        return "/local-videos/" + file.replace("\\", "/");
+        return localVideoService.buildCoverPublicUrl(file, file);
     }
 }
 

@@ -15,13 +15,13 @@ import java.util.UUID;
 @Service
 public class ImageStorageService {
 
-    @Value("${feed.image.storage.root:E:\\\\FeedImages}")
+    @Value("${feed.image.storage.root}")
     private String imageStorageRoot;
 
-    @Value("${media.cdn.enabled:false}")
+    @Value("${feed.image.cdn.enabled:${media.cdn.enabled:false}}")
     private boolean useCdn;
 
-    @Value("${media.cdn.base-url:}")
+    @Value("${feed.image.cdn.base-url:${media.cdn.base-url:}}")
     private String cdnBaseUrl;
 
     /**
@@ -61,6 +61,9 @@ public class ImageStorageService {
             // 启用 CDN 时，仅生成 CDN 访问 URL
             String base = cdnBaseUrl.replaceAll("/+$", "");
             return base + "/" + relativePath;
+        }
+        if (useCdn) {
+            throw new IllegalStateException("feed.image.cdn.enabled=true 但未配置 feed.image.cdn.base-url");
         }
 
         // 本地存储：写入 feed.image.storage.root 目录

@@ -4,7 +4,9 @@ import io.jsonwebtoken.Claims;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.http.ResponseEntity;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.*;
+import videobackend.video.service.LocalVideoService;
 import videobackend.video.util.JwtUtil;
 
 import java.util.List;
@@ -22,10 +24,12 @@ public class UserVideoDraftController {
 
     private final JdbcTemplate jdbcTemplate;
     private final JwtUtil jwtUtil;
+    private final LocalVideoService localVideoService;
 
-    public UserVideoDraftController(JdbcTemplate jdbcTemplate, JwtUtil jwtUtil) {
+    public UserVideoDraftController(JdbcTemplate jdbcTemplate, JwtUtil jwtUtil, LocalVideoService localVideoService) {
         this.jdbcTemplate = jdbcTemplate;
         this.jwtUtil = jwtUtil;
+        this.localVideoService = localVideoService;
     }
 
     @GetMapping
@@ -64,6 +68,10 @@ public class UserVideoDraftController {
                           AND (? IS NULL OR d.title LIKE ?)
                         """, Long.class, userId, like, like);
 
+        for (Map<String, Object> row : list) {
+            applyDraftCoverPublicUrl(row, null);
+        }
+
         return ResponseEntity.ok(Map.of(
                 "success", true,
                 "data", Map.of(
@@ -93,6 +101,7 @@ public class UserVideoDraftController {
                     FROM video_drafts
                     WHERE submission_id=? AND user_id=?
                     """, submissionId, userId);
+            applyDraftCoverPublicUrl(row, row.get("source_file"));
             return ResponseEntity.ok(Map.of("success", true, "data", row));
         } catch (Exception e) {
             return ResponseEntity.status(404).body(Map.of("success", false, "message", "草稿不存在"));
@@ -130,6 +139,24 @@ public class UserVideoDraftController {
             }
         }
         return null;
+    }
+
+    /**
+     * 与已发布视频一致：cover_url 按 media.cdn 开关输出可访问 URL（本地 /local-videos 或 CDN）。
+     */
+    private void applyDraftCoverPublicUrl(Map<String, Object> row, Object sourceFileObj) {
+        if (row == null) {
+            return;
+        }
+        Object cv = row.get("cover_url");
+        if (cv == null || !StringUtils.hasText(String.valueOf(cv))) {
+            return;
+        }
+        String cover = String.valueOf(cv).trim();
+        String source = sourceFileObj != null && StringUtils.hasText(String.valueOf(sourceFileObj))
+                ? String.valueOf(sourceFileObj).trim()
+                : cover;
+        row.put("cover_url", localVideoService.buildCoverPublicUrl(source, cover));
     }
 }
 

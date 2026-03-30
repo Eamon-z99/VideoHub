@@ -21,9 +21,11 @@ public class MessageService {
     private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
 
     private final JdbcTemplate jdbcTemplate;
+    private final MediaUrlResolver mediaUrlResolver;
 
-    public MessageService(JdbcTemplate jdbcTemplate) {
+    public MessageService(JdbcTemplate jdbcTemplate, MediaUrlResolver mediaUrlResolver) {
         this.jdbcTemplate = jdbcTemplate;
+        this.mediaUrlResolver = mediaUrlResolver;
     }
 
     /**
@@ -43,7 +45,7 @@ public class MessageService {
         List<MessageContact> baseList = jdbcTemplate.query(sql, (rs, i) -> new MessageContact(
                 rs.getLong("user_id"),
                 rs.getString("username"),
-                rs.getString("avatar"),
+                mediaUrlResolver.resolveAvatar(rs.getString("avatar")),
                 null,
                 null,
                 0L
@@ -169,7 +171,7 @@ public class MessageService {
         List<MessageContact> list = jdbcTemplate.query(sql, (rs, i) -> new MessageContact(
                 rs.getLong("user_id"),
                 rs.getString("username"),
-                rs.getString("avatar"),
+                mediaUrlResolver.resolveAvatar(rs.getString("avatar")),
                 null,
                 null,
                 0L
@@ -181,7 +183,7 @@ public class MessageService {
         Long id = rs.getLong("id");
         Long senderId = rs.getLong("sender_id");
         Long receiverId = rs.getLong("receiver_id");
-        String content = rs.getString("content");
+        String content = mediaUrlResolver.resolveFeedImageInText(rs.getString("content"));
         Timestamp ts = rs.getTimestamp("create_time");
         String timeStr = ts != null ? DATE_FORMATTER.format(ts.toLocalDateTime()) : null;
         return new ChatMessage(id, senderId, receiverId, content, timeStr);

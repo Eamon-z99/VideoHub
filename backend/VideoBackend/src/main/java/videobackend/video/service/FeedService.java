@@ -16,6 +16,7 @@ import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 @Service
 public class FeedService {
@@ -23,11 +24,13 @@ public class FeedService {
     private static final Logger log = LoggerFactory.getLogger(FeedService.class);
     private final JdbcTemplate jdbcTemplate;
     private final ObjectMapper objectMapper;
+    private final MediaUrlResolver mediaUrlResolver;
     private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
 
-    public FeedService(JdbcTemplate jdbcTemplate) {
+    public FeedService(JdbcTemplate jdbcTemplate, MediaUrlResolver mediaUrlResolver) {
         this.jdbcTemplate = jdbcTemplate;
         this.objectMapper = new ObjectMapper();
+        this.mediaUrlResolver = mediaUrlResolver;
     }
 
     /**
@@ -237,7 +240,7 @@ public class FeedService {
         Long id = rs.getLong("id");
         Long userId = rs.getLong("user_id");
         String title = rs.getString("title");
-        String content = rs.getString("content");
+        String content = mediaUrlResolver.resolveFeedImageInText(rs.getString("content"));
         
         // 解析图片JSON
         List<String> images = new ArrayList<>();
@@ -249,6 +252,9 @@ public class FeedService {
                 // 忽略JSON解析错误
             }
         }
+        images = images.stream()
+                .map(mediaUrlResolver::resolveFeedImage)
+                .collect(Collectors.toList());
 
         Long likeCount = rs.getObject("like_count") != null ? rs.getLong("like_count") : 0L;
         Long commentCount = rs.getObject("comment_count") != null ? rs.getLong("comment_count") : 0L;
@@ -259,7 +265,7 @@ public class FeedService {
         String createTimeStr = createTime != null ? DATE_FORMATTER.format(createTime.toLocalDateTime()) : null;
 
         String uploaderName = rs.getString("uploader_name");
-        String uploaderAvatar = rs.getString("uploader_avatar");
+        String uploaderAvatar = mediaUrlResolver.resolveAvatar(rs.getString("uploader_avatar"));
         Long uploaderId = rs.getObject("uploader_id") != null ? rs.getLong("uploader_id") : null;
 
         return new FeedItem(

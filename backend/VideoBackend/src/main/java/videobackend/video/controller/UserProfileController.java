@@ -5,6 +5,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 import videobackend.video.model.User;
+import videobackend.video.service.MediaUrlResolver;
 import videobackend.video.service.ProfileVisitService;
 import videobackend.video.service.UserLevelService;
 import videobackend.video.service.UserProfileService;
@@ -23,15 +24,18 @@ public class UserProfileController {
     private final ProfileVisitService profileVisitService;
     private final UserLevelService userLevelService;
     private final JwtUtil jwtUtil;
+    private final MediaUrlResolver mediaUrlResolver;
 
     public UserProfileController(UserProfileService userProfileService,
                                  ProfileVisitService profileVisitService,
                                  UserLevelService userLevelService,
-                                 JwtUtil jwtUtil) {
+                                 JwtUtil jwtUtil,
+                                 MediaUrlResolver mediaUrlResolver) {
         this.userProfileService = userProfileService;
         this.profileVisitService = profileVisitService;
         this.userLevelService = userLevelService;
         this.jwtUtil = jwtUtil;
+        this.mediaUrlResolver = mediaUrlResolver;
     }
 
     @GetMapping("/me")
@@ -66,7 +70,7 @@ public class UserProfileController {
             User user = userProfileService.updateAvatar(userId, file);
             return ResponseEntity.ok(Map.of(
                     "success", true,
-                    "avatar", user.getAvatar()
+                    "avatar", mediaUrlResolver.resolveAvatar(user.getAvatar())
             ));
         } catch (IllegalArgumentException e) {
             return ResponseEntity.badRequest().body(Map.of("success", false, "message", e.getMessage()));
@@ -135,7 +139,7 @@ public class UserProfileController {
         payload.put("username", user.getUsername());
         payload.put("account", user.getAccount());
         payload.put("email", user.getEmail());
-        payload.put("avatar", user.getAvatar());
+        payload.put("avatar", mediaUrlResolver.resolveAvatar(user.getAvatar()));
         payload.put("bio", user.getBio());
         putLevel(payload, userIdForLevel);
         return payload;
@@ -146,7 +150,7 @@ public class UserProfileController {
         payload.put("success", true);
         payload.put("id", user.getId());
         payload.put("username", user.getUsername());
-        payload.put("avatar", user.getAvatar());
+        payload.put("avatar", mediaUrlResolver.resolveAvatar(user.getAvatar()));
         payload.put("bio", user.getBio() != null ? user.getBio() : "");
         putLevel(payload, userIdForLevel);
         return payload;

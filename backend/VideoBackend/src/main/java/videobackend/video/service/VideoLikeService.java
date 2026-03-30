@@ -15,10 +15,12 @@ public class VideoLikeService {
 
     private final JdbcTemplate jdbcTemplate;
     private final LocalVideoService localVideoService;
+    private final MediaUrlResolver mediaUrlResolver;
 
-    public VideoLikeService(JdbcTemplate jdbcTemplate, LocalVideoService localVideoService) {
+    public VideoLikeService(JdbcTemplate jdbcTemplate, LocalVideoService localVideoService, MediaUrlResolver mediaUrlResolver) {
         this.jdbcTemplate = jdbcTemplate;
         this.localVideoService = localVideoService;
+        this.mediaUrlResolver = mediaUrlResolver;
     }
 
     /**
@@ -147,7 +149,7 @@ public class VideoLikeService {
             item.put("viewCount", rs.getLong("view_count"));
             item.put("likeCount", rs.getLong("like_count"));
             item.put("uploaderName", rs.getString("uploader_name"));
-            item.put("uploaderAvatar", rs.getString("uploader_avatar"));
+            item.put("uploaderAvatar", mediaUrlResolver.resolveAvatar(rs.getString("uploader_avatar")));
             item.put("uploaderId", rs.getLong("uploader_id"));
             Timestamp createTime = rs.getTimestamp("create_time");
             item.put("createTime", createTime != null ? createTime.toString() : null);
@@ -188,7 +190,7 @@ public class VideoLikeService {
 
     private String buildSimpleUrl(String sourceFile, String fileName) {
         if (fileName != null) {
-            return "/local-videos/" + fileName.replace("\\", "/");
+            return localVideoService.buildCoverPublicUrl(sourceFile, fileName);
         }
         return "";
     }
