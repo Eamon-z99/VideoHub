@@ -141,6 +141,7 @@ public class UserProfileController {
         payload.put("email", user.getEmail());
         payload.put("avatar", mediaUrlResolver.resolveAvatar(user.getAvatar()));
         payload.put("bio", user.getBio());
+        payload.put("createTime", user.getCreateTime());
         putLevel(payload, userIdForLevel);
         return payload;
     }
@@ -152,6 +153,7 @@ public class UserProfileController {
         payload.put("username", user.getUsername());
         payload.put("avatar", mediaUrlResolver.resolveAvatar(user.getAvatar()));
         payload.put("bio", user.getBio() != null ? user.getBio() : "");
+        payload.put("createTime", user.getCreateTime());
         putLevel(payload, userIdForLevel);
         return payload;
     }
