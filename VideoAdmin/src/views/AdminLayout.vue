@@ -125,6 +125,28 @@ function logout() {
               <span class="menu-label">首页轮播配置</span>
             </div>
           </el-menu-item>
+
+          <el-menu-item index="/hot-search">
+            <div class="parent-menu-item-inner">
+              <span class="menu-icon" aria-hidden="true">
+                <svg viewBox="0 0 1024 1024" width="20" height="20">
+                  <path
+                    d="M512 64c247.4 0 448 200.6 448 448S759.4 960 512 960 64 759.4 64 512 264.6 64 512 64zm0 64C300 128 128 300 128 512s172 384 384 384 384-172 384-384S724 128 512 128z"
+                    fill="currentColor"
+                  />
+                  <path
+                    d="M512 256c141.4 0 256 114.6 256 256S653.4 768 512 768 256 653.4 256 512 370.6 256 512 256zm0 64c-106 0-192 86-192 192s86 192 192 192 192-86 192-192-86-192-192-192z"
+                    fill="currentColor"
+                  />
+                  <path
+                    d="M720 320l48 48-208 208-112-112 48-48 64 64z"
+                    fill="currentColor"
+                  />
+                </svg>
+              </span>
+              <span class="menu-label">热搜管理</span>
+            </div>
+          </el-menu-item>
         </el-menu>
       </el-aside>
 

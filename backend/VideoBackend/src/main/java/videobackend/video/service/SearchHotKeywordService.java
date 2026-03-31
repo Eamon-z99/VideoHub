@@ -61,6 +61,36 @@ public class SearchHotKeywordService {
      * isHot：在「非新」词条中每次请求随机抽 3～5 条（若不足则全标）。
      */
     public List<Map<String, Object>> listHotKeywords(int limit) {
+        // 1) 若管理端配置了热搜 10 条，则优先返回（覆盖自动热搜）
+        try {
+            List<Map<String, Object>> manual = jdbcTemplate.queryForList("""
+                    SELECT slot, keyword, badge
+                    FROM admin_hot_search_slots
+                    WHERE keyword IS NOT NULL AND TRIM(keyword) <> ''
+                    ORDER BY slot ASC
+                    """);
+            if (manual != null && !manual.isEmpty()) {
+                List<Map<String, Object>> out = new ArrayList<>();
+                for (Map<String, Object> m : manual) {
+                    if (out.size() >= limit) break;
+                    String kw = m.get("keyword") == null ? "" : String.valueOf(m.get("keyword")).trim();
+                    if (kw.isEmpty()) continue;
+                    String badge = m.get("badge") == null ? "" : String.valueOf(m.get("badge")).trim().toUpperCase();
+                    Map<String, Object> row = new LinkedHashMap<>();
+                    row.put("keyword", kw);
+                    row.put("score", 0);
+                    row.put("isNew", "NEW".equals(badge));
+                    row.put("isHot", "HOT".equals(badge));
+                    out.add(row);
+                }
+                if (!out.isEmpty()) {
+                    return out;
+                }
+            }
+        } catch (Exception ignore) {
+            // 表未创建或查询失败时：回退到自动热搜
+        }
+
         // score 由 scheduler 计算/刷新；如果 scheduler 未跑过，仍可按 score 查询（默认 0）
         String sql = """
                 SELECT keyword, score, first_seen_time

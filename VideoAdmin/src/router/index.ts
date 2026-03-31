@@ -46,6 +46,12 @@ const router = createRouter({
           component: () => import('@/views/HomeHeroCarouselView.vue'),
           meta: { title: '首页轮播配置' },
         },
+        {
+          path: 'hot-search',
+          name: 'hot-search',
+          component: () => import('@/views/HotSearchManageView.vue'),
+          meta: { title: '热搜管理' },
+        },
       ],
     },
   ],

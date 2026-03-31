@@ -1,6 +1,6 @@
 <template>
   <div class="hot-page">
-    <TopHeader />
+    <TopHeader :transparent-at-top="false" />
 
     <main class="hot-main">
       <section class="hot-header">
@@ -168,14 +168,15 @@ onMounted(() => {
 <style scoped>
 .hot-page {
   min-width: 1300px;
-  background: #f4f5f7;
+  background: #ffffff;
   min-height: 100vh;
+  padding-top: 64px;
 }
 
 .hot-main {
   width: 86%;
   max-width: 1800px;
-  margin: 24px auto 40px;
+  margin: 16px auto 40px;
 }
 
 .hot-header {

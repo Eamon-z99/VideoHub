@@ -311,6 +311,21 @@ CREATE TABLE `search_keyword_events`  (
 ) ENGINE = InnoDB AUTO_INCREMENT = 31 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci ROW_FORMAT = Dynamic;
 
 -- ----------------------------
+-- Table structure for admin_hot_search_slots
+-- ----------------------------
+DROP TABLE IF EXISTS `admin_hot_search_slots`;
+CREATE TABLE `admin_hot_search_slots`  (
+  `slot` int NOT NULL COMMENT '槽位：1-10',
+  `keyword` varchar(200) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL DEFAULT NULL COMMENT '热搜词（为空表示该槽位未配置）',
+  `badge` varchar(10) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT '' COMMENT '展示角标：NEW/HOT/空（只允许一个）',
+  `update_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`slot`) USING BTREE,
+  UNIQUE INDEX `uk_admin_hot_search_keyword`(`keyword` ASC) USING BTREE,
+  CONSTRAINT `chk_admin_hot_search_slot` CHECK (`slot` >= 1 AND `slot` <= 10),
+  CONSTRAINT `chk_admin_hot_search_badge` CHECK (`badge` IN ('', 'NEW', 'HOT'))
+) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = utf8mb4_unicode_ci COMMENT = '管理端手动配置热搜10条（覆盖自动热搜）' ROW_FORMAT = Dynamic;
+
+-- ----------------------------
 -- Table structure for transcode_tasks
 -- ----------------------------
 DROP TABLE IF EXISTS `transcode_tasks`;
