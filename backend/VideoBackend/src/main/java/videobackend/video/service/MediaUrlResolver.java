@@ -68,6 +68,13 @@ public class MediaUrlResolver {
         }
         String value = raw.trim();
         if (!enabled) {
+            // CDN 关闭时：若历史值是绝对 URL（CDN/旧域名），尽量回退到本地相对路径（/avatars/**、/feed-images/**）
+            if (value.startsWith("http://") || value.startsWith("https://")) {
+                String localPath = extractMarkerPath(value, markerPath);
+                if (StringUtils.hasText(localPath)) {
+                    return localPath;
+                }
+            }
             return value;
         }
 
@@ -81,6 +88,23 @@ public class MediaUrlResolver {
             return baseUrl + value;
         }
         return baseUrl + "/" + value;
+    }
+
+    private String extractMarkerPath(String absoluteUrl, String markerPath) {
+        try {
+            URI uri = new URI(absoluteUrl);
+            String path = uri.getPath();
+            if (!StringUtils.hasText(path)) {
+                return null;
+            }
+            int idx = path.indexOf(markerPath);
+            if (idx < 0) {
+                return null;
+            }
+            return path.substring(idx);
+        } catch (URISyntaxException e) {
+            return null;
+        }
     }
 
     private String rewriteAbsoluteUrlToCdn(String absoluteUrl, String baseUrl, String markerPath) {

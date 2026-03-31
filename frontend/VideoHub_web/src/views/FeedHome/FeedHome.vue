@@ -9,7 +9,7 @@
         <!-- inlined: UserCard.vue -->
         <div class="user-card">
           <div class="avatar">
-            <img v-if="userAvatar" :src="userAvatar" :alt="userName" />
+            <img :src="resolveAvatar(userAvatar)" :alt="userName" @error="onAvatarImgError" />
           </div>
           <div class="info">
             <div class="name">{{ userName || '未登录' }}</div>
@@ -175,7 +175,7 @@
             @click="selectFollowingUser(user.id)"
           >
             <div class="bubble">
-              <img v-if="user.avatar" :src="normalizeAvatarUrl(user.avatar)" :alt="user.username" />
+              <img :src="resolveAvatar(user.avatar)" :alt="user.username" @error="onAvatarImgError" />
             </div>
             <div class="label">{{ user.username || '用户' }}</div>
           </div>
@@ -195,7 +195,7 @@
           >
             <header class="meta">
               <div class="avatar">
-                <img v-if="item.uploaderAvatar" :src="item.uploaderAvatar" :alt="item.uploaderName" />
+                <img :src="resolveAvatar(item.uploaderAvatar)" :alt="item.uploaderName" @error="onAvatarImgError" />
               </div>
               <div class="who">
                 <div class="name">{{ item.uploaderName || (item.type === 'video' ? '未知UP主' : '未知用户') }}</div>
@@ -311,6 +311,26 @@ const normalizeAvatarUrl = (url) => {
   return '/' + url
 }
 
+const DEFAULT_GREY_AVATAR = `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(
+  `<svg xmlns="http://www.w3.org/2000/svg" width="120" height="120" viewBox="0 0 120 120">
+    <circle cx="60" cy="60" r="58" fill="#d1d5db"/>
+    <circle cx="60" cy="48" r="18" fill="#b6c0ca"/>
+    <path d="M22 120c6-30 25-46 38-46s32 16 38 46" fill="#b6c0ca"/>
+  </svg>`
+)}`
+
+const resolveAvatar = (url) => {
+  if (!url) return DEFAULT_GREY_AVATAR
+  const out = normalizeAvatarUrl(url)
+  return out || DEFAULT_GREY_AVATAR
+}
+
+const onAvatarImgError = (e) => {
+  if (!e || !e.target) return
+  if (e.target.src === DEFAULT_GREY_AVATAR) return
+  e.target.src = DEFAULT_GREY_AVATAR
+}
+
 // 用户信息（与 UserDropdown.vue 保持一致）
 const user = computed(() => userStore.user || {})
 const userName = computed(() => {
@@ -319,8 +339,7 @@ const userName = computed(() => {
 
 const userAvatar = computed(() => {
   const avatar = user.value.avatar || user.value.avatarUrl || ''
-  if (!avatar) return ''
-  return normalizeAvatarUrl(avatar)
+  return resolveAvatar(avatar)
 })
 
 const userStats = ref({

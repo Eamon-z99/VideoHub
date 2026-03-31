@@ -80,7 +80,7 @@
         v-if="isAuthenticated"
       >
         <div class="avatar">
-          <img v-if="userAvatar" :src="userAvatar" :alt="displayName" />
+          <img :src="userAvatar" :alt="displayName" @error="onAvatarError" />
         </div>
         <UserDropdown 
           v-model:visible="showUserDropdown"
@@ -320,11 +320,26 @@ const displayName = computed(() => {
   return user.value.username || user.value.loginAccount || '未登录'
 })
 
+const DEFAULT_GREY_AVATAR = `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(
+  `<svg xmlns="http://www.w3.org/2000/svg" width="120" height="120" viewBox="0 0 120 120">
+    <circle cx="60" cy="60" r="58" fill="#d1d5db"/>
+    <circle cx="60" cy="48" r="18" fill="#b6c0ca"/>
+    <path d="M22 120c6-30 25-46 38-46s32 16 38 46" fill="#b6c0ca"/>
+  </svg>`
+)}`
+
 const userAvatar = computed(() => {
   const avatar = user.value.avatar || user.value.avatarUrl || ''
-  if (!avatar) return ''
+  if (!avatar) return DEFAULT_GREY_AVATAR
   return normalizeAvatarUrl(avatar)
 })
+
+const onAvatarError = (e: Event) => {
+  const img = e.target as HTMLImageElement | null
+  if (!img) return
+  if (img.src === DEFAULT_GREY_AVATAR) return
+  img.src = DEFAULT_GREY_AVATAR
+}
 
 // 加载用户资料
 const loadUserProfile = async () => {
@@ -439,12 +454,9 @@ onMounted(() => {
     }
   }
   
-  // 如果用户已登录但没有头像，自动加载用户资料
+  // 用户已登录时，主动拉取一次最新资料（用于同步头像 CDN 开关切换后的地址）
   if (userStore.isAuthenticated) {
-    const currentUser = user.value || {}
-    if (!currentUser.avatar && !currentUser.avatarUrl) {
-      loadUserProfile()
-    }
+    loadUserProfile()
   }
 })
 
@@ -497,10 +509,7 @@ watch(showUserDropdown, (val) => {
 // 监听用户状态变化，确保头像正确更新
 watch(() => userStore.isAuthenticated, (isAuth) => {
   if (isAuth) {
-    const currentUser = user.value || {}
-    if (!currentUser.avatar && !currentUser.avatarUrl) {
-      loadUserProfile()
-    }
+    loadUserProfile()
   }
 })
 

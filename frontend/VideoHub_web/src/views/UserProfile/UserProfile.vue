@@ -14,7 +14,7 @@
               :class="{ 'avatar-wrap-disabled': !canEditProfile }"
               @click="onChangeAvatarClick"
             >
-              <img class="avatar" :src="avatar" alt="avatar" />
+              <img class="avatar" :src="avatar" alt="avatar" @error="onAvatarImageError" />
               <div v-if="avatarUploading" class="avatar-mask">上传中...</div>
               <div
                 v-if="canEditProfile && avatarReviewStatus === 'PENDING'"
@@ -1710,6 +1710,13 @@ export default {
       }
       // 其他情况，当作相对路径处理
       return '/' + url
+    },
+    onAvatarImageError (e) {
+      const img = e?.target
+      if (!img) return
+      if (img.src === DEFAULT_GREY_AVATAR) return
+      img.src = DEFAULT_GREY_AVATAR
+      this.avatar = DEFAULT_GREY_AVATAR
     },
     normalizeImageUrl (url) {
       if (!url) return ''

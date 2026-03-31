@@ -400,6 +400,7 @@ public class VideoSubmissionService {
                 """;
         List<Map<String, Object>> list = jdbcTemplate.queryForList(sql, safeSize, offset);
         list.forEach(this::attachPlayableUrl);
+        list.forEach(this::attachSubmissionCoverUrl);
 
         Long total = jdbcTemplate.queryForObject(
                 "SELECT COUNT(*) FROM video_submissions WHERE review_status='PENDING'",
@@ -445,6 +446,7 @@ public class VideoSubmissionService {
                 """;
         List<Map<String, Object>> list = jdbcTemplate.queryForList(sql, safeSize, offset);
         list.forEach(this::attachPlayableUrl);
+        list.forEach(this::attachSubmissionCoverUrl);
 
         Long total = jdbcTemplate.queryForObject(
                 """
@@ -887,6 +889,25 @@ public class VideoSubmissionService {
         String sourceFile = row.get("source_file") == null ? null : String.valueOf(row.get("source_file"));
         String storagePath = row.get("storage_path") == null ? null : String.valueOf(row.get("storage_path"));
         row.put("play_url", buildPlayableUrl(sourceFile, storagePath));
+    }
+
+    /**
+     * 管理端投稿列表封面地址统一走 LocalVideoService，避免前端自行推断路径导致“看起来像没走开关”。
+     */
+    private void attachSubmissionCoverUrl(Map<String, Object> row) {
+        if (row == null) {
+            return;
+        }
+        String sourceFile = row.get("source_file") == null ? null : String.valueOf(row.get("source_file"));
+        String coverRaw = row.get("cover_url") == null ? null : String.valueOf(row.get("cover_url"));
+        if (!StringUtils.hasText(coverRaw)) {
+            return;
+        }
+        // 若数据库里已是绝对 URL（历史数据/手工数据），保持原值；否则按当前开关解析
+        String resolved = (coverRaw.startsWith("http://") || coverRaw.startsWith("https://"))
+                ? coverRaw
+                : localVideoService.buildCoverPublicUrl(sourceFile, coverRaw);
+        row.put("cover_url", resolved);
     }
 
     private String buildPlayableUrl(String sourceFile, String storagePath) {

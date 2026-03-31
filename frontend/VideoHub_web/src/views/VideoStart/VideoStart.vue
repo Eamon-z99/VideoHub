@@ -11,8 +11,7 @@
         <div class="title-row">
           <h1 class="title">{{ title }}</h1>
           <div v-if="isWidescreen" class="uploader-inline">
-            <img v-if="uploader.avatar" class="u-avatar" :src="uploader.avatar" :alt="uploader.name || '作者'" />
-            <div v-else class="u-avatar-placeholder"></div>
+            <img class="u-avatar" :src="resolveAvatar(uploader.avatar)" :alt="uploader.name || '作者'" @error="onAvatarImgError" />
             <div class="u-info">
               <div class="u-name">{{ uploader.name || '用户上传' }}</div>
             </div>
@@ -665,8 +664,7 @@
     <!-- 右侧推荐区 -->
     <aside class="sidebar">
       <div v-if="!isWidescreen" class="uploader-card">
-        <img v-if="uploader.avatar" class="u-avatar" :src="uploader.avatar" :alt="uploader.name || '作者'" />
-        <div v-else class="u-avatar-placeholder"></div>
+        <img class="u-avatar" :src="resolveAvatar(uploader.avatar)" :alt="uploader.name || '作者'" @error="onAvatarImgError" />
         <div class="u-info">
           <div class="u-name">{{ uploader.name || '用户上传' }}</div>
           <div class="u-stats">视频 {{ uploader.videoCount }} · 粉丝 {{ uploader.fans }}</div>
@@ -1367,6 +1365,14 @@ const showExpandBtn = computed(
 )
 
 // 规范化头像 URL
+const DEFAULT_GREY_AVATAR = `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(
+  `<svg xmlns="http://www.w3.org/2000/svg" width="120" height="120" viewBox="0 0 120 120">
+    <circle cx="60" cy="60" r="58" fill="#d1d5db"/>
+    <circle cx="60" cy="48" r="18" fill="#b6c0ca"/>
+    <path d="M22 120c6-30 25-46 38-46s32 16 38 46" fill="#b6c0ca"/>
+  </svg>`
+)}`
+
 const normalizeAvatarUrl = (url) => {
   if (!url) return ''
   // data URL（默认灰头像）直接返回
@@ -1378,6 +1384,18 @@ const normalizeAvatarUrl = (url) => {
     return url
   }
   return '/' + url
+}
+
+const resolveAvatar = (url) => {
+  if (!url) return DEFAULT_GREY_AVATAR
+  const out = normalizeAvatarUrl(url)
+  return out || DEFAULT_GREY_AVATAR
+}
+
+const onAvatarImgError = (e) => {
+  if (!e || !e.target) return
+  if (e.target.src === DEFAULT_GREY_AVATAR) return
+  e.target.src = DEFAULT_GREY_AVATAR
 }
 
 // 格式化数字
