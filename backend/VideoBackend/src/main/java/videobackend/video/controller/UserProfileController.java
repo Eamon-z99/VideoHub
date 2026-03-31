@@ -5,6 +5,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 import videobackend.video.model.User;
+import videobackend.video.service.AvatarSubmissionService;
 import videobackend.video.service.MediaUrlResolver;
 import videobackend.video.service.ProfileVisitService;
 import videobackend.video.service.UserLevelService;
@@ -21,17 +22,20 @@ import java.util.Map;
 public class UserProfileController {
 
     private final UserProfileService userProfileService;
+    private final AvatarSubmissionService avatarSubmissionService;
     private final ProfileVisitService profileVisitService;
     private final UserLevelService userLevelService;
     private final JwtUtil jwtUtil;
     private final MediaUrlResolver mediaUrlResolver;
 
     public UserProfileController(UserProfileService userProfileService,
+                                 AvatarSubmissionService avatarSubmissionService,
                                  ProfileVisitService profileVisitService,
                                  UserLevelService userLevelService,
                                  JwtUtil jwtUtil,
                                  MediaUrlResolver mediaUrlResolver) {
         this.userProfileService = userProfileService;
+        this.avatarSubmissionService = avatarSubmissionService;
         this.profileVisitService = profileVisitService;
         this.userLevelService = userLevelService;
         this.jwtUtil = jwtUtil;
@@ -67,10 +71,15 @@ public class UserProfileController {
             if (userId == null) {
                 return ResponseEntity.status(401).body(Map.of("success", false, "message", "未登录或登录已过期"));
             }
-            User user = userProfileService.updateAvatar(userId, file);
+            Map<String, Object> submit = avatarSubmissionService.submitAvatar(userId, file);
+            // 兼容旧前端字段：avatar 仍然返回“当前生效头像”（users.avatar），pendingAvatar/状态供新前端使用
+            User user = userProfileService.getUserById(userId)
+                    .orElseThrow(() -> new IllegalArgumentException("用户不存在"));
             return ResponseEntity.ok(Map.of(
                     "success", true,
-                    "avatar", mediaUrlResolver.resolveAvatar(user.getAvatar())
+                    "avatar", mediaUrlResolver.resolveAvatar(user.getAvatar()),
+                    "avatarReviewStatus", submit.getOrDefault("status", AvatarSubmissionService.STATUS_PENDING),
+                    "pendingAvatar", submit.getOrDefault("pendingAvatar", "")
             ));
         } catch (IllegalArgumentException e) {
             return ResponseEntity.badRequest().body(Map.of("success", false, "message", e.getMessage()));
@@ -142,6 +151,13 @@ public class UserProfileController {
         payload.put("avatar", mediaUrlResolver.resolveAvatar(user.getAvatar()));
         payload.put("bio", user.getBio());
         payload.put("createTime", user.getCreateTime());
+        Map<String, Object> latest = avatarSubmissionService.getLatestForUser(user.getId());
+        if (!latest.isEmpty()) {
+            payload.put("avatarReviewStatus", latest.getOrDefault("status", ""));
+            payload.put("pendingAvatar", latest.getOrDefault("avatar_url", ""));
+            payload.put("avatarReviewComment", latest.getOrDefault("review_comment", ""));
+            payload.put("avatarReviewTime", latest.getOrDefault("review_time", null));
+        }
         putLevel(payload, userIdForLevel);
         return payload;
     }

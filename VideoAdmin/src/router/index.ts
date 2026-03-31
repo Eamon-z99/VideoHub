@@ -23,6 +23,12 @@ const router = createRouter({
           meta: { title: '待审核' },
         },
         {
+          path: 'avatar-review',
+          name: 'avatar-review',
+          component: () => import('@/views/AvatarReviewView.vue'),
+          meta: { title: '头像审核' },
+        },
+        {
           path: 'publish',
           name: 'publish',
           component: () => import('@/views/ApprovedUnpublishedView.vue'),

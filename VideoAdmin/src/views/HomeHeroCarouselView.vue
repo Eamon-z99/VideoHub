@@ -178,6 +178,51 @@ async function onPageSizeChange(s: number) {
     <el-card shadow="never">
       <template #header>
         <div style="display: flex; align-items: center; justify-content: space-between; gap: 12px; width: 100%">
+          <span>已选轮播（顺序即展示顺序）</span>
+          <el-button type="primary" :loading="saving" @click="onSave">
+            保存配置
+          </el-button>
+        </div>
+      </template>
+
+      <div v-if="selectedVideos.length === 0" style="color: #9ca3af; font-size: 13px; line-height: 1.6">
+        暂未选择。保存后首页将回退为随机展示。
+      </div>
+
+      <div v-else class="selected-list">
+        <div v-for="(it, idx) in selectedVideos" :key="String(it.videoId || '') + '-' + idx" class="selected-row">
+          <div class="selected-index">{{ idx + 1 }}</div>
+          <div class="selected-cover" :style="coverStyle(it)" />
+
+          <div class="selected-meta">
+            <div class="selected-title-row">
+              <span class="selected-title">{{ it.title || '未命名视频' }}</span>
+              <span class="selected-uploader">{{ it.uploaderName || '-' }}</span>
+            </div>
+            <div class="selected-desc">{{ it.description || '' }}</div>
+            <div class="selected-stat">
+              点赞：{{ it.likeCount ?? 0 }}
+            </div>
+          </div>
+
+          <div class="selected-actions">
+            <el-button :disabled="idx === 0" size="small" @click="moveSelected(idx, -1)">上移</el-button>
+            <el-button
+              :disabled="idx === selectedVideos.length - 1"
+              size="small"
+              @click="moveSelected(idx, 1)"
+            >
+              下移
+            </el-button>
+            <el-button size="small" type="danger" @click="toggleSelect(it, false)">移除</el-button>
+          </div>
+        </div>
+      </div>
+    </el-card>
+
+    <el-card shadow="never">
+      <template #header>
+        <div style="display: flex; align-items: center; justify-content: space-between; gap: 12px; width: 100%">
           <span>首页轮播图配置</span>
           <span style="color: #6b7280; font-size: 12px">勾选指定视频；不勾选则回退随机；最多展示前 6 个</span>
         </div>
@@ -250,51 +295,6 @@ async function onPageSizeChange(s: number) {
           @current-change="onPageChange"
           @size-change="onPageSizeChange"
         />
-      </div>
-    </el-card>
-
-    <el-card shadow="never">
-      <template #header>
-        <div style="display: flex; align-items: center; justify-content: space-between; gap: 12px; width: 100%">
-          <span>已选轮播（顺序即展示顺序）</span>
-          <el-button type="primary" :loading="saving" @click="onSave">
-            保存配置
-          </el-button>
-        </div>
-      </template>
-
-      <div v-if="selectedVideos.length === 0" style="color: #9ca3af; font-size: 13px; line-height: 1.6">
-        暂未选择。保存后首页将回退为随机展示。
-      </div>
-
-      <div v-else class="selected-list">
-        <div v-for="(it, idx) in selectedVideos" :key="String(it.videoId || '') + '-' + idx" class="selected-row">
-          <div class="selected-index">{{ idx + 1 }}</div>
-          <div class="selected-cover" :style="coverStyle(it)" />
-
-          <div class="selected-meta">
-            <div class="selected-title-row">
-              <span class="selected-title">{{ it.title || '未命名视频' }}</span>
-              <span class="selected-uploader">{{ it.uploaderName || '-' }}</span>
-            </div>
-            <div class="selected-desc">{{ it.description || '' }}</div>
-            <div class="selected-stat">
-              点赞：{{ it.likeCount ?? 0 }}
-            </div>
-          </div>
-
-          <div class="selected-actions">
-            <el-button :disabled="idx === 0" size="small" @click="moveSelected(idx, -1)">上移</el-button>
-            <el-button
-              :disabled="idx === selectedVideos.length - 1"
-              size="small"
-              @click="moveSelected(idx, 1)"
-            >
-              下移
-            </el-button>
-            <el-button size="small" type="danger" @click="toggleSelect(it, false)">移除</el-button>
-          </div>
-        </div>
       </div>
     </el-card>
   </div>

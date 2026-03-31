@@ -16,6 +16,19 @@
             >
               <img class="avatar" :src="avatar" alt="avatar" />
               <div v-if="avatarUploading" class="avatar-mask">上传中...</div>
+              <div
+                v-if="canEditProfile && avatarReviewStatus === 'PENDING'"
+                class="avatar-review-badge pending"
+              >
+                待审
+              </div>
+              <div
+                v-else-if="canEditProfile && avatarReviewStatus === 'REJECTED'"
+                class="avatar-review-badge rejected"
+                :title="avatarReviewComment || '头像审核驳回'"
+              >
+                驳回
+              </div>
             </div>
             <input
               ref="avatarInput"
@@ -937,6 +950,10 @@ export default {
       avatar: DEFAULT_GREY_AVATAR,
       bio: '',
       avatarUploading: false,
+      avatarReviewStatus: '',
+      pendingAvatar: '',
+      avatarReviewComment: '',
+      avatarReviewTime: null,
       // store 引用（用于刷新后从 localStorage 同步头像/签名）
       userStore: null,
       stats: { following: 0, followers: 0, likes: 0, views: 0 },
@@ -1755,6 +1772,10 @@ export default {
             this.avatar = this.normalizeAvatarUrl(data.avatar)
           }
           this.bio = data.bio || ''
+          this.avatarReviewStatus = data.avatarReviewStatus || ''
+          this.pendingAvatar = data.pendingAvatar ? this.normalizeAvatarUrl(data.pendingAvatar) : ''
+          this.avatarReviewComment = data.avatarReviewComment || ''
+          this.avatarReviewTime = data.avatarReviewTime || null
           // 与顶部下拉一致：以 /api/user/level/progress 为准
           if (ld && (ld.success !== false) && ld.level != null) {
             this.applyHeaderLevelFromProgress(ld)
@@ -1827,17 +1848,28 @@ export default {
       this.avatarUploading = true
       try {
         const { data } = await apiUpdateAvatar(file)
-        if (data && data.success && data.avatar) {
-          const normalizedAvatar = this.normalizeAvatarUrl(data.avatar)
-          this.avatar = normalizedAvatar
-          ElMessage.success('头像已更新')
-          // 更新全局 store
-          const userStore = useUserStore()
-          const currentUser = userStore.user || {}
-          userStore.setUser({
-            ...currentUser,
-            avatar: normalizedAvatar
-          })
+        if (data && data.success) {
+          const status = data.avatarReviewStatus || ''
+          const pending = data.pendingAvatar || ''
+          if (pending) {
+            this.pendingAvatar = this.normalizeAvatarUrl(pending)
+          }
+          this.avatarReviewStatus = status || (pending ? 'PENDING' : '')
+          this.avatarReviewComment = ''
+          this.avatarReviewTime = null
+
+          // 兼容旧逻辑：avatar 仍是当前生效头像（审核通过前不会变化）
+          if (data.avatar) {
+            const normalizedAvatar = this.normalizeAvatarUrl(data.avatar)
+            this.avatar = normalizedAvatar
+            const userStore = useUserStore()
+            const currentUser = userStore.user || {}
+            userStore.setUser({
+              ...currentUser,
+              avatar: normalizedAvatar
+            })
+          }
+          ElMessage.success(this.avatarReviewStatus === 'PENDING' ? '头像已提交审核' : '操作成功')
         } else {
           ElMessage.error(data?.message || '头像更新失败')
         }
@@ -2738,6 +2770,30 @@ export default {
     justify-content: center;
     font-size: 12px;
     color: #fff;
+  }
+
+  .avatar-review-badge {
+    position: absolute;
+    left: 50%;
+    bottom: -8px;
+    transform: translateX(-50%);
+    padding: 2px 8px;
+    border-radius: 999px;
+    font-size: 12px;
+    line-height: 18px;
+    color: #fff;
+    z-index: 100000;
+    border: 1px solid rgba(255, 255, 255, 0.7);
+    backdrop-filter: blur(6px);
+    white-space: nowrap;
+  }
+
+  .avatar-review-badge.pending {
+    background: rgba(0, 161, 214, 0.85);
+  }
+
+  .avatar-review-badge.rejected {
+    background: rgba(239, 68, 68, 0.85);
   }
 
   .user-meta {

@@ -12,12 +12,12 @@ import java.util.Optional;
 public class UserProfileService {
 
     private final UserRepository userRepository;
-    private final AvatarStorageService avatarStorageService;
+    private final AvatarSubmissionService avatarSubmissionService;
 
     public UserProfileService(UserRepository userRepository,
-                              AvatarStorageService avatarStorageService) {
+                              AvatarSubmissionService avatarSubmissionService) {
         this.userRepository = userRepository;
-        this.avatarStorageService = avatarStorageService;
+        this.avatarSubmissionService = avatarSubmissionService;
     }
 
     public Optional<User> getUserById(Long userId) {
@@ -30,9 +30,12 @@ public class UserProfileService {
                 .orElseThrow(() -> new IllegalArgumentException("用户不存在"));
     }
 
+    /**
+     * 头像修改改为“提交审核”：写入 avatar_submissions，审核通过后再回写 users.avatar。
+     * 返回用户实体用于兼容调用方（此处不会立刻变更 avatar 字段）。
+     */
     public User updateAvatar(Long userId, MultipartFile file) throws IOException {
-        String avatarUrl = avatarStorageService.storeAvatar(userId, file);
-        userRepository.updateAvatar(userId, avatarUrl);
+        avatarSubmissionService.submitAvatar(userId, file);
         return userRepository.findById(userId)
                 .orElseThrow(() -> new IllegalArgumentException("用户不存在"));
     }
