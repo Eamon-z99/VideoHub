@@ -37,7 +37,7 @@ public class MediaUrlResolver {
     }
 
     public String resolveAvatar(String raw) {
-        return resolve(raw, avatarCdnEnabled, avatarCdnBaseUrl, "/avatars/");
+        return resolveAvatarInternal(raw);
     }
 
     public String resolveFeedImage(String raw) {
@@ -88,6 +88,138 @@ public class MediaUrlResolver {
             return baseUrl + value;
         }
         return baseUrl + "/" + value;
+    }
+
+    /**
+     * 头像 URL 解析规则（兼容历史存量）：
+     * - 数据库 users.avatar 推荐存储“相对 key”（如 2026/03/xxx.jpg），由后端按开关拼接完整 URL
+     * - 兼容历史值可能包含：/avatars/**、avatars/**、CDN 绝对 URL、以及错误的 .../Avatars/avatars/**（重复目录）
+     *
+     * 目标：当 avatar.cdn.enabled=true 时，对外统一输出：
+     *   {avatar.cdn.base-url}/{key}
+     * 其中 key 不包含 avatars/ 或 /avatars/ 前缀。
+     */
+    private String resolveAvatarInternal(String raw) {
+        if (!StringUtils.hasText(raw)) {
+            return raw;
+        }
+        String value = raw.trim();
+
+        // 1) CDN 关闭：尽量回退到本地 /avatars/** 访问路径
+        if (!avatarCdnEnabled) {
+            if (value.startsWith("http://") || value.startsWith("https://")) {
+                // 尝试从绝对 URL 中抽取头像 key（兼容 /avatars/ 与 /Avatars/）
+                String key = extractAvatarKeyFromAbsoluteUrl(value);
+                return StringUtils.hasText(key) ? ("/avatars/" + key) : value;
+            }
+            if (value.startsWith("/avatars/")) {
+                return value;
+            }
+            if (value.startsWith("avatars/")) {
+                return "/avatars/" + value.substring("avatars/".length());
+            }
+            if (value.startsWith("/")) {
+                // 非标准但保持原样（可能是 /2026/...）
+                return value;
+            }
+            // 兜底：视为 key
+            return "/avatars/" + value;
+        }
+
+        // 2) CDN 开启：统一输出 {baseUrl}/{key}
+        if (value.startsWith("http://") || value.startsWith("https://")) {
+            // 若已经是以 baseUrl 开头的 URL，仍需修正可能的重复 /avatars/ 前缀
+            if (startsWithIgnoreCase(value, avatarCdnBaseUrl)) {
+                String rest = value.substring(avatarCdnBaseUrl.length());
+                String key = normalizeAvatarKey(rest);
+                return avatarCdnBaseUrl + "/" + key;
+            }
+
+            // 其他域名或历史绝对 URL：尽量抽取 key 后映射到当前 CDN baseUrl
+            String key = extractAvatarKeyFromAbsoluteUrl(value);
+            if (StringUtils.hasText(key)) {
+                return avatarCdnBaseUrl + "/" + key;
+            }
+            return value;
+        }
+
+        // 非绝对 URL：允许 /avatars/**、avatars/**、/key、key
+        String key = normalizeAvatarKey(value);
+        return avatarCdnBaseUrl + "/" + key;
+    }
+
+    /**
+     * 头像在 CDN 上的相对路径（key）规范化：
+     * - 不包含 query/hash
+     * - 不以 "/" 开头
+     * - **不剥离** "avatars/" 前缀（因为 COS 存量对象路径实际为 Avatars/avatars/**）
+     *
+     * 这与“完整地址拼接逻辑 = {baseUrl} + users.avatar 字段”保持一致：
+     * - users.avatar 可能是 "/avatars/xxx" 或 "avatars/xxx" 或 "xxx"
+     */
+    private String normalizeAvatarKey(String maybeKey) {
+        if (!StringUtils.hasText(maybeKey)) {
+            return "";
+        }
+        String k = maybeKey.trim();
+
+        // 去掉 query/hash
+        int q = k.indexOf('?');
+        if (q >= 0) k = k.substring(0, q);
+        int h = k.indexOf('#');
+        if (h >= 0) k = k.substring(0, h);
+
+        // 去掉开头的 base path 分隔符
+        while (k.startsWith("/")) {
+            k = k.substring(1);
+        }
+        return k;
+    }
+
+    private String extractAvatarKeyFromAbsoluteUrl(String absoluteUrl) {
+        try {
+            URI uri = new URI(absoluteUrl);
+            String path = uri.getPath();
+            if (!StringUtils.hasText(path)) {
+                return null;
+            }
+
+            // 优先：从 "/avatars/"（大小写不敏感）后抽 key
+            int idx = indexOfIgnoreCase(path, "/avatars/");
+            if (idx >= 0) {
+                String key = path.substring(idx + "/avatars/".length());
+                return normalizeAvatarKey(key);
+            }
+
+            // 其次：如果绝对 URL 本身就在 baseUrl 下（但可能出现 .../Avatars/avatars/...），抽取 baseUrl 之后的部分
+            if (StringUtils.hasText(avatarCdnBaseUrl) && startsWithIgnoreCase(absoluteUrl, avatarCdnBaseUrl)) {
+                String rest = absoluteUrl.substring(avatarCdnBaseUrl.length());
+                return normalizeAvatarKey(rest);
+            }
+
+            return null;
+        } catch (URISyntaxException e) {
+            return null;
+        }
+    }
+
+    private boolean startsWithIgnoreCase(String s, String prefix) {
+        if (s == null || prefix == null) return false;
+        if (s.length() < prefix.length()) return false;
+        return s.regionMatches(true, 0, prefix, 0, prefix.length());
+    }
+
+    private int indexOfIgnoreCase(String s, String needle) {
+        if (s == null || needle == null) return -1;
+        final int n = s.length();
+        final int m = needle.length();
+        if (m == 0) return 0;
+        for (int i = 0; i <= n - m; i++) {
+            if (s.regionMatches(true, i, needle, 0, m)) {
+                return i;
+            }
+        }
+        return -1;
     }
 
     private String extractMarkerPath(String absoluteUrl, String markerPath) {

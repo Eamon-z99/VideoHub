@@ -142,8 +142,9 @@
                   >
                     <img
                       class="mention-user-avatar"
-                      :src="normalizeAvatarUrl(u.avatar) || '/images/default-avatar.png'"
+                      :src="resolveAvatar(u.avatar)"
                       alt=""
+                      @error="onCommentListAvatarError"
                     />
                     <div class="mention-user-meta">
                       <span class="mention-user-name">{{ followingDisplayName(u) }}</span>
@@ -197,7 +198,7 @@
       </div>
       <div v-else v-for="item in comments" :key="item.id" class="comment-item">
         <img
-          :src="item.avatar || '/images/default-avatar.png'"
+          :src="resolveAvatar(item.avatar)"
           class="avatar"
           alt=""
           @error="onCommentListAvatarError"
@@ -274,7 +275,7 @@
               class="reply-item"
             >
               <img
-                :src="reply.avatar || '/images/default-avatar.png'"
+                :src="resolveAvatar(reply.avatar)"
                 class="reply-avatar"
                 alt=""
                 @error="onCommentListAvatarError"
@@ -513,8 +514,9 @@
                     >
                       <img
                         class="mention-user-avatar"
-                        :src="normalizeAvatarUrl(u.avatar) || '/images/default-avatar.png'"
+                        :src="resolveAvatar(u.avatar)"
                         alt=""
+                        @error="onCommentListAvatarError"
                       />
                       <div class="mention-user-meta">
                         <span class="mention-user-name">{{ followingDisplayName(u) }}</span>
@@ -701,8 +703,9 @@
                       >
                         <img
                           class="mention-user-avatar"
-                          :src="normalizeAvatarUrl(u.avatar) || '/images/default-avatar.png'"
+                          :src="resolveAvatar(u.avatar)"
                           alt=""
+                          @error="onCommentListAvatarError"
                         />
                         <div class="mention-user-meta">
                           <span class="mention-user-name">{{ followingDisplayName(u) }}</span>
@@ -1303,6 +1306,14 @@ const loadCommentTotalWithReplies = async () => {
   }
 }
 
+const DEFAULT_GREY_AVATAR = `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(
+  `<svg xmlns="http://www.w3.org/2000/svg" width="120" height="120" viewBox="0 0 120 120">
+    <circle cx="60" cy="60" r="58" fill="#d1d5db"/>
+    <circle cx="60" cy="48" r="18" fill="#b6c0ca"/>
+    <path d="M22 120c6-30 25-46 38-46s32 16 38 46" fill="#b6c0ca"/>
+  </svg>`
+)}`
+
 const normalizeAvatarUrl = (url) => {
   if (!url) return ''
   // data URL（默认灰头像）直接返回
@@ -1316,22 +1327,18 @@ const normalizeAvatarUrl = (url) => {
   return '/' + url
 }
 
+const resolveAvatar = (url) => {
+  const out = normalizeAvatarUrl(url)
+  return out || DEFAULT_GREY_AVATAR
+}
+
 /** 评论列表 / 回复行头像加载失败时回退默认图（避免破损图标与异常宽高） */
 const onCommentListAvatarError = (e) => {
   const el = e?.target
   if (!el || el.tagName !== 'IMG') return
-  const fallback = '/images/default-avatar.png'
-  try {
-    const abs = new URL(fallback, window.location.origin).href
-    if (el.src === abs || el.src.endsWith('/images/default-avatar.png')) {
-      el.onerror = null
-      return
-    }
-  } catch {
-    /* ignore */
-  }
+  if (el.src === DEFAULT_GREY_AVATAR) return
   el.onerror = null
-  el.src = fallback
+  el.src = DEFAULT_GREY_AVATAR
 }
 
 const IMG_INLINE_RE = /!\[([^\]]*)\]\(([^)]+)\)/g
